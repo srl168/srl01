@@ -1,7 +1,5 @@
-// 💡 請將 app.js 的前兩行修改為這兩行全新 UUID
 const S_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c3319999'.toLowerCase();
 const C_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b9999'.toLowerCase();
-
 const FFT_SIZE = 1024;
 
 let currentSampleRate = 20000, filteredDataLog = [], bufferIndex = 0;
@@ -49,7 +47,6 @@ async function sendHardwareParameters() {
     el.addEventListener('change', sendHardwareParameters);
 });
 
-//  修正：濾波器緩衝區全面初始化為正確的空陣列，根除 Unexpected token ',' 語法衝突
 let xv = [];
 let yv = [];
 let xv_bp = [];
@@ -79,7 +76,7 @@ function applyFilter(x) {
         xv.push(x); if(xv.length > 3) xv.shift(); yv.push(0); if(yv.length > 3) yv.shift();
         let y = (b0 * xv[xv.length-1] + b1 * xv[xv.length-2] + b2 * xv[xv.length-3]) - (a1 * yv[yv.length-2] + a2 * yv[yv.length-3]); yv[yv.length-1] = y;
         xv_bp.push(y); if(xv_bp.length > 3) xv_bp.shift(); yv_bp.push(0); if(yv_bp.length > 3) yv_bp.shift();
-        let y_bp = (bp_b[0] * xv_bp[xv_bp.length-1] + bp_b[1] * xv_bp[xv_bp.length-2] + bp_b[2] * xv_bp[xv_bp.length-3]) - (bp_a[0] * yv_bp[yv_bp.length-2] + bp_a[1] * yv_bp[yv_bp.length-3]);
+        let y_bp = (bp_b * xv_bp[xv_bp.length-1] + bp_b * xv_bp[xv_bp.length-2] + bp_b * xv_bp[xv_bp.length-3]) - (bp_a * yv_bp[yv_bp.length-2] + bp_a * yv_bp[yv_bp.length-3]);
         yv_bp[yv_bp.length-1] = y_bp; return y_bp;
     }
     return x;
@@ -105,13 +102,11 @@ document.getElementById('connectBtn').addEventListener('click', async () => {
         const service = await server.getPrimaryService(S_UUID);
         bleCharacteristicObject = await service.getCharacteristic(C_UUID); 
         
-        status.innerText = "正在核對安全金鑰 (請在提示框輸入：123455)...";
-        await bleCharacteristicObject.readValue();
-        
         status.innerText = "▶️ 藍牙與硬體雙向開通成功！";
         document.getElementById('boardSampleSlider').disabled = false; 
         document.getElementById('boardSinSlider').disabled = false;
         
+        // 💡 核心優化：直接向開放特徵值請求開通通知，完美避開 readValue 加密握手引發的閃退死結
         await bleCharacteristicObject.startNotifications();
         bleCharacteristicObject.addEventListener('characteristicvaluechanged', (e) => {
             try {
@@ -143,7 +138,6 @@ function renderLoop() {
     recentPoints.forEach(v => sumSquares += v * v); let rms = Math.sqrt(sumSquares / recentPoints.length);
     document.getElementById('vppVal').innerText = vpp.toFixed(2) + " V"; document.getElementById('rmsVal').innerText = rms.toFixed(2) + " V";
 
-    //  修正：將型態化陣列轉換為標準 JavaScript 常規實數陣列，完美餵給 math.fft
     let fftInput = []; 
     for (let i = 0; i < FFT_SIZE; i++) { 
         let idx = (bufferIndex + i) % FFT_SIZE; 
@@ -170,8 +164,8 @@ function renderLoop() {
         for (let i = 0; i < FFT_SIZE / 4; i++) { let x = i * fSlice, y = fCanvas.height - (magnitudes[i] * fCanvas.height * 4); if (i == 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y); }
         fCtx.stroke();
     } catch (fftError) {
-console.error(fftError);
+        console.error(fftError);
+    }
 }
-}
-requestAnimationFrame(renderLoop);
+requestAnimationFrame(renderLoop); 
 updateFilterCoefficients();
