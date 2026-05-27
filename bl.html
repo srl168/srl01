@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <title>ESP32 BLE Scope</title>
+    <style>
+        body { font-family: sans-serif; max-width: 900px; margin: 0 auto; padding: 15px; background: #1a1c23; color: #e1e4e8; }
+        .card { background: #24292e; border-radius: 8px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); margin-bottom: 15px; border: 1px solid #3f444d; }
+        .btn-group { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+        button { padding: 10px 20px; font-size: 13px; font-weight: bold; cursor: pointer; border: none; border-radius: 6px; }
+        .btn-primary { background: #007bff; color: #fff; }
+        .btn-speaker { background: #6f42c1; color: #fff; }
+        .btn-speaker.muted { background: #6c757d; }
+        .control-row { display: flex; flex-wrap: wrap; gap: 15px; align-items: center; margin-top: 10px; background: #2f363d; padding: 12px; border-radius: 6px; }
+        .slider-group { display: flex; align-items: center; gap: 8px; min-width: 260px; font-size: 13px; }
+        canvas { background: #111; border-radius: 6px; width: 100%; height: 260px; display: block; border: 1px solid #333; }
+        .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
+        .metric-box { background: #2f363d; border-radius: 6px; padding: 10px; text-align: center; border: 1px solid #444; font-size: 13px; }
+        .metric-val { font-size: 18px; font-weight: bold; color: #00fff6; margin-top: 4px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h3>🔬 ESP32-C3 低功耗藍牙行動示波器</h3>
+        <div class="btn-group">
+            <button id="connectBtn" class="btn-primary">🔌 連線設備 (ESP32C3_Wave)</button>
+            <button id="speakerBtn" class="btn-speaker muted">🔇 喇叭發聲：關閉</button>
+        </div>
+        <div id="status" style="font-size:13px;">狀態：等待藍牙連線...</div>
+        <div class="control-row" style="background:#1f242c;margin-top:8px;"><div class="slider-group"><label>📢 音量：</label><input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="0.2"><span id="volumeVal">20%</span></div></div>
+    </div>
+    <div class="card" style="border:1px solid #58a6ff;">
+        <h3>📡 遠端硬體參數設定</h3>
+        <div class="control-row" style="background:#1c2128;">
+            <div class="slider-group"><label style="color:#ffad00;">⚡ 採樣率:</label><input type="range" id="boardSampleSlider" min="500" max="5000" step="100" value="2000" disabled><span id="boardSampleVal" style="color:#ffad00;">2000 Hz</span></div>
+            <div class="slider-group"><label style="color:#00ff66;">🎵 訊號頻率:</label><input type="range" id="boardSinSlider" min="50" max="1000" step="50" value="200" disabled><span id="boardSinVal" style="color:#00ff66;">200 Hz</span></div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="metrics">
+            <div class="metric-box"><div>均方根值 (RMS)</div><div id="rmsVal" class="metric-val">0.00 V</div></div>
+            <div class="metric-box"><div>峰對峰值 (Vpp)</div><div id="vppVal" class="metric-val">0.00 V</div></div>
+            <div class="metric-box"><div>FFT 主頻率</div><div id="freqVal" class="metric-val" style="color:#ffad00;">0.0 Hz</div></div>
+        </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(450px,1fr));gap:15px;">
+        <div class="card"><h3>增益波形</h3><canvas id="timeCanvas"></canvas></div>
+        <div class="card"><h3>頻譜分析 (FFT)</h3><canvas id="freqCanvas"></canvas></div>
+    </div>
+    <script>
+        const SERVICE_UUID='4fafc201-1fb5-459e-8fcc-c5c9c331914b',CHARACTERISTIC_UUID='beb5483e-36e1-4688-b7f5-ea07361b26a8',FFT_SIZE=1024;
+        let currentSampleRate=2000,filteredDataLog=[],bufferIndex=0,analysisBuffer=new Float32Array(FFT_SIZE),bleCharacteristicObject=null,audioCtx=null,gainNode=null,isSpeakerOn=false;
+        const tCanvas=document.getElementById('timeCanvas'),fCanvas=document.getElementById('freqCanvas'),tCtx=tCanvas.getContext('2d'),fCtx=fCanvas.getContext('2d');
+        function initAudio(){if(!audioCtx){audioCtx=new(window.AudioContext||window.webkitAudioContext)();gainNode=audioCtx.createGain();gainNode.gain.value=parseFloat(document.getElementById('volumeSlider').value);gainNode.connect(audioCtx.destination)}if(audioCtx.state==='suspended')audioCtx.resume()}
+        document.getElementById('speakerBtn').addEventListener('click',async()=>{initAudio();isSpeakerOn=!isSpeakerOn;document.getElementById('speakerBtn').innerText=isSpeakerOn?"🔊 喇叭發聲：開啟":"🔇 喇叭發聲：關閉";document.getElementById('speakerBtn').className=isSpeakerOn?"btn-speaker":"btn-speaker muted"});
+        document.getElementById('volumeSlider').addEventListener('input',(e)=>{let v=parseFloat(e.target.value);document.getElementById('volumeVal').innerText=Math.round(v*100)+"%";if(gainNode)gainNode.gain.value=v});
+        async function sendHardwareParameters(){if(!bleCharacteristicObject)return;let sr=parseInt(document.getElementById('boardSampleSlider').value),sf=parseInt(document.getElementById('boardSinSlider').value);currentSampleRate=sr;let encoder=new TextEncoder(),buf=encoder.encode(`${sr},${sf}`);try{await bleCharacteristicObject.writeValue(buf)}catch(err){}}
+        ['boardSampleSlider','boardSinSlider'].forEach(id=>{let el=document.getElementById(id),txt=document.getElementById(id.replace('Slider','Val'));el.addEventListener('input',(e)=>{txt.innerText=e.target.value+" Hz"});el.addEventListener('change',sendHardwareParameters)});
+        document.getElementById('connectBtn').addEventListener('click',async()=>{const status=document.getElementById('status');try{const device=await navigator.bluetooth.requestDevice({filters:[{services:[SERVICE_UUID]}]});status.innerText="GATT 連線中...";const server=await device.gatt.connect(),service=await server.getPrimaryService(SERVICE_UUID);bleCharacteristicObject=await service.getCharacteristic(CHARACTERISTIC_UUID);status.innerText="▶️ 藍牙連線成功！";document.getElementById('boardSampleSlider').disabled=false;document.getElementById('boardSinSlider').disabled=false;await bleCharacteristicObject.startNotifications();const decoder=new TextDecoder('utf-8');bleCharacteristicObject.addEventListener('characteristicvaluechanged',(e)=>{let str=decoder.decode(e.target.value),points=str.split(','),now=performance.now(),audioChunk=new Float32Array(points.length);for(let i=0;i<points.length;i++){let val=parseFloat(points[i])||0;audioChunk[i]=val;filteredDataLog.push({time:now+(i*0.5),val:val});if(filteredDataLog.length>1000)filteredDataLog.shift();analysisBuffer[bufferIndex]=val;bufferIndex=(bufferIndex+1)%FFT_SIZE}if(isSpeakerOn&&audioCtx){let ab=audioCtx.createBuffer(1,audioChunk.length,currentSampleRate);ab.getChannelData(0).set(audioChunk);let src=audioCtx.createBufferSource();src.buffer=ab;src.connect(gainNode);src.start()}});status.innerText="▶️ 示波器數據接收中..."}catch(err){status.innerText="連線失敗: "+err.message}});
+        function fft(re,im){const n=re.length;if(n<=1)return;const reE=new Float32Array(n/2),imE=new Float32Array(n/2),reO=new Float32Array(n/2),imO=new Float32Array(n/2);for(let i=0;i<n/2;i++){reE[i]=re[2*i];imE[i]=im[2*i];reO[i]=re[2*i+1];imO[i]=im[2*i+1]}fft(reE,imE);fft(reO,imO);for(let i=0;i<n/2;i++){const tr=Math.cos(-2*Math.PI*i/n)*reO[i]-Math.sin(-2*Math.PI*i/n)*imO[i],tj=Math.sin(-2*Math.PI*i/n)*reO[i]+Math.cos(-2*Math.PI*i/n)*imO[i];re[i]=reE[i]+tr;im[i]=imE[i]+tj;re[i+n/2]=reE[i]-tr;im[i+n/2]=reE[i]-tj}}
+        function resize(){tCanvas.width=tCanvas.clientWidth;tCanvas.height=tCanvas.clientHeight;fCanvas.width=fCanvas.clientWidth;fCanvas.height=fCanvas.clientHeight}window.addEventListener('resize',resize);resize();
+        function renderLoop(){requestAnimationFrame(renderLoop);if(filteredDataLog.length<2)return;let recentPoints=[];for(let i=1;i<Math.min(200,filteredDataLog.length);i++){recentPoints.push(filteredDataLog[filteredDataLog.length-i].val)}let max=Math.max(...recentPoints),min=Math.min(...recentPoints),vpp=max-min,sumSquares=0;recentPoints.forEach(v=>sumSquares+=v*v);let rms=Math.sqrt(sumSquares/recentPoints.length);document.getElementById('vppVal').innerText=vpp.toFixed(2)+" V";document.getElementById('rmsVal').innerText=rms.toFixed(2)+" V";let re=new Float32Array(FFT_SIZE),im=new Float32Array(FFT_SIZE);for(let i=0;i<FFT_SIZE;i++){let idx=(bufferIndex+i)%FFT_SIZE;re[i]=analysisBuffer[idx]*(0.5*(1-Math.cos((2*Math.PI*i)/(FFT_SIZE-1))))}fft(re,im);let magnitudes=new Float32Array(FFT_SIZE/2),maxMag=0,maxIdx=0;for(let i=0;i<FFT_SIZE/2;i++){magnitudes[i]=Math.sqrt(re[i]*re[i]+im[i]*im[i])/(FFT_SIZE/2);if(i>1&&magnitudes[i]>maxMag){maxMag=magnitudes[i];maxIdx=i}}let peakFreq=maxIdx*(currentSampleRate/FFT_SIZE);document.getElementById('freqVal').innerText=maxMag>0.04?peakFreq.toFixed(1)+" Hz":"0.0 Hz";tCtx.fillStyle='#111';tCtx.fillRect(0,0,tCanvas.width,tCanvas.height);tCtx.strokeStyle='#00ff66';tCtx.lineWidth=2;tCtx.beginPath();let drawCount=Math.min(150,recentPoints.length),tSlice=tCanvas.width/(drawCount-1);for(let i=0;i<drawCount;i++){let x=i*tSlice,y=(tCanvas.height/2)-(recentPoints[recentPoints.length-drawCount+i]*(tCanvas.height/2.5));if(i===0)tCtx.moveTo(x,y);else tCtx.lineTo(x,y)}tCtx.stroke();fCtx.fillStyle='#111';fCtx.fillRect(0,0,fCanvas.width,fCanvas.height);fCtx.strokeStyle='#ffad00';fCtx.lineWidth=1.5;fCtx.beginPath();let fSlice=fCanvas.width/(FFT_SIZE/4);for(let i=0;i<FFT_SIZE/4;i++){let x=i*fSlice,y=fCanvas.height-(magnitudes[i]*fCanvas.height*2.5);if(i===0)fCtx.moveTo(x,y);else fCtx.lineTo(x,y)}fCtx.stroke()}requestAnimationFrame(renderLoop);
+    </script>
+</body>
+</html>
