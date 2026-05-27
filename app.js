@@ -96,7 +96,14 @@ document.getElementById('freq2Slider').addEventListener('input', (e) => { f2 = p
 document.getElementById('connectBtn').addEventListener('click', async () => {
     const status = document.getElementById('status');
     try {
-        const device = await navigator.bluetooth.requestDevice({ filters: [{ services: [S_UUID] }] });
+        status.innerText = "正在搜尋藍牙裝置...";
+        
+        // 💡 終極優化：改用名稱前綴搜尋，徹底繞過 128-bit UUID 廣播封包溢出的硬體限制
+        const device = await navigator.bluetooth.requestDevice({
+            filters: [{ namePrefix: 'ESP32' }],
+            optionalServices: [S_UUID]
+        });
+        
         status.innerText = "GATT 連線中..."; 
         const server = await device.gatt.connect();
         const service = await server.getPrimaryService(S_UUID);
@@ -106,7 +113,6 @@ document.getElementById('connectBtn').addEventListener('click', async () => {
         document.getElementById('boardSampleSlider').disabled = false; 
         document.getElementById('boardSinSlider').disabled = false;
         
-        // 💡 核心優化：直接向開放特徵值請求開通通知，完美避開 readValue 加密握手引發的閃退死結
         await bleCharacteristicObject.startNotifications();
         bleCharacteristicObject.addEventListener('characteristicvaluechanged', (e) => {
             try {
@@ -119,7 +125,8 @@ document.getElementById('connectBtn').addEventListener('click', async () => {
                 }
                 if (isSpeakerOn && audioCtx) {
                     if (audioCtx.state === 'suspended') audioCtx.resume();
-                    let ab = audioCtx.createBuffer(1, audioChunk.length, currentSampleRate);
+                    let safeSampleRate = Math.max(8000, currentSampleRate);
+                    let ab = audioCtx.createBuffer(1, audioChunk.length, safeSampleRate);
                     ab.getChannelData(0).set(audioChunk); let src = audioCtx.createBufferSource(); src.buffer = ab; src.connect(gainNode); src.start();
                 }
             } catch (err) {}
@@ -164,8 +171,8 @@ function renderLoop() {
         for (let i = 0; i < FFT_SIZE / 4; i++) { let x = i * fSlice, y = fCanvas.height - (magnitudes[i] * fCanvas.height * 4); if (i == 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y); }
         fCtx.stroke();
     } catch (fftError) {
-        console.error(fftError);
-    }
+console.error(fftError);
 }
-requestAnimationFrame(renderLoop); 
+}
+requestAnimationFrame(renderLoop);
 updateFilterCoefficients();
