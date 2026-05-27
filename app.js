@@ -97,19 +97,26 @@ document.getElementById('connectBtn').addEventListener('click', async () => {
     const status = document.getElementById('status');
     try {
         status.innerText = "正在搜尋藍牙裝置...";
-        
-        // 💡 終極優化：改用名稱前綴搜尋，徹底繞過 128-bit UUID 廣播封包溢出的硬體限制
         const device = await navigator.bluetooth.requestDevice({
             filters: [{ namePrefix: 'ESP32' }],
             optionalServices: [S_UUID]
         });
         
-        status.innerText = "GATT 連線中..."; 
+        // 💡 殭屍快取強制清除補丁：斷開不對等的單向假連線狀態
+        if (device.gatt.connected) {
+            status.innerText = "偵測到舊快取通道，正在強制斷開重置...";
+            await device.gatt.disconnect();
+            await new Promise(resolve => setTimeout(resolve, 300));
+        }
+        
+        status.innerText = "GATT 實體通道建立中..."; 
         const server = await device.gatt.connect();
+        
+        status.innerText = "正在開通 Primary Service 管道...";
         const service = await server.getPrimaryService(S_UUID);
         bleCharacteristicObject = await service.getCharacteristic(C_UUID); 
         
-        status.innerText = "▶️ 藍牙與硬體雙向開通成功！";
+        status.innerText = "▶️ 藍牙與硬體實體雙向開通成功！";
         document.getElementById('boardSampleSlider').disabled = false; 
         document.getElementById('boardSinSlider').disabled = false;
         
@@ -167,10 +174,10 @@ function renderLoop() {
         tCtx.stroke();
 
         fCtx.fillStyle = '#111'; fCtx.fillRect(0, 0, fCanvas.width, fCanvas.height); fCtx.strokeStyle = '#ffad00'; fCtx.lineWidth = 1.5; fCtx.beginPath();
-        let fSlice = fCanvas.width / (FFT_SIZE / 4);
-        for (let i = 0; i < FFT_SIZE / 4; i++) { let x = i * fSlice, y = fCanvas.height - (magnitudes[i] * fCanvas.height * 4); if (i == 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y); }
-        fCtx.stroke();
-    } catch (fftError) {
+let fSlice = fCanvas.width / (FFT_SIZE / 4);
+for (let i = 0; i < FFT_SIZE / 4; i++) { let x = i * fSlice, y = fCanvas.height - (magnitudes[i] * fCanvas.height * 4); if (i == 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y); }
+fCtx.stroke();
+} catch (fftError) {
 console.error(fftError);
 }
 }
