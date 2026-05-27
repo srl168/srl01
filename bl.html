@@ -93,6 +93,7 @@
     </div>
 
     <audio id="silentAudio" loop src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAAAD"></audio>
+
 <script>
     const S_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c3319999'.toLowerCase();
     const C_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b9999'.toLowerCase();
@@ -142,7 +143,6 @@
         el.addEventListener('change', sendHardwareParameters);
     });
 
-    // 💡 終極修復：改用純數值 RC 濾波變數，100% 杜絕陣列語法衝突，按鈕即刻復活！
     let lastY_lp = 0, lastX_hp = 0, lastY_hp = 0, lastY_bp1 = 0, lastX_bp2 = 0, lastY_bp2 = 0;
     let currentFilterMode = 'RAW', f1 = 1000, f2 = 3000;
 
@@ -171,7 +171,6 @@
         document.getElementById(fModes[m]).addEventListener('click', () => {
             Object.keys(fModes).forEach(k => document.getElementById(fModes[k]).classList.remove('active'));
             document.getElementById(fModes[m]).classList.add('active'); currentFilterMode = m;
-            document.getElementById('f2Container').style.display = m === 'BP' ? 'flex' : 'none';
         });
     });
 
@@ -187,21 +186,26 @@
                 optionalServices: [S_UUID]
             });
             
+            // 💡 終極修正補丁：如果被系統卡在殭屍快取假連線中，強行在底層執行一輪 Disconnect 中斷
             if (device.gatt.connected) {
-                status.innerText = "正在強制重置通道...";
+                status.innerText = "發現舊暫存通道，正在強制斷開重啟...";
                 await device.gatt.disconnect();
-                await new Promise(r => setTimeout(r, 300));
+                await new Promise(r => setTimeout(r, 400));
             }
             
-            status.innerText = "GATT 實體連線中..."; 
+            status.innerText = "GATT 實體有權握手中..."; 
+            // 💡 關鍵動作：重新發起乾淨的實體硬體連線，強迫板子端（AP）實時跳出回應並對接
             const server = await device.gatt.connect();
+            
+            status.innerText = "正在激活小寫 Primary Service 管道...";
             const service = await server.getPrimaryService(S_UUID);
             bleCharacteristicObject = await service.getCharacteristic(C_UUID); 
             
-            status.innerText = "▶️ 藍牙與硬體雙向開通成功！";
+            status.innerText = "▶️ 藍牙與實體硬體雙向同步開通！";
             document.getElementById('boardSampleSlider').disabled = false; 
             document.getElementById('boardSinSlider').disabled = false;
             
+            // 💡 關鍵修正點：必須先將監聽事件綁定就緒，最後一刻才發射 startNotifications 指令
             bleCharacteristicObject.addEventListener('characteristicvaluechanged', (e) => {
                 try {
                     let view = e.target.value, len = view.byteLength / 4, audioChunk = new Float32Array(len);
@@ -219,9 +223,9 @@
                 } catch (err) {}
             });
 
-            status.innerText = "正在激活高頻數據通道...";
+            status.innerText = "正在開通高頻 Notify 通知資料流...";
             await bleCharacteristicObject.startNotifications();
-            status.innerText = "▶️ 示波器數據接收中...";
+            status.innerText = "▶️ 示波器數據流全面接收中...";
         } catch (err) { status.innerText = "連線失敗: " + err.message; }
     });
 
