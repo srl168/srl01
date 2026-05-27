@@ -1,5 +1,7 @@
-const S_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b'.toLowerCase();
-const C_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8'.toLowerCase();
+// 💡 請將 app.js 的前兩行修改為這兩行全新 UUID
+const S_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c3319999'.toLowerCase();
+const C_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b9999'.toLowerCase();
+
 const FFT_SIZE = 1024;
 
 let currentSampleRate = 20000, filteredDataLog = [], bufferIndex = 0;
