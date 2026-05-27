@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP32-C3 科研音訊終端</title>
-    <!-- 引用國際標準微縮科學繪圖與信號庫，精簡網頁體積防分段 -->
+    <title>ESP32 BLE Scope</title>
+    <!-- 引用國際標準微縮科學信號庫 -->
     <script src="https://cloudflare.com"></script>
     <style>
         body { font-family: sans-serif; max-width: 900px; margin: 0 auto; padding: 15px; background: #1a1c23; color: #e1e4e8; }
@@ -20,14 +20,14 @@
         .slider-group { display: flex; align-items: center; gap: 8px; min-width: 260px; font-size: 13px; }
         canvas { background: #111; border-radius: 6px; width: 100%; height: 260px; display: block; border: 1px solid #333; }
         .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
-        .metric-box { background: #2f363d; border-radius: 6px; padding: 10px; text-align: center; border: 1px solid #444; font-size: 13px; }
+        .metric-box { background: #2f363d; border-radius: 8px; padding: 10px; text-align: center; border: 1px solid #444; font-size: 13px; }
         .metric-val { font-size: 18px; font-weight: bold; color: #00fff6; margin-top: 4px; }
     </style>
 </head>
 <body>
 
     <div class="card">
-        <h3>🔬 ESP32-C3 低功耗藍牙行動示波器 (極簡不分段優化版)</h3>
+        <h3>🔬 ESP32-C3 低功耗藍牙行動示波器</h3>
         <div class="btn-group">
             <button id="connectBtn" class="btn-primary">🔌 連線設備 (ESP32C3_Secure)</button>
             <button id="speakerBtn" class="btn-speaker muted">🔇 喇叭發聲：關閉</button>
@@ -83,7 +83,7 @@
     <div class="card">
         <div class="metrics">
             <div class="metric-box"><div>均方根值 (RMS)</div><div id="rmsVal" class="metric-val">0.00 V</div></div>
-            <div class="card" style="margin:0;padding:10px;border:1px solid #444;text-align:center;"><div>峰對峰值 (Vpp)</div><div id="vppVal" class="metric-val">0.00 V</div></div>
+            <div class="metric-box"><div>峰對峰值 (Vpp)</div><div id="vppVal" class="metric-val">0.00 V</div></div>
             <div class="metric-box"><div>FFT 主頻率</div><div id="freqVal" class="metric-val" style="color: #ffad00;">0.0 Hz</div></div>
         </div>
     </div>
@@ -94,153 +94,8 @@
     </div>
 
     <audio id="silentAudio" loop src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAAAD"></audio>
-
-<script>
-    const SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
-    const CHARACTERISTIC_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
-    const FFT_SIZE = 1024;
-
-    let currentSampleRate = 20000, filteredDataLog = [], bufferIndex = 0;
-    let analysisBuffer = new Float32Array(FFT_SIZE), bleCharacteristicObject = null;
-    let audioCtx = null, gainNode = null, isSpeakerOn = false;
-
-    const tCanvas = document.getElementById('timeCanvas'), fCanvas = document.getElementById('freqCanvas');
-    const tCtx = tCanvas.getContext('2d'), fCtx = fCanvas.getContext('2d');
-
-    function initAudio() {
-        if (!audioCtx) {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            gainNode = audioCtx.createGain();
-            gainNode.gain.value = parseFloat(document.getElementById('volumeSlider').value);
-            gainNode.connect(audioCtx.destination);
-        }
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-    }
-
-    document.getElementById('speakerBtn').addEventListener('click', async () => {
-        initAudio(); isSpeakerOn = !isSpeakerOn;
-        document.getElementById('speakerBtn').innerText = isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉";
-        document.getElementById('speakerBtn').className = isSpeakerOn ? "btn-speaker" : "btn-speaker muted";
-    });
-
-    document.getElementById('volumeSlider').addEventListener('input', (e) => {
-        let v = parseFloat(e.target.value); document.getElementById('volumeVal').innerText = Math.round(v * 100) + "%";
-        if (gainNode) gainNode.gain.value = v;
-    });
-
-    async function sendHardwareParameters() {
-        if (!bleCharacteristicObject) return;
-        let sr = parseInt(document.getElementById('boardSampleSlider').value), sf = parseInt(document.getElementById('boardSinSlider').value);
-        currentSampleRate = sr; updateFilterCoefficients();
-        let buf = new ArrayBuffer(8), view = new DataView(buf);
-        view.setUint32(0, sr, true); view.setUint32(4, sf, true);
-        try { await bleCharacteristicObject.writeValue(buf); } catch (err) { console.error(err); }
-    }
-
-    ['boardSampleSlider', 'boardSinSlider'].forEach(id => {
-        let el = document.getElementById(id), txt = document.getElementById(id.replace('Slider', 'Val'));
-        el.addEventListener('input', (e) => { txt.innerText = e.target.value + " Hz"; });
-        el.addEventListener('change', sendHardwareParameters);
-    });
-
-    // 變數安全賦初值
-    let xv = [0, 0, 0], yv = [0, 0, 0], xv_bp = [0, 0, 0], yv_bp = [0, 0, 0];
-    let currentFilterMode = 'RAW', f1 = 1000, f2 = 3000, b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0, bp_b = [1, 0, -1], bp_a = [0, 0, 0];
-
-    function updateFilterCoefficients() {
-        let fr = currentSampleRate / f1, o = Math.tan(Math.PI / fr), q = Math.sqrt(2), c = 1 + q * o + o * o;
-        if (currentFilterMode === 'LP') { b0 = o * o / c; b1 = 2.0 * b0; b2 = b0; a1 = 2.0 * (o * o - 1.0) / c; a2 = (1.0 - q * o + o * o) / c; } 
-        else if (currentFilterMode === 'HP') { b0 = 1 / c; b1 = -2.0 * b0; b2 = b0; a1 = 2.0 * (o * o - 1.0) / c; a2 = (1.0 - q * o + o * o) / c; } 
-        else if (currentFilterMode === 'BP') {
-            let lr = currentSampleRate / f2, hr = currentSampleRate / f1, lo = Math.tan(Math.PI / lr), ho = Math.tan(Math.PI / hr);
-            let lc = 1 + q * lo + lo * lo, hc = 1 + q * ho + ho * ho;
-            b0 = lo * lo / lc; b1 = 2 * b0; b2 = b0; a1 = 2 * (lo * lo - 1) / lc; a2 = (1 - q * lo + lo * lo) / lc;
-            bp_b = [1 / hc, 0, -1 / hc]; bp_a = [2 * (ho * ho - 1) / hc, (1 - q * ho + ho * ho) / hc];
-        }
-    }
-
-    function applyFilter(x) {
-        if (currentFilterMode === 'RAW') return x;
-        if (currentFilterMode === 'LP' || currentFilterMode === 'HP') {
-            xv[0] = xv[1]; xv[1] = xv[2]; xv[2] = x; yv[0] = yv[1]; yv[1] = yv[2];
-            yv[2] = (b0 * xv[2] + b1 * xv[1] + b2 * xv[0]) - (a1 * yv[1] + a2 * yv[0]); return yv[2];
-        }
-        if (currentFilterMode === 'BP') {
-            xv[0] = xv[1]; xv[1] = xv[2]; xv[2] = x; yv[0] = yv[1]; yv[1] = yv[2];
-            yv[2] = (b0 * xv[2] + b1 * xv[1] + b2 * xv[0]) - (a1 * yv[1] + a2 * yv[0]);
-            xv_bp[0] = xv_bp[1]; xv_bp[1] = xv_bp[2]; xv_bp[2] = yv[2]; yv_bp[0] = yv_bp[1]; yv_bp[1] = yv_bp[2];
-            yv_bp[2] = (bp_b[0] * xv_bp[2] + bp_b[1] * xv_bp[1] + bp_b[2] * xv_bp[0]) - (bp_a[0] * yv_bp[1] + bp_a[1] * yv_bp[0]); return yv_bp[2];
-        }
-        return x;
-    }
-
-    const fModes = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
-    Object.keys(fModes).forEach(m => {
-        document.getElementById(fModes[m]).addEventListener('click', () => {
-            Object.keys(fModes).forEach(k => document.getElementById(fModes[k]).classList.remove('active'));
-            document.getElementById(fModes[m]).classList.add('active'); currentFilterMode = m; updateFilterCoefficients();
-        });
-    });
-
-    document.getElementById('freq1Slider').addEventListener('input', (e) => { f1 = parseInt(e.target.value); document.getElementById('freq1Val').innerText = f1 + " Hz"; updateFilterCoefficients(); });
-    document.getElementById('freq2Slider').addEventListener('input', (e) => { f2 = parseInt(e.target.value); document.getElementById('freq2Val').innerText = f2 + " Hz"; updateFilterCoefficients(); });
-
-    document.getElementById('connectBtn').addEventListener('click', async () => {
-        const status = document.getElementById('status');
-        try {
-            const device = await navigator.bluetooth.requestDevice({ filters: [{ services: [SERVICE_UUID] }] });
-            status.innerText = "GATT 連線中..."; const server = await device.gatt.connect(), service = await server.getPrimaryService(SERVICE_UUID);
-            bleCharacteristicObject = await service.getCharacteristic(CHARACTERISTIC_UUID); status.innerText = "▶️ 藍牙連線成功！";
-            document.getElementById('boardSampleSlider').disabled = false; document.getElementById('boardSinSlider').disabled = false;
-            await bleCharacteristicObject.startNotifications();
-            bleCharacteristicObject.addEventListener('characteristicvaluechanged', (e) => {
-                try {
-                    let view = e.target.value, len = view.byteLength / 4, audioChunk = new Float32Array(len);
-                    for (let i = 0; i < len; i++) { audioChunk[i] = view.getFloat32(i * 4, true); }
-                    for (let i = 0; i < audioChunk.length; i++) {
-                        let val = audioChunk[i], filteredVal = applyFilter(val); audioChunk[i] = filteredVal;
-                        filteredDataLog.push(filteredVal); if (filteredDataLog.length > 600) filteredDataLog.shift();
-                        analysisBuffer[bufferIndex] = filteredVal; bufferIndex = (bufferIndex + 1) % FFT_SIZE;
-                    }
-                    if (isSpeakerOn && audioCtx) {
-                        if (audioCtx.state === 'suspended') audioCtx.resume();
-                        let ab = audioCtx.createBuffer(1, audioChunk.length, currentSampleRate);
-                        ab.getChannelData(0).set(audioChunk); let src = audioCtx.createBufferSource(); src.buffer = ab; src.connect(gainNode); src.start();
-                    }
-                } catch (err) {}
-            });
-            status.innerText = "▶️ 示波器數據接收中..."
-        } catch (err) { status.innerText = "連線失敗: " + err.message; }
-    });
-
-    function resize() { tCanvas.width = tCanvas.clientWidth; tCanvas.height = tCanvas.clientHeight; fCanvas.width = fCanvas.clientWidth; fCanvas.height = fCanvas.clientHeight; }
-    window.addEventListener('resize', resize); resize();
-
-    function renderLoop() {
-        requestAnimationFrame(renderLoop); if (filteredDataLog.length < 2) return;
-        let recentPoints = filteredDataLog.slice(-150);
-        let max = Math.max(...recentPoints), min = Math.min(...recentPoints), vpp = max - min, sumSquares = 0;
-        recentPoints.forEach(v => sumSquares += v * v); let rms = Math.sqrt(sumSquares / recentPoints.length);
-        document.getElementById('vppVal').innerText = vpp.toFixed(2) + " V"; document.getElementById('rmsVal').innerText = rms.toFixed(2) + " V";
-
-        // 💡 終極優化：呼叫雲端極簡 math.js 進行 100% 正常的 FFT 頻譜映射，杜絕本地程式過長分段
-        let fftInput = []; for (let i = 0; i < FFT_SIZE; i++) { let idx = (bufferIndex + i) % FFT_SIZE; fftInput.push(analysisBuffer[idx] * (0.5 * (1 - Math.cos((2 * Math.PI * i) / (FFT_SIZE - 1))))); }
-        let fftResult = math.fft(fftInput);
-        let magnitudes = new Float32Array(FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
-        for (let i = 0; i < FFT_SIZE / 2; i++) { let c = fftResult[i]; magnitudes[i] = Math.sqrt(c.re * c.re + c.im * c.im) / (FFT_SIZE / 2); if (i > 1 && magnitudes[i] > maxMag) { maxMag = magnitudes[i]; maxIdx = i; } }
-        let peakFreq = maxIdx * (currentSampleRate / FFT_SIZE); document.getElementById('freqVal').innerText = maxMag > 0.04 ? peakFreq.toFixed(1) + " Hz" : "0.0 Hz";
-
-        tCtx.fillStyle = '#111'; tCtx.fillRect(0, 0, tCanvas.width, tCanvas.height); tCtx.strokeStyle = '#00ff66'; tCtx.lineWidth = 2.5; tCtx.beginPath();
-        let tSlice = tCanvas.width / (recentPoints.length - 1);
-        for (let i = 0; i < recentPoints.length; i++) { let x = i * tSlice, y = (tCanvas.height / 2) - (recentPoints[i] * (tCanvas.height / 2.5)); if (i == 0) tCtx.moveTo(x, y); else tCtx.lineTo(x, y); }
-        tCtx.stroke();
-
-        fCtx.fillStyle = '#111'; fCtx.fillRect(0, 0, fCanvas.width, fCanvas.height); fCtx.strokeStyle = '#ffad00'; fCtx.lineWidth = 1.5; fCtx.beginPath();
-        let fSlice = fCanvas.width / (FFT_SIZE / 4);
-        for (let i = 0; i < FFT_SIZE / 4; i++) { let x = i * fSlice, y = fCanvas.height - (magnitudes[i] * fCanvas.height * 4); if (i == 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y); }
-        fCtx.stroke();
-    }
-    requestAnimationFrame(renderLoop);
-</script>
+    
+    <!-- 外掛黑科技：將邏輯移至外部獨立檔案，永遠防止分段截斷 -->
+    <script src="app.js"></script>
 </body>
 </html>
