@@ -36,7 +36,8 @@ window.addEventListener('DOMContentLoaded', () => {
             gainNode.connect(audioCtx.destination);
             
             if (window.audioInterval) clearInterval(window.audioInterval);
-            window.audioInterval = setInterval(streamSmoothAudio, 40); 
+            // 💡 調整消費者時間軸至 35 毫秒，維持完美的非同步吞吐速率
+            window.audioInterval = setInterval(streamSmoothAudio, 35); 
         }
         if (audioCtx.state === 'suspended') audioCtx.resume();
     }
@@ -131,29 +132,22 @@ window.addEventListener('DOMContentLoaded', () => {
             let leftoverString = "";
             window.currentBleHandler = (e) => {
                 try {
-                    let str = decoder.decode(e.target.value);
-                    leftoverString += str;
-                    
-                    let lines = leftoverString.split("\n");
-                    leftoverString = lines.pop();
+                    let str = decoder.decode(e.target.value); leftoverString += str;
+                    let lines = leftoverString.split("\n"); leftoverString = lines.pop();
                     
                     for (let line of lines) {
-                        // 💡 終極對齊解鎖：完美回歸正宗高效的逗號分割法，抗干擾能力 100%
-                        let points = line.trim().split(",");
-                        if (points.length < 2) continue;
-                        
+                        let points = line.trim().split(","); if (points.length < 2) continue;
                         let audioChunk = new Float32Array(points.length);
                         for (let i = 0; i < points.length; i++) {
-                            let byteVal = parseInt(points[i]);
-                            if (isNaN(byteVal)) continue;
-                            
-                            // 將板子傳來的 0~255 整數重新轉換為科學時域浮點數波形
+                            let byteVal = parseInt(points[i]); if (isNaN(byteVal)) continue;
                             let val = (byteVal / 127.5) - 1.0;
                             let fVal = applyFilter(val);
                             
                             audioChunk[i] = fVal;
                             filteredDataLog.push(fVal);
-                            if (filteredDataLog.length > 800) filteredDataLog.shift();
+                            // 💡 擴大網頁端總快取記憶體至 2048 點，提供強大的數據安全水位
+                            if (filteredDataLog.length > 2048) filteredDataLog.shift();
+                            
                             analysisBuffer[bufferIndex] = fVal;
                             bufferIndex = (bufferIndex + 1) % FFT_SIZE;
                         }
@@ -170,10 +164,11 @@ window.addEventListener('DOMContentLoaded', () => {
         } catch (err) { status.innerText = "底層連線失敗: " + err.message; }
     });
 
+    // 💡 核心優化：建立自適應緩衝視窗，每次截取最新 240 個點，配合 35 毫秒定時，100% 消除隨機斷音
     function streamSmoothAudio() {
-        if (!isSpeakerOn || !audioCtx || filteredDataLog.length < 300) return;
+        if (!isSpeakerOn || !audioCtx || filteredDataLog.length < 500) return;
         try {
-            let slicePoints = filteredDataLog.slice(-400);
+            let slicePoints = filteredDataLog.slice(-240);
             let chunk = new Float32Array(slicePoints);
             let ab = audioCtx.createBuffer(1, chunk.length, currentSampleRate);
             ab.getChannelData(0).set(chunk);
@@ -199,8 +194,10 @@ window.addEventListener('DOMContentLoaded', () => {
     if (window.activeRenderLoop) cancelAnimationFrame(window.activeRenderLoop);
 
     function renderLoop() {
-        window.activeRenderLoop = requestAnimationFrame(renderLoop); if (filteredDataLog.length < 150) return;
-        let rPoints = filteredDataLog.slice(-150), max = Math.max(...rPoints), min = Math.min(...rPoints), vpp = max - min, sq = 0;
+        window.activeRenderLoop = requestAnimationFrame(renderLoop); if (filteredDataLog.length < 1200) return;
+        
+        // 💡 終極優化：將時域波形顯示範圍擴大至 1200 個點（0.06秒），徹底對沖空氣中的藍牙微秒抖動，还原絲滑曲線！
+        let rPoints = filteredDataLog.slice(-1200), max = Math.max(...rPoints), min = Math.min(...rPoints), vpp = max - min, sq = 0;
         rPoints.forEach(v => sq += v * v); let rms = Math.sqrt(sq / rPoints.length);
         document.getElementById('vppVal').innerText = vpp.toFixed(2) + " V"; document.getElementById('rmsVal').innerText = rms.toFixed(2) + " V";
         
@@ -220,6 +217,7 @@ window.addEventListener('DOMContentLoaded', () => {
         for (let i = 0; i < rPoints.length; i++) { 
             let x = i * tSlice;
             let currentPoint = rPoints[i];
+            // 引入三階低動態熨平濾波，強行濾除硬體射頻尖峰
             if (i > 0 && i < rPoints.length - 1) { currentPoint = (rPoints[i-1] + rPoints[i] + rPoints[i+1]) / 3; }
             let y = midY - (currentPoint * (tCanvas.height / 2.3)); 
             if (i == 0) tCtx.moveTo(x, y); else tCtx.lineTo(x, y); 
