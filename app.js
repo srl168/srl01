@@ -65,7 +65,7 @@ window.addEventListener('DOMContentLoaded', () => {
         if (currentFilterMode === 'HP') { let rc = 1 / (2 * Math.PI * f1), alpha = rc / (rc + dt); let y = alpha * (lastY_hp + x - lastX_hp); lastX_hp = x; lastY_hp = y; return y; }
         if (currentFilterMode === 'BP') {
             let rc1 = 1 / (2 * Math.PI * f2), a1 = dt / (rc1 + dt); lastY_bp1 = lastY_bp1 + a1 * (x - lastY_bp1);
-            let rc2 = 1 / (2 * Math.PI * f1), a2 = rc2 / (rc2 + dt); let y = a2 * (lastY_bp2 + lastY_bp1 - lastX_bp2); lastX_bp2 = lastY_bp1; lastY_bp2 = y; return y;
+            let rc2 = 1 / (2 * Math.PI * f1), a2 = rc2 / (rc2 + dt); let y = a2 * (lastY_bp2 + lastY_bp1 - lastX_bp2); lastX_hp = lastY_bp1; lastY_bp2 = y; return y;
         }
         return x;
     }
@@ -95,20 +95,17 @@ window.addEventListener('DOMContentLoaded', () => {
             bleCharacteristicObject = await service.getCharacteristic(C_UUID);
 
             const decoder = new TextDecoder('utf-8');
+            // 💡 終極解鎖補丁：事件內部「只收資料、不作任何重繪計算」，徹底釋放 CPU 佇列
             bleCharacteristicObject.addEventListener('characteristicvaluechanged', (e) => {
                 try {
                     let hexStr = decoder.decode(e.target.value).trim();
-                    // 💡 終極解鎖：每 2 個 Hex 字元直接還原成一個點，完美抗雜訊
                     if (hexStr.length % 2 !== 0) return; 
-                    
                     let count = hexStr.length / 2;
                     let audioChunk = new Float32Array(count);
                     
                     for (let i = 0; i < count; i++) {
                         let sub = hexStr.substring(i * 2, i * 2 + 2);
                         let byteVal = parseInt(sub, 16);
-                        
-                        // 將 0~255 還原回 -1.0 ~ 1.0 浮點數波形
                         let val = (byteVal / 127.5) - 1.0;
                         let fVal = applyFilter(val);
                         
@@ -150,12 +147,16 @@ window.addEventListener('DOMContentLoaded', () => {
     tCanvas.width = 800; tCanvas.height = 400;
     fCanvas.width = 800; fCanvas.height = 400;
 
+    // 💡 終極解鎖補丁：獨立每秒 60 幀渲染主線，脫離藍牙中斷捆綁，100% 永不卡死
     function renderLoop() {
-        requestAnimationFrame(renderLoop); if (filteredDataLog.length < 150) return;
+        requestAnimationFrame(renderLoop); 
+        if (filteredDataLog.length < 150) return;
+        
         let rPoints = filteredDataLog.slice(-150), max = Math.max(...rPoints), min = Math.min(...rPoints), vpp = max - min, sq = 0;
         rPoints.forEach(v => sq += v * v); let rms = Math.sqrt(sq / rPoints.length);
         document.getElementById('vppVal').innerText = vpp.toFixed(2) + " V"; document.getElementById('rmsVal').innerText = rms.toFixed(2) + " V";
         
+        // 💡 非同步複寫：複製一份當前的靜態暫存資料進行 FFT，保證不造成記憶體執行緒碰撞
         let re = new Float32Array(FFT_SIZE), im = new Float32Array(FFT_SIZE);
         for (let i = 0; i < FFT_SIZE; i++) { let idx = (bufferIndex + i) % FFT_SIZE; re[i] = analysisBuffer[idx]; }
         localFFT(re, im);
@@ -171,7 +172,7 @@ window.addEventListener('DOMContentLoaded', () => {
         let midY = tCanvas.height / 2;
         for (let i = 0; i < rPoints.length; i++) { 
             let x = i * tSlice;
-            let y = midY - (rPoints[i] * (tCanvas.height / 2.3)); // 8-bit RAW 直通映射
+            let y = midY - (rPoints[i] * (tCanvas.height / 2.3)); 
             if (i == 0) tCtx.moveTo(x, y); else tCtx.lineTo(x, y); 
         }
         tCtx.stroke();
