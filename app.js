@@ -1,4 +1,3 @@
-// 💡 物理超渡：全面洗淨舊宇宙的一切計時器與多重宇宙事件
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -36,9 +35,8 @@ window.addEventListener('DOMContentLoaded', () => {
             gainNode = audioCtx.createGain(); gainNode.gain.value = parseFloat(document.getElementById('volumeSlider').value);
             gainNode.connect(audioCtx.destination);
             
-            // 💡 終極解鎖：音訊與藍牙完全隔離！每 45 毫秒定時定長消耗快取，100% 抹平斷音與變調
             if (window.audioInterval) clearInterval(window.audioInterval);
-            window.audioInterval = setInterval(streamSmoothAudio, 45);
+            window.audioInterval = setInterval(streamSmoothAudio, 40); // 調整至 40 毫秒高效定時消費
         }
         if (audioCtx.state === 'suspended') audioCtx.resume();
     }
@@ -67,7 +65,7 @@ window.addEventListener('DOMContentLoaded', () => {
             
             let buf = (new TextEncoder()).encode(sr + "," + sf);
             try { 
-                await new Promise(r => setTimeout(r, 40)); 
+                await new Promise(r => setTimeout(r, 45)); 
                 await bleCharacteristicObject.writeValue(buf); 
                 document.getElementById('status').innerText = "▶️ 遠端硬體參數同步成功！";
             } catch (err) {
@@ -130,23 +128,32 @@ window.addEventListener('DOMContentLoaded', () => {
             const decoder = new TextDecoder('utf-8');
             bleCharacteristicObject.removeEventListener('characteristicvaluechanged', window.currentBleHandler);
             
+            let leftoverString = "";
             window.currentBleHandler = (e) => {
                 try {
                     let hexStr = decoder.decode(e.target.value).trim();
-                    if (hexStr.length % 2 !== 0) return; 
-                    let count = hexStr.length / 2;
+                    leftoverString += hexStr;
                     
-                    // 💡 藍牙回呼只管往記憶體池塞資料，0.00001秒完成，完全不受空氣無線電抖動干擾
-                    for (let i = 0; i < count; i++) {
-                        let sub = hexStr.substring(i * 2, i * 2 + 2);
-                        let byteVal = parseInt(sub, 16);
-                        let val = (byteVal / 127.5) - 1.0;
-                        let fVal = applyFilter(val);
+                    // 💡 建立分段斷句拼裝池：支援 200 點長封包在空中的隨機碎片拼接
+                    let lines = leftoverString.split("\n");
+                    leftoverString = lines.pop();
+                    
+                    for (let line of lines) {
+                        let cleanLine = line.trim();
+                        if (cleanLine.length % 2 !== 0) continue;
                         
-                        filteredDataLog.push(fVal);
-                        if (filteredDataLog.length > 800) filteredDataLog.shift();
-                        analysisBuffer[bufferIndex] = fVal;
-                        bufferIndex = (bufferIndex + 1) % FFT_SIZE;
+                        let count = cleanLine.length / 2;
+                        for (let i = 0; i < count; i++) {
+                            let sub = cleanLine.substring(i * 2, i * 2 + 2);
+                            let byteVal = parseInt(sub, 16);
+                            let val = (byteVal / 127.5) - 1.0;
+                            let fVal = applyFilter(val);
+                            
+                            filteredDataLog.push(fVal);
+                            if (filteredDataLog.length > 800) filteredDataLog.shift();
+                            analysisBuffer[bufferIndex] = fVal;
+                            bufferIndex = (bufferIndex + 1) % FFT_SIZE;
+                        }
                     }
                 } catch (err) {}
             };
@@ -160,12 +167,11 @@ window.addEventListener('DOMContentLoaded', () => {
         } catch (err) { status.innerText = "底層連線失敗: " + err.message; }
     });
 
-    // 💡 隔離流暢播放引擎：每 45 毫秒定時截取最新 1024 點，以均勻速率播放，完美根除卡頓與變調！
     function streamSmoothAudio() {
-        if (!isSpeakerOn || !audioCtx || filteredDataLog.length < 200) return;
+        if (!isSpeakerOn || !audioCtx || filteredDataLog.length < 300) return;
         try {
-            // 每次固定截取最尾端 512 個點，形成完美連續的塊狀音訊
-            let slicePoints = filteredDataLog.slice(-256);
+            // 每次固定向後抽取最新 400 點進行無縫平滑拼接播放
+            let slicePoints = filteredDataLog.slice(-400);
             let chunk = new Float32Array(slicePoints);
             
             let ab = audioCtx.createBuffer(1, chunk.length, currentSampleRate);
