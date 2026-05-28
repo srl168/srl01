@@ -36,7 +36,7 @@ window.addEventListener('DOMContentLoaded', () => {
             gainNode.connect(audioCtx.destination);
             
             if (window.audioInterval) clearInterval(window.audioInterval);
-            window.audioInterval = setInterval(streamSmoothAudio, 40); // 調整至 40 毫秒高效定時消費
+            window.audioInterval = setInterval(streamSmoothAudio, 40); 
         }
         if (audioCtx.state === 'suspended') audioCtx.resume();
     }
@@ -134,18 +134,20 @@ window.addEventListener('DOMContentLoaded', () => {
                     let hexStr = decoder.decode(e.target.value).trim();
                     leftoverString += hexStr;
                     
-                    // 💡 建立分段斷句拼裝池：支援 200 點長封包在空中的隨機碎片拼接
                     let lines = leftoverString.split("\n");
                     leftoverString = lines.pop();
                     
                     for (let line of lines) {
-                        let cleanLine = line.trim();
-                        if (cleanLine.length % 2 !== 0) continue;
+                        let cleanLine = line.trim().replace(/[^0-9A-Fa-f]/g, ''); // 💡 清洗非 Hex 字元
+                        if (cleanLine.length < 2) continue;
                         
                         let count = cleanLine.length / 2;
                         for (let i = 0; i < count; i++) {
+                            // 💡 終極對齊解鎖：不再切逗號！每 2 個 Hex 字元直接抽取為 1 個點
                             let sub = cleanLine.substring(i * 2, i * 2 + 2);
                             let byteVal = parseInt(sub, 16);
+                            if (isNaN(byteVal)) continue;
+                            
                             let val = (byteVal / 127.5) - 1.0;
                             let fVal = applyFilter(val);
                             
@@ -170,15 +172,11 @@ window.addEventListener('DOMContentLoaded', () => {
     function streamSmoothAudio() {
         if (!isSpeakerOn || !audioCtx || filteredDataLog.length < 300) return;
         try {
-            // 每次固定向後抽取最新 400 點進行無縫平滑拼接播放
             let slicePoints = filteredDataLog.slice(-400);
             let chunk = new Float32Array(slicePoints);
-            
             let ab = audioCtx.createBuffer(1, chunk.length, currentSampleRate);
             ab.getChannelData(0).set(chunk);
-            
-            let src = audioCtx.createBufferSource();
-            src.buffer = ab; src.connect(gainNode); src.start();
+            let src = audioCtx.createBufferSource(); src.buffer = ab; src.connect(gainNode); src.start();
         } catch (e) {}
     }
 
