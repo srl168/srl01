@@ -103,11 +103,8 @@ window.addEventListener('DOMContentLoaded', () => {
                         let points = line.trim().split(","); if (points.length < 2) continue;
                         let audioChunk = new Float32Array(points.length);
                         for (let i = 0; i < points.length; i++) {
-                            // 💡 終極優化補丁：利用正則表達式強行剔除一切不可見雜訊字元，確保 parseFloat 100% 成功還原浮點數
                             let cleanStr = points[i].replace(/[^0-9.-]/g, '');
-                            let val = parseFloat(cleanStr);
-                            if (isNaN(val)) continue; // 拒絕讓 0 填滿記憶體池，防止直線死結
-                            
+                            let val = parseFloat(cleanStr); if (isNaN(val)) continue;
                             let fVal = applyFilter(val); audioChunk[i] = fVal;
                             filteredDataLog.push(fVal); if (filteredDataLog.length > 600) filteredDataLog.shift();
                             analysisBuffer[bufferIndex] = fVal; bufferIndex = (bufferIndex + 1) % FFT_SIZE;
@@ -130,14 +127,13 @@ window.addEventListener('DOMContentLoaded', () => {
 
     function localFFT(re, im) {
         const n = re.length; if (n <= 1) return;
-        if (isNaN(re) || isNaN(im)) return;
         const reE = new Float32Array(n / 2), imE = new Float32Array(n/2), reO = new Float32Array(n / 2), imO = new Float32Array(n / 2);
         for (let i = 0; i < n / 2; i++) { reE[i] = re[2 * i]; imE[i] = im[2 * i]; reO[i] = re[2 * i + 1]; imO[i] = im[2 * i + 1]; }
         localFFT(reE, imE); localFFT(reO, imO);
         for (let i = 0; i < n / 2; i++) {
             const tr = Math.cos(-2 * Math.PI * i / n) * reO[i] - Math.sin(-2 * Math.PI * i / n) * imO[i];
             const tj = Math.sin(-2 * Math.PI * i / n) * reO[i] + Math.cos(-2 * Math.PI * i / n) * imO[i];
-            re[i] = reE[i] + tr; im[i] = imE[i] + tj; re[i + n / 2] = reE[i] - tr; im[i + n / 2] = reE[i] - tj;
+            re[i] = reE[i] + tr; im[i] = imE[i] + tj; re[i + n / 2] = reE[i] - tr; im[i + n / 2] = imE[i] - tj;
         }
     }
 
@@ -151,7 +147,7 @@ window.addEventListener('DOMContentLoaded', () => {
         document.getElementById('vppVal').innerText = vpp.toFixed(2) + " V"; document.getElementById('rmsVal').innerText = rms.toFixed(2) + " V";
         
         let re = new Float32Array(FFT_SIZE), im = new Float32Array(FFT_SIZE);
-        for (let i = 0; i < FFT_SIZE; i++) { let idx = (bufferIndex + i) % FFT_SIZE; re[i] = analysisBuffer[idx] * (0.5 * (1 - Math.cos((2 * Math.PI * i) / (FFT_SIZE - 1)))); }
+        for (let i = 0; i < FFT_SIZE; i++) { let idx = (bufferIndex + i) % FFT_SIZE; re[i] = analysisBuffer[idx]; }
         localFFT(re, im);
         
         let magnitudes = new Float32Array(FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
@@ -160,12 +156,21 @@ window.addEventListener('DOMContentLoaded', () => {
         
         tCtx.fillStyle = '#111'; tCtx.fillRect(0, 0, tCanvas.width, tCanvas.height); tCtx.strokeStyle = '#00ff66'; tCtx.lineWidth = 2.5; tCtx.beginPath();
         let tSlice = tCanvas.width / (rPoints.length - 1);
-        for (let i = 0; i < rPoints.length; i++) { let x = i * tSlice, y = (tCanvas.height / 2) - (rPoints[i] * (tCanvas.height / 2.5)); if (i == 0) tCtx.moveTo(x, y); else tCtx.lineTo(x, y); }
+        
+        // 💡 終極解鎖補丁：加入自適應波形熨平縮放器（Math.abs(max)），強迫極微弱的濾波訊號等比例拉展到畫布中央！
+        let ampScale = (max !== min) ? (tCanvas.height / (max - min)) * 0.7 : tCanvas.height / 2.5;
+        let midY = tCanvas.height / 2;
+        for (let i = 0; i < rPoints.length; i++) { 
+            let x = i * tSlice;
+            let y = midY - ((rPoints[i] - (max + min)/2) * ampScale); 
+            if (i == 0) tCtx.moveTo(x, y); else tCtx.lineTo(x, y); 
+        }
         tCtx.stroke();
         
         fCtx.fillStyle = '#111'; fCtx.fillRect(0, 0, fCanvas.width, fCanvas.height); fCtx.strokeStyle = '#ffad00'; fCtx.lineWidth = 1.5; fCtx.beginPath();
         let fSlice = fCanvas.width / (FFT_SIZE / 4);
-        for (let i = 0; i < FFT_SIZE / 4; i++) { let x = i * fSlice, y = fCanvas.height - (magnitudes[i] * fCanvas.height * 4); if (i == 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y); }
+        // 💡 終極解鎖補丁：同步調大頻域畫布的動態垂直放大倍率，讓 FFT 頻譜黃色突起瞬間現形
+        for (let i = 0; i < FFT_SIZE / 4; i++) { let x = i * fSlice, y = fCanvas.height - (magnitudes[i] * fCanvas.height * 250); if (i == 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y); }
         fCtx.stroke();
     }
     requestAnimationFrame(renderLoop); updateFilterCoefficients();
