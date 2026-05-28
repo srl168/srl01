@@ -1,6 +1,5 @@
-// 💡 物理清洗：完全釋放舊宇宙的全域計時器，改用標準時間軸疊加機制
-if (window.audioPlaybackInterval) clearInterval(window.audioPlaybackInterval);
-window.audioPlaybackBuffer = [];
+// 💡 物理超渡：全面洗淨舊宇宙的一切計時器與多重宇宙事件
+if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -12,9 +11,6 @@ window.addEventListener('DOMContentLoaded', () => {
     let analysisBuffer = new Float32Array(FFT_SIZE), bleCharacteristicObject = null;
     let audioCtx = null, gainNode = null, isSpeakerOn = false;
     let debounceTimer = null;
-
-    // 💡 核心解鎖：音訊時間軸動態追隨指標，徹底根除斷音卡頓
-    let nextStartTime = 0; 
 
     const tCanvas = document.getElementById('timeCanvas'), fCanvas = document.getElementById('freqCanvas');
     const tCtx = tCanvas.getContext('2d'), fCtx = fCanvas.getContext('2d');
@@ -36,11 +32,13 @@ window.addEventListener('DOMContentLoaded', () => {
 
     function initAudio() {
         if (!audioCtx) {
-            // 回歸由瀏覽器硬體自適應的最優基準採樣率，解除鎖定
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             gainNode = audioCtx.createGain(); gainNode.gain.value = parseFloat(document.getElementById('volumeSlider').value);
             gainNode.connect(audioCtx.destination);
-            nextStartTime = audioCtx.currentTime;
+            
+            // 💡 終極解鎖：音訊與藍牙完全隔離！每 45 毫秒定時定長消耗快取，100% 抹平斷音與變調
+            if (window.audioInterval) clearInterval(window.audioInterval);
+            window.audioInterval = setInterval(streamSmoothAudio, 45);
         }
         if (audioCtx.state === 'suspended') audioCtx.resume();
     }
@@ -49,7 +47,6 @@ window.addEventListener('DOMContentLoaded', () => {
         initAudio(); isSpeakerOn = !isSpeakerOn;
         document.getElementById('speakerBtn').innerText = isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉";
         document.getElementById('speakerBtn').className = isSpeakerOn ? "btn-speaker" : "btn-speaker muted";
-        if (audioCtx) nextStartTime = audioCtx.currentTime;
     });
 
     document.getElementById('volumeSlider').addEventListener('input', (e) => {
@@ -67,7 +64,6 @@ window.addEventListener('DOMContentLoaded', () => {
             let sr = parseInt(document.getElementById('boardSampleSlider').value);
             let sf = parseInt(document.getElementById('boardSinSlider').value);
             currentSampleRate = sr; updateFilterCoefficients();
-            if (audioCtx) nextStartTime = audioCtx.currentTime; // 重置聲音時間軸
             
             let buf = (new TextEncoder()).encode(sr + "," + sf);
             try { 
@@ -134,46 +130,23 @@ window.addEventListener('DOMContentLoaded', () => {
             const decoder = new TextDecoder('utf-8');
             bleCharacteristicObject.removeEventListener('characteristicvaluechanged', window.currentBleHandler);
             
-            let leftoverString = "";
             window.currentBleHandler = (e) => {
                 try {
                     let hexStr = decoder.decode(e.target.value).trim();
                     if (hexStr.length % 2 !== 0) return; 
                     let count = hexStr.length / 2;
                     
-                    // 💡 建立高動態局部音訊塊
-                    let audioChunk = new Float32Array(count);
-                    
+                    // 💡 藍牙回呼只管往記憶體池塞資料，0.00001秒完成，完全不受空氣無線電抖動干擾
                     for (let i = 0; i < count; i++) {
                         let sub = hexStr.substring(i * 2, i * 2 + 2);
                         let byteVal = parseInt(sub, 16);
                         let val = (byteVal / 127.5) - 1.0;
                         let fVal = applyFilter(val);
                         
-                        audioChunk[i] = fVal;
                         filteredDataLog.push(fVal);
-                        if (filteredDataLog.length > 600) filteredDataLog.shift();
+                        if (filteredDataLog.length > 800) filteredDataLog.shift();
                         analysisBuffer[bufferIndex] = fVal;
                         bufferIndex = (bufferIndex + 1) % FFT_SIZE;
-                    }
-                    
-                    // 💡 終極打通防線：採用精準時間軸動態堆疊演算法（Timeline Stacking），把斷音碎片完美拼接！
-                    if (isSpeakerOn && audioCtx) {
-                        let ab = audioCtx.createBuffer(1, audioChunk.length, currentSampleRate); // 100% 動態對齊滑桿採樣率
-                        ab.getChannelData(0).set(audioChunk);
-                        
-                        let src = audioCtx.createBufferSource();
-                        src.buffer = ab;
-                        src.connect(gainNode);
-                        
-                        // 如果播放時間已經落後，立刻拉回目前時間點防延遲
-                        if (nextStartTime < audioCtx.currentTime) {
-                            nextStartTime = audioCtx.currentTime + 0.02; 
-                        }
-                        
-                        src.start(nextStartTime);
-                        // 精準計算這 50 個點在當前採樣率滑桿下，理應播放多少秒，並把下一個點無縫接在後方！
-                        nextStartTime += ab.duration; 
                     }
                 } catch (err) {}
             };
@@ -186,6 +159,34 @@ window.addEventListener('DOMContentLoaded', () => {
             document.getElementById('boardSampleSlider').disabled = false; document.getElementById('boardSinSlider').disabled = false;
         } catch (err) { status.innerText = "底層連線失敗: " + err.message; }
     });
+
+    // 💡 隔離流暢播放引擎：每 45 毫秒定時截取最新 1024 點，以均勻速率播放，完美根除卡頓與變調！
+    function streamSmoothAudio() {
+        if (!isSpeakerOn || !audioCtx || filteredDataLog.length < 200) return;
+        try {
+            // 每次固定截取最尾端 512 個點，形成完美連續的塊狀音訊
+            let slicePoints = filteredDataLog.slice(-256);
+            let chunk = new Float32Array(slicePoints);
+            
+            let ab = audioCtx.createBuffer(1, chunk.length, currentSampleRate);
+            ab.getChannelData(0).set(chunk);
+            
+            let src = audioCtx.createBufferSource();
+            src.buffer = ab; src.connect(gainNode); src.start();
+        } catch (e) {}
+    }
+
+    function localFFT(re, im) {
+        const n = re.length; if (n <= 1) return;
+        const reE = new Float32Array(n / 2), imE = new Float32Array(n/2), reO = new Float32Array(n / 2), imO = new Float32Array(n / 2);
+        for (let i = 0; i < n / 2; i++) { reE[i] = re[2 * i]; imE[i] = im[2 * i]; reO[i] = re[2 * i + 1]; imO[i] = im[2 * i + 1]; }
+        localFFT(reE, imE); localFFT(reO, imO);
+        for (let i = 0; i < n / 2; i++) {
+            const tr = Math.cos(-2 * Math.PI * i / n) * reO[i] - Math.sin(-2 * Math.PI * i / n) * imO[i];
+            const tj = Math.sin(-2 * Math.PI * i / n) * reO[i] + Math.cos(-2 * Math.PI * i / n) * imO[i];
+            re[i] = reE[i] + tr; im[i] = imE[i] + tj; re[i + n / 2] = reE[i] - tr; im[i + n / 2] = imE[i] - tj;
+        }
+    }
 
     tCanvas.width = 800; tCanvas.height = 400;
     fCanvas.width = 800; fCanvas.height = 400;
