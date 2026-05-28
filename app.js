@@ -154,18 +154,21 @@ window.addEventListener('DOMContentLoaded', () => {
         for (let i = 0; i < FFT_SIZE / 2; i++) { magnitudes[i] = Math.sqrt(re[i] * re[i] + im[i] * im[i]) / (FFT_SIZE / 2); if (i > 1 && magnitudes[i] > maxMag) { maxMag = magnitudes[i]; maxIdx = i; } }
         let peakFreq = maxIdx * (currentSampleRate / FFT_SIZE); document.getElementById('freqVal').innerText = maxMag > 0.04 ? peakFreq.toFixed(1) + " Hz" : "0.0 Hz";
         
+        // 💡 終極解鎖補丁：加入物理 clearRect，100% 杜絕圖層重疊造成的畫布黑化死結！
+        tCtx.clearRect(0, 0, tCanvas.width, tCanvas.height);
         tCtx.fillStyle = '#111'; tCtx.fillRect(0, 0, tCanvas.width, tCanvas.height); tCtx.strokeStyle = '#00ff66'; tCtx.lineWidth = 2.5; tCtx.beginPath();
         let tSlice = tCanvas.width / (rPoints.length - 1);
         
-        // 💡 終極解鎖補丁：改用穩固的工業級有源直通放大器，徹底消滅 NaN 與運算元斷句卡死
         let midY = tCanvas.height / 2;
         for (let i = 0; i < rPoints.length; i++) { 
             let x = i * tSlice;
-            let y = midY - (rPoints[i] * (tCanvas.height / 2.5)); // RAW 直通映射
+            let y = midY - (rPoints[i] * (tCanvas.height / 2.5)); 
             if (i == 0) tCtx.moveTo(x, y); else tCtx.lineTo(x, y); 
         }
         tCtx.stroke();
         
+        // 💡 終極解鎖補丁：同步加入頻域畫布物理清除機制
+        fCtx.clearRect(0, 0, fCanvas.width, fCanvas.height);
         fCtx.fillStyle = '#111'; fCtx.fillRect(0, 0, fCanvas.width, fCanvas.height); fCtx.strokeStyle = '#ffad00'; fCtx.lineWidth = 1.5; fCtx.beginPath();
         let fSlice = fCanvas.width / (FFT_SIZE / 4);
         for (let i = 0; i < FFT_SIZE / 4; i++) { let x = i * fSlice, y = fCanvas.height - (magnitudes[i] * fCanvas.height * 200); if (i == 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y); }
