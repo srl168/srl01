@@ -1,5 +1,4 @@
 window.addEventListener('DOMContentLoaded', () => {
-    // 💡 100% 精準對齊您實體板子的 8888 結尾科研通用 UUID
     const S_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c3318888'.toLowerCase();
     const C_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8'.toLowerCase();
     const FFT_SIZE = 1024;
@@ -104,11 +103,16 @@ window.addEventListener('DOMContentLoaded', () => {
                         let points = line.trim().split(","); if (points.length < 2) continue;
                         let audioChunk = new Float32Array(points.length);
                         for (let i = 0; i < points.length; i++) {
-                            let val = parseFloat(points[i]) || 0, fVal = applyFilter(val); audioChunk[i] = fVal;
+                            // 💡 終極優化補丁：利用正則表達式強行剔除一切不可見雜訊字元，確保 parseFloat 100% 成功還原浮點數
+                            let cleanStr = points[i].replace(/[^0-9.-]/g, '');
+                            let val = parseFloat(cleanStr);
+                            if (isNaN(val)) continue; // 拒絕讓 0 填滿記憶體池，防止直線死結
+                            
+                            let fVal = applyFilter(val); audioChunk[i] = fVal;
                             filteredDataLog.push(fVal); if (filteredDataLog.length > 600) filteredDataLog.shift();
                             analysisBuffer[bufferIndex] = fVal; bufferIndex = (bufferIndex + 1) % FFT_SIZE;
                         }
-                        if (isSpeakerOn && audioCtx) {
+                        if (isSpeakerOn && audioCtx && audioChunk.some(v => v !== 0)) {
                             if (audioCtx.state === 'suspended') audioCtx.resume();
                             let ab = audioCtx.createBuffer(1, audioChunk.length, currentSampleRate); ab.getChannelData(0).set(audioChunk);
                             let src = audioCtx.createBufferSource(); src.buffer = ab; src.connect(gainNode); src.start();
@@ -126,15 +130,14 @@ window.addEventListener('DOMContentLoaded', () => {
 
     function localFFT(re, im) {
         const n = re.length; if (n <= 1) return;
-        // 💡 健壯性補丁：防止 NaN 數據引發無窮遞迴當機
-        if (isNaN(re[0]) || isNaN(im[0])) return;
+        if (isNaN(re) || isNaN(im)) return;
         const reE = new Float32Array(n / 2), imE = new Float32Array(n/2), reO = new Float32Array(n / 2), imO = new Float32Array(n / 2);
         for (let i = 0; i < n / 2; i++) { reE[i] = re[2 * i]; imE[i] = im[2 * i]; reO[i] = re[2 * i + 1]; imO[i] = im[2 * i + 1]; }
         localFFT(reE, imE); localFFT(reO, imO);
         for (let i = 0; i < n / 2; i++) {
             const tr = Math.cos(-2 * Math.PI * i / n) * reO[i] - Math.sin(-2 * Math.PI * i / n) * imO[i];
             const tj = Math.sin(-2 * Math.PI * i / n) * reO[i] + Math.cos(-2 * Math.PI * i / n) * imO[i];
-            re[i] = reE[i] + tr; im[i] = imE[i] + tj; re[i + n / 2] = reE[i] - tr; im[i + n / 2] = imE[i] - tj;
+            re[i] = reE[i] + tr; im[i] = imE[i] + tj; re[i + n / 2] = reE[i] - tr; im[i + n / 2] = reE[i] - tj;
         }
     }
 
@@ -142,10 +145,7 @@ window.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('resize', resize); resize();
 
     function renderLoop() {
-        requestAnimationFrame(renderLoop); 
-        // 💡 記憶體安全鎖：當前接收點數不足 150 點時，主動跳過渲染，100% 摧毀畫布卡死死結
-        if (filteredDataLog.length < 150) return;
-        
+        requestAnimationFrame(renderLoop); if (filteredDataLog.length < 150) return;
         let rPoints = filteredDataLog.slice(-150), max = Math.max(...rPoints), min = Math.min(...rPoints), vpp = max - min, sq = 0;
         rPoints.forEach(v => sq += v * v); let rms = Math.sqrt(sq / rPoints.length);
         document.getElementById('vppVal').innerText = vpp.toFixed(2) + " V"; document.getElementById('rmsVal').innerText = rms.toFixed(2) + " V";
