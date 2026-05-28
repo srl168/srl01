@@ -1,3 +1,8 @@
+// 💡 終極修正：將全域指標與音訊上下文化整為零，防止重載網頁時多重宇宙疊音與 GATT 碰撞
+if (window.audioPlaybackInterval) clearInterval(window.audioPlaybackInterval);
+window.audioPlaybackBuffer = [];
+window.isWritingLock = false;
+
 window.addEventListener('DOMContentLoaded', () => {
     const S_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c3318888'.toLowerCase();
     const C_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8'.toLowerCase();
@@ -6,10 +11,7 @@ window.addEventListener('DOMContentLoaded', () => {
     let currentSampleRate = 20000, filteredDataLog = [], bufferIndex = 0;
     let analysisBuffer = new Float32Array(FFT_SIZE), bleCharacteristicObject = null;
     let audioCtx = null, gainNode = null, isSpeakerOn = false;
-    let audioPlaybackBuffer = []; 
-
-    // 💡 核心解鎖：防抖計時器全域變數，徹底根除拉動滑桿當機斷線
-    let debounceTimer = null; 
+    let debounceTimer = null;
 
     const tCanvas = document.getElementById('timeCanvas'), fCanvas = document.getElementById('freqCanvas');
     const tCtx = tCanvas.getContext('2d'), fCtx = fCanvas.getContext('2d');
@@ -34,7 +36,10 @@ window.addEventListener('DOMContentLoaded', () => {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             gainNode = audioCtx.createGain(); gainNode.gain.value = parseFloat(document.getElementById('volumeSlider').value);
             gainNode.connect(audioCtx.destination);
-            setInterval(playCachedAudio, 15);
+            
+            // 💡 物理清除舊計時器：確保整個記憶體中只有唯一的音訊播放消費者！
+            if (window.audioPlaybackInterval) clearInterval(window.audioPlaybackInterval);
+            window.audioPlaybackInterval = setInterval(playCachedAudio, 15);
         }
         if (audioCtx.state === 'suspended') audioCtx.resume();
     }
@@ -43,6 +48,7 @@ window.addEventListener('DOMContentLoaded', () => {
         initAudio(); isSpeakerOn = !isSpeakerOn;
         document.getElementById('speakerBtn').innerText = isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉";
         document.getElementById('speakerBtn').className = isSpeakerOn ? "btn-speaker" : "btn-speaker muted";
+        if (!isSpeakerOn) window.audioPlaybackBuffer = [];
     });
 
     document.getElementById('volumeSlider').addEventListener('input', (e) => {
@@ -50,31 +56,34 @@ window.addEventListener('DOMContentLoaded', () => {
         if (gainNode) gainNode.gain.value = v;
     });
 
-    // 💡 終極防護補丁：加入 Debounce 防抖機制與實體狀態監測，100% 阻斷雙向撞車
     function sendHardwareParametersWithDebounce() {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(async () => {
-            // 安全開關：若變數不存在，或者底層判定實體已斷開，則直接攔截不發送，防止 NetworkError
             if (!bleCharacteristicObject || !bleCharacteristicObject.service.device.gatt.connected) return;
+            if (window.isWritingLock) return; 
             
+            window.isWritingLock = true; // 全域鎖定
             let sr = parseInt(document.getElementById('boardSampleSlider').value);
             let sf = parseInt(document.getElementById('boardSinSlider').value);
             currentSampleRate = sr; updateFilterCoefficients();
             
             let buf = (new TextEncoder()).encode(sr + "," + sf);
             try { 
+                await new Promise(r => setTimeout(r, 30)); // 留白 30 毫秒避讓 Notify
                 await bleCharacteristicObject.writeValue(buf); 
                 document.getElementById('status').innerText = "▶️ 遠端硬體參數同步成功！";
-            } catch (err) { 
-                console.error("發射被系統攔截，正在自適應重整中...", err); 
+            } catch (err) {
+                console.log("晶片無線電避撞攔截...", err);
+            } finally {
+                setTimeout(() => { window.isWritingLock = false; }, 60);
             }
-        }, 150); // 手指停下 150 毫秒後才溫和發射一次，晶片極度安全
+        }, 250); // 擴大手指防抖區間至 250 毫秒，維持硬體絕對安全
     }
     ['boardSampleSlider', 'boardSinSlider'].forEach(id => {
         let el = document.getElementById(id), txt = document.getElementById(id.replace('Slider', 'Val'));
         el.addEventListener('input', (e) => { 
             txt.innerText = e.target.value + " Hz"; 
-            sendHardwareParametersWithDebounce(); // 💡 升級：拉動滑桿時即時防抖計時，拉動時不當機
+            sendHardwareParametersWithDebounce(); 
         });
     });
 
@@ -107,7 +116,15 @@ window.addEventListener('DOMContentLoaded', () => {
         try {
             status.innerText = "正在搜尋藍牙裝置...";
             const device = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: 'ESP32' }], optionalServices: [S_UUID] });
-            if (device.gatt.connected) { status.innerText = "發現衝突快取，進行強硬中斷重置..."; await device.gatt.disconnect(); await new Promise(r => setTimeout(r, 300)); }
+            
+            // 💡 物理強制中斷：只要點擊連線，不管三七二十一，絕對把之前留下來的所有舊快取通道通通殺光
+            if (device.gatt.connected || window.activeBleDevice) {
+                status.innerText = "發現多重宇宙暫存，強制實體釋放中...";
+                try { await device.gatt.disconnect(); if(window.activeBleDevice) await window.activeBleDevice.gatt.disconnect(); } catch(e){}
+                await new Promise(r => setTimeout(r, 400));
+            }
+            window.activeBleDevice = device; // 綁定當前唯一實體指標
+
             status.innerText = "GATT 實體通道硬開通中...";
             const server = await device.gatt.connect();
             status.innerText = "正在索取 Service 通道...";
@@ -115,7 +132,10 @@ window.addEventListener('DOMContentLoaded', () => {
             bleCharacteristicObject = await service.getCharacteristic(C_UUID);
 
             const decoder = new TextDecoder('utf-8');
-            bleCharacteristicObject.addEventListener('characteristicvaluechanged', (e) => {
+            // 💡 終極守護：先完整移去任何潛在的舊監聽事件，確保全瀏覽器記憶體內只有一個事件在工作
+            bleCharacteristicObject.removeEventListener('characteristicvaluechanged', window.currentBleHandler);
+            
+            window.currentBleHandler = (e) => {
                 try {
                     let hexStr = decoder.decode(e.target.value).trim();
                     if (hexStr.length % 2 !== 0) return; 
@@ -133,10 +153,12 @@ window.addEventListener('DOMContentLoaded', () => {
                         if (filteredDataLog.length > 600) filteredDataLog.shift();
                         analysisBuffer[bufferIndex] = fVal;
                         bufferIndex = (bufferIndex + 1) % FFT_SIZE;
-                        if (isSpeakerOn) audioPlaybackBuffer.push(fVal);
+                        if (isSpeakerOn) window.audioPlaybackBuffer.push(fVal);
                     }
                 } catch (err) {}
-            });
+            };
+
+            bleCharacteristicObject.addEventListener('characteristicvaluechanged', window.currentBleHandler);
             await bleCharacteristicObject.startNotifications();
             status.innerText = "正在發射破冰訊號強行激活實體電波...";
             await bleCharacteristicObject.writeValue((new TextEncoder()).encode("WAKEUP\n"));
@@ -146,9 +168,9 @@ window.addEventListener('DOMContentLoaded', () => {
     });
 
     function playCachedAudio() {
-        if (!isSpeakerOn || !audioCtx || audioPlaybackBuffer.length < 256) return;
+        if (!isSpeakerOn || !audioCtx || window.audioPlaybackBuffer.length < 256) return;
         try {
-            let chunk = new Float32Array(audioPlaybackBuffer.splice(0, 512));
+            let chunk = new Float32Array(window.audioPlaybackBuffer.splice(0, 512));
             let ab = audioCtx.createBuffer(1, chunk.length, currentSampleRate);
             ab.getChannelData(0).set(chunk);
             let src = audioCtx.createBufferSource(); src.buffer = ab; src.connect(gainNode); src.start();
@@ -170,8 +192,11 @@ window.addEventListener('DOMContentLoaded', () => {
     tCanvas.width = 800; tCanvas.height = 400;
     fCanvas.width = 800; fCanvas.height = 400;
 
+    // 💡 物理清除舊繪圖：確保瀏覽器內只保留唯一的 requestAnimationFrame 繪圖心跳！
+    if (window.activeRenderLoop) cancelAnimationFrame(window.activeRenderLoop);
+
     function renderLoop() {
-        requestAnimationFrame(renderLoop); if (filteredDataLog.length < 150) return;
+        window.activeRenderLoop = requestAnimationFrame(renderLoop); if (filteredDataLog.length < 150) return;
         let rPoints = filteredDataLog.slice(-150), max = Math.max(...rPoints), min = Math.min(...rPoints), vpp = max - min, sq = 0;
         rPoints.forEach(v => sq += v * v); let rms = Math.sqrt(sq / rPoints.length);
         document.getElementById('vppVal').innerText = vpp.toFixed(2) + " V"; document.getElementById('rmsVal').innerText = rms.toFixed(2) + " V";
@@ -204,5 +229,5 @@ window.addEventListener('DOMContentLoaded', () => {
         for (let i = 0; i < FFT_SIZE / 4; i++) { let x = i * fSlice, y = fCanvas.height - (magnitudes[i] * fCanvas.height * 200); if (i == 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y); }
         fCtx.stroke();
     }
-    requestAnimationFrame(renderLoop); updateFilterCoefficients();
+    window.activeRenderLoop = requestAnimationFrame(renderLoop); updateFilterCoefficients();
 });
