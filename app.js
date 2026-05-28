@@ -1,4 +1,3 @@
-// 💡 終極修正：將全域指標與音訊上下文化整為零，防止重載網頁時多重宇宙疊音與 GATT 碰撞
 if (window.audioPlaybackInterval) clearInterval(window.audioPlaybackInterval);
 window.audioPlaybackBuffer = [];
 window.isWritingLock = false;
@@ -7,6 +6,9 @@ window.addEventListener('DOMContentLoaded', () => {
     const S_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c3318888'.toLowerCase();
     const C_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8'.toLowerCase();
     const FFT_SIZE = 1024;
+
+    // 💡 核心解鎖：不論板子硬體多高頻，網頁喇叭發聲一律鎖定在 44100Hz 國際標準音訊池，彻底消滅變調雙音與破音！
+    const AUDIO_OUTPUT_RATE = 44100; 
 
     let currentSampleRate = 20000, filteredDataLog = [], bufferIndex = 0;
     let analysisBuffer = new Float32Array(FFT_SIZE), bleCharacteristicObject = null;
@@ -33,13 +35,13 @@ window.addEventListener('DOMContentLoaded', () => {
 
     function initAudio() {
         if (!audioCtx) {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            // 強制將 AudioContext 初始化在穩定的標準 44100Hz
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: AUDIO_OUTPUT_RATE });
             gainNode = audioCtx.createGain(); gainNode.gain.value = parseFloat(document.getElementById('volumeSlider').value);
             gainNode.connect(audioCtx.destination);
             
-            // 💡 物理清除舊計時器：確保整個記憶體中只有唯一的音訊播放消費者！
             if (window.audioPlaybackInterval) clearInterval(window.audioPlaybackInterval);
-            window.audioPlaybackInterval = setInterval(playCachedAudio, 15);
+            window.audioPlaybackInterval = setInterval(playCachedAudio, 12); // 優化消費者時間至 12 毫秒
         }
         if (audioCtx.state === 'suspended') audioCtx.resume();
     }
@@ -62,22 +64,22 @@ window.addEventListener('DOMContentLoaded', () => {
             if (!bleCharacteristicObject || !bleCharacteristicObject.service.device.gatt.connected) return;
             if (window.isWritingLock) return; 
             
-            window.isWritingLock = true; // 全域鎖定
+            window.isWritingLock = true; 
             let sr = parseInt(document.getElementById('boardSampleSlider').value);
             let sf = parseInt(document.getElementById('boardSinSlider').value);
             currentSampleRate = sr; updateFilterCoefficients();
             
             let buf = (new TextEncoder()).encode(sr + "," + sf);
             try { 
-                await new Promise(r => setTimeout(r, 30)); // 留白 30 毫秒避讓 Notify
+                await new Promise(r => setTimeout(r, 40)); // 擴大留白時間至 40 毫秒
                 await bleCharacteristicObject.writeValue(buf); 
                 document.getElementById('status').innerText = "▶️ 遠端硬體參數同步成功！";
             } catch (err) {
                 console.log("晶片無線電避撞攔截...", err);
             } finally {
-                setTimeout(() => { window.isWritingLock = false; }, 60);
+                setTimeout(() => { window.isWritingLock = false; }, 80);
             }
-        }, 250); // 擴大手指防抖區間至 250 毫秒，維持硬體絕對安全
+        }, 250); 
     }
     ['boardSampleSlider', 'boardSinSlider'].forEach(id => {
         let el = document.getElementById(id), txt = document.getElementById(id.replace('Slider', 'Val'));
@@ -116,14 +118,12 @@ window.addEventListener('DOMContentLoaded', () => {
         try {
             status.innerText = "正在搜尋藍牙裝置...";
             const device = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: 'ESP32' }], optionalServices: [S_UUID] });
-            
-            // 💡 物理強制中斷：只要點擊連線，不管三七二十一，絕對把之前留下來的所有舊快取通道通通殺光
             if (device.gatt.connected || window.activeBleDevice) {
                 status.innerText = "發現多重宇宙暫存，強制實體釋放中...";
                 try { await device.gatt.disconnect(); if(window.activeBleDevice) await window.activeBleDevice.gatt.disconnect(); } catch(e){}
                 await new Promise(r => setTimeout(r, 400));
             }
-            window.activeBleDevice = device; // 綁定當前唯一實體指標
+            window.activeBleDevice = device; 
 
             status.innerText = "GATT 實體通道硬開通中...";
             const server = await device.gatt.connect();
@@ -132,7 +132,6 @@ window.addEventListener('DOMContentLoaded', () => {
             bleCharacteristicObject = await service.getCharacteristic(C_UUID);
 
             const decoder = new TextDecoder('utf-8');
-            // 💡 終極守護：先完整移去任何潛在的舊監聽事件，確保全瀏覽器記憶體內只有一個事件在工作
             bleCharacteristicObject.removeEventListener('characteristicvaluechanged', window.currentBleHandler);
             
             window.currentBleHandler = (e) => {
@@ -140,7 +139,6 @@ window.addEventListener('DOMContentLoaded', () => {
                     let hexStr = decoder.decode(e.target.value).trim();
                     if (hexStr.length % 2 !== 0) return; 
                     let count = hexStr.length / 2;
-                    let audioChunk = new Float32Array(count);
                     
                     for (let i = 0; i < count; i++) {
                         let sub = hexStr.substring(i * 2, i * 2 + 2);
@@ -148,7 +146,6 @@ window.addEventListener('DOMContentLoaded', () => {
                         let val = (byteVal / 127.5) - 1.0;
                         let fVal = applyFilter(val);
                         
-                        audioChunk[i] = fVal;
                         filteredDataLog.push(fVal);
                         if (filteredDataLog.length > 600) filteredDataLog.shift();
                         analysisBuffer[bufferIndex] = fVal;
@@ -167,11 +164,12 @@ window.addEventListener('DOMContentLoaded', () => {
         } catch (err) { status.innerText = "底層連線失敗: " + err.message; }
     });
 
+    // 💡 核心播放平滑升級：將定頻 44100Hz 播放核心與硬體解耦，徹底熨平雙音
     function playCachedAudio() {
-        if (!isSpeakerOn || !audioCtx || window.audioPlaybackBuffer.length < 256) return;
+        if (!isSpeakerOn || !audioCtx || window.audioPlaybackBuffer.length < 300) return;
         try {
             let chunk = new Float32Array(window.audioPlaybackBuffer.splice(0, 512));
-            let ab = audioCtx.createBuffer(1, chunk.length, currentSampleRate);
+            let ab = audioCtx.createBuffer(1, chunk.length, 44100); // 鎖死標準輸出率
             ab.getChannelData(0).set(chunk);
             let src = audioCtx.createBufferSource(); src.buffer = ab; src.connect(gainNode); src.start();
         } catch (e) {}
@@ -192,7 +190,6 @@ window.addEventListener('DOMContentLoaded', () => {
     tCanvas.width = 800; tCanvas.height = 400;
     fCanvas.width = 800; fCanvas.height = 400;
 
-    // 💡 物理清除舊繪圖：確保瀏覽器內只保留唯一的 requestAnimationFrame 繪圖心跳！
     if (window.activeRenderLoop) cancelAnimationFrame(window.activeRenderLoop);
 
     function renderLoop() {
