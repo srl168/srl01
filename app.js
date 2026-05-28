@@ -1,3 +1,6 @@
+if (window.audioInterval) clearInterval(window.audioInterval);
+window.isWritingLock = false;
+
 window.addEventListener('DOMContentLoaded', () => {
     const S_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c3318888'.toLowerCase();
     const C_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8'.toLowerCase();
@@ -128,18 +131,23 @@ window.addEventListener('DOMContentLoaded', () => {
             let leftoverString = "";
             window.currentBleHandler = (e) => {
                 try {
-                    let hexStr = decoder.decode(e.target.value).trim().replace(/[^0-9A-Fa-f]/g, '');
-                    leftoverString += hexStr;
+                    let str = decoder.decode(e.target.value);
+                    leftoverString += str;
                     
-                    // 💡 終極打通防線：採用固定長度 400 個字元（200個點）強制裁切法，100% 繞過換行符丟失死結！
-                    while (leftoverString.length >= 400) {
-                        let targetBlock = leftoverString.substring(0, 400);
-                        leftoverString = leftoverString.substring(400); // 留下未滿的碎片
+                    let lines = leftoverString.split("\n");
+                    leftoverString = lines.pop();
+                    
+                    for (let line of lines) {
+                        // 💡 終極對齊解鎖：完美回歸正宗高效的逗號分割法，抗干擾能力 100%
+                        let points = line.trim().split(",");
+                        if (points.length < 2) continue;
                         
-                        let audioChunk = new Float32Array(200);
-                        for (let i = 0; i < 200; i++) {
-                            let sub = targetBlock.substring(i * 2, i * 2 + 2);
-                            let byteVal = parseInt(sub, 16);
+                        let audioChunk = new Float32Array(points.length);
+                        for (let i = 0; i < points.length; i++) {
+                            let byteVal = parseInt(points[i]);
+                            if (isNaN(byteVal)) continue;
+                            
+                            // 將板子傳來的 0~255 整數重新轉換為科學時域浮點數波形
                             let val = (byteVal / 127.5) - 1.0;
                             let fVal = applyFilter(val);
                             
