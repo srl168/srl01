@@ -94,26 +94,36 @@ window.addEventListener('DOMContentLoaded', () => {
             const service = await server.getPrimaryService(S_UUID);
             bleCharacteristicObject = await service.getCharacteristic(C_UUID);
 
-            let leftoverString = ""; const decoder = new TextDecoder('utf-8');
+            const decoder = new TextDecoder('utf-8');
             bleCharacteristicObject.addEventListener('characteristicvaluechanged', (e) => {
                 try {
-                    let str = decoder.decode(e.target.value); leftoverString += str;
-                    let lines = leftoverString.split("\n"); leftoverString = lines.pop();
-                    for (let line of lines) {
-                        let points = line.trim().split(","); if (points.length < 2) continue;
-                        let audioChunk = new Float32Array(points.length);
-                        for (let i = 0; i < points.length; i++) {
-                            let cleanStr = points[i].replace(/[^0-9.-]/g, '');
-                            let val = parseFloat(cleanStr); if (isNaN(val)) continue;
-                            let fVal = applyFilter(val); audioChunk[i] = fVal;
-                            filteredDataLog.push(fVal); if (filteredDataLog.length > 600) filteredDataLog.shift();
-                            analysisBuffer[bufferIndex] = fVal; bufferIndex = (bufferIndex + 1) % FFT_SIZE;
-                        }
-                        if (isSpeakerOn && audioCtx && audioChunk.some(v => v !== 0)) {
-                            if (audioCtx.state === 'suspended') audioCtx.resume();
-                            let ab = audioCtx.createBuffer(1, audioChunk.length, currentSampleRate); ab.getChannelData(0).set(audioChunk);
-                            let src = audioCtx.createBufferSource(); src.buffer = ab; src.connect(gainNode); src.start();
-                        }
+                    let hexStr = decoder.decode(e.target.value).trim();
+                    // 💡 終極解鎖：每 2 個 Hex 字元直接還原成一個點，完美抗雜訊
+                    if (hexStr.length % 2 !== 0) return; 
+                    
+                    let count = hexStr.length / 2;
+                    let audioChunk = new Float32Array(count);
+                    
+                    for (let i = 0; i < count; i++) {
+                        let sub = hexStr.substring(i * 2, i * 2 + 2);
+                        let byteVal = parseInt(sub, 16);
+                        
+                        // 將 0~255 還原回 -1.0 ~ 1.0 浮點數波形
+                        let val = (byteVal / 127.5) - 1.0;
+                        let fVal = applyFilter(val);
+                        
+                        audioChunk[i] = fVal;
+                        filteredDataLog.push(fVal);
+                        if (filteredDataLog.length > 600) filteredDataLog.shift();
+                        analysisBuffer[bufferIndex] = fVal;
+                        bufferIndex = (bufferIndex + 1) % FFT_SIZE;
+                    }
+                    
+                    if (isSpeakerOn && audioCtx) {
+                        if (audioCtx.state === 'suspended') audioCtx.resume();
+                        let ab = audioCtx.createBuffer(1, audioChunk.length, currentSampleRate);
+                        ab.getChannelData(0).set(audioChunk);
+                        let src = audioCtx.createBufferSource(); src.buffer = ab; src.connect(gainNode); src.start();
                     }
                 } catch (err) {}
             });
@@ -137,8 +147,8 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function resize() { tCanvas.width = tCanvas.clientWidth; tCanvas.height = tCanvas.clientHeight; fCanvas.width = fCanvas.clientWidth; fCanvas.height = fCanvas.clientHeight; }
-    window.addEventListener('resize', resize); resize();
+    tCanvas.width = 800; tCanvas.height = 400;
+    fCanvas.width = 800; fCanvas.height = 400;
 
     function renderLoop() {
         requestAnimationFrame(renderLoop); if (filteredDataLog.length < 150) return;
@@ -154,7 +164,6 @@ window.addEventListener('DOMContentLoaded', () => {
         for (let i = 0; i < FFT_SIZE / 2; i++) { magnitudes[i] = Math.sqrt(re[i] * re[i] + im[i] * im[i]) / (FFT_SIZE / 2); if (i > 1 && magnitudes[i] > maxMag) { maxMag = magnitudes[i]; maxIdx = i; } }
         let peakFreq = maxIdx * (currentSampleRate / FFT_SIZE); document.getElementById('freqVal').innerText = maxMag > 0.04 ? peakFreq.toFixed(1) + " Hz" : "0.0 Hz";
         
-        // 💡 終極解鎖補丁：加入物理 clearRect，100% 杜絕圖層重疊造成的畫布黑化死結！
         tCtx.clearRect(0, 0, tCanvas.width, tCanvas.height);
         tCtx.fillStyle = '#111'; tCtx.fillRect(0, 0, tCanvas.width, tCanvas.height); tCtx.strokeStyle = '#00ff66'; tCtx.lineWidth = 2.5; tCtx.beginPath();
         let tSlice = tCanvas.width / (rPoints.length - 1);
@@ -162,12 +171,11 @@ window.addEventListener('DOMContentLoaded', () => {
         let midY = tCanvas.height / 2;
         for (let i = 0; i < rPoints.length; i++) { 
             let x = i * tSlice;
-            let y = midY - (rPoints[i] * (tCanvas.height / 2.5)); 
+            let y = midY - (rPoints[i] * (tCanvas.height / 2.3)); // 8-bit RAW 直通映射
             if (i == 0) tCtx.moveTo(x, y); else tCtx.lineTo(x, y); 
         }
         tCtx.stroke();
         
-        // 💡 終極解鎖補丁：同步加入頻域畫布物理清除機制
         fCtx.clearRect(0, 0, fCanvas.width, fCanvas.height);
         fCtx.fillStyle = '#111'; fCtx.fillRect(0, 0, fCanvas.width, fCanvas.height); fCtx.strokeStyle = '#ffad00'; fCtx.lineWidth = 1.5; fCtx.beginPath();
         let fSlice = fCanvas.width / (FFT_SIZE / 4);
