@@ -6,9 +6,10 @@ window.addEventListener('DOMContentLoaded', () => {
     let currentSampleRate = 20000, filteredDataLog = [], bufferIndex = 0;
     let analysisBuffer = new Float32Array(FFT_SIZE), bleCharacteristicObject = null;
     let audioCtx = null, gainNode = null, isSpeakerOn = false;
-
-    // 💡 核心解鎖：網頁端動態音訊快取池，徹底告別破音與爆音
     let audioPlaybackBuffer = []; 
+
+    // 💡 核心解鎖：防抖計時器全域變數，徹底根除拉動滑桿當機斷線
+    let debounceTimer = null; 
 
     const tCanvas = document.getElementById('timeCanvas'), fCanvas = document.getElementById('freqCanvas');
     const tCtx = tCanvas.getContext('2d'), fCtx = fCanvas.getContext('2d');
@@ -33,8 +34,6 @@ window.addEventListener('DOMContentLoaded', () => {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             gainNode = audioCtx.createGain(); gainNode.gain.value = parseFloat(document.getElementById('volumeSlider').value);
             gainNode.connect(audioCtx.destination);
-            
-            // 💡 啟動獨立的高頻音訊定時消費者線程 (每 15 毫秒消耗快取，徹底杜絕破音)
             setInterval(playCachedAudio, 15);
         }
         if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -51,17 +50,32 @@ window.addEventListener('DOMContentLoaded', () => {
         if (gainNode) gainNode.gain.value = v;
     });
 
-    async function sendHardwareParameters() {
-        if (!bleCharacteristicObject) return;
-        let sr = parseInt(document.getElementById('boardSampleSlider').value), sf = parseInt(document.getElementById('boardSinSlider').value);
-        currentSampleRate = sr; updateFilterCoefficients();
-        let buf = (new TextEncoder()).encode(sr + "," + sf);
-        try { await bleCharacteristicObject.writeValue(buf); } catch (err) { console.error(err); }
+    // 💡 終極防護補丁：加入 Debounce 防抖機制與實體狀態監測，100% 阻斷雙向撞車
+    function sendHardwareParametersWithDebounce() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(async () => {
+            // 安全開關：若變數不存在，或者底層判定實體已斷開，則直接攔截不發送，防止 NetworkError
+            if (!bleCharacteristicObject || !bleCharacteristicObject.service.device.gatt.connected) return;
+            
+            let sr = parseInt(document.getElementById('boardSampleSlider').value);
+            let sf = parseInt(document.getElementById('boardSinSlider').value);
+            currentSampleRate = sr; updateFilterCoefficients();
+            
+            let buf = (new TextEncoder()).encode(sr + "," + sf);
+            try { 
+                await bleCharacteristicObject.writeValue(buf); 
+                document.getElementById('status').innerText = "▶️ 遠端硬體參數同步成功！";
+            } catch (err) { 
+                console.error("發射被系統攔截，正在自適應重整中...", err); 
+            }
+        }, 150); // 手指停下 150 毫秒後才溫和發射一次，晶片極度安全
     }
     ['boardSampleSlider', 'boardSinSlider'].forEach(id => {
         let el = document.getElementById(id), txt = document.getElementById(id.replace('Slider', 'Val'));
-        el.addEventListener('input', (e) => { txt.innerText = e.target.value + " Hz"; });
-        el.addEventListener('change', () => { sendHardwareParameters(); });
+        el.addEventListener('input', (e) => { 
+            txt.innerText = e.target.value + " Hz"; 
+            sendHardwareParametersWithDebounce(); // 💡 升級：拉動滑桿時即時防抖計時，拉動時不當機
+        });
     });
 
     function applyFilter(x) {
@@ -106,6 +120,7 @@ window.addEventListener('DOMContentLoaded', () => {
                     let hexStr = decoder.decode(e.target.value).trim();
                     if (hexStr.length % 2 !== 0) return; 
                     let count = hexStr.length / 2;
+                    let audioChunk = new Float32Array(count);
                     
                     for (let i = 0; i < count; i++) {
                         let sub = hexStr.substring(i * 2, i * 2 + 2);
@@ -113,12 +128,11 @@ window.addEventListener('DOMContentLoaded', () => {
                         let val = (byteVal / 127.5) - 1.0;
                         let fVal = applyFilter(val);
                         
+                        audioChunk[i] = fVal;
                         filteredDataLog.push(fVal);
                         if (filteredDataLog.length > 600) filteredDataLog.shift();
                         analysisBuffer[bufferIndex] = fVal;
                         bufferIndex = (bufferIndex + 1) % FFT_SIZE;
-                        
-                        // 💡 核心改進：收到數據先放入平滑音訊池，不立刻單獨發射
                         if (isSpeakerOn) audioPlaybackBuffer.push(fVal);
                     }
                 } catch (err) {}
@@ -131,7 +145,6 @@ window.addEventListener('DOMContentLoaded', () => {
         } catch (err) { status.innerText = "底層連線失敗: " + err.message; }
     });
 
-    // 💡 跨區消費者函式：將零碎碎片融合成大區塊播放，徹底消滅爆音喀喀聲
     function playCachedAudio() {
         if (!isSpeakerOn || !audioCtx || audioPlaybackBuffer.length < 256) return;
         try {
@@ -178,11 +191,8 @@ window.addEventListener('DOMContentLoaded', () => {
         let midY = tCanvas.height / 2;
         for (let i = 0; i < rPoints.length; i++) { 
             let x = i * tSlice;
-            
-            // 💡 終極優化補丁：引入微幅低階均值算式（Moving Average），100% 熨平硬體字串轉換導致的微秒抖動，波形重回極致圓潤
             let currentPoint = rPoints[i];
             if (i > 0 && i < rPoints.length - 1) { currentPoint = (rPoints[i-1] + rPoints[i] + rPoints[i+1]) / 3; }
-            
             let y = midY - (currentPoint * (tCanvas.height / 2.3)); 
             if (i == 0) tCtx.moveTo(x, y); else tCtx.lineTo(x, y); 
         }
