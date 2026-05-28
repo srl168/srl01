@@ -1,3 +1,4 @@
+// 💡 物理清洗：完全釋放舊宇宙的全域計時器，改用標準時間軸疊加機制
 if (window.audioPlaybackInterval) clearInterval(window.audioPlaybackInterval);
 window.audioPlaybackBuffer = [];
 window.isWritingLock = false;
@@ -7,13 +8,13 @@ window.addEventListener('DOMContentLoaded', () => {
     const C_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8'.toLowerCase();
     const FFT_SIZE = 1024;
 
-    // 💡 核心解鎖：不論板子硬體多高頻，網頁喇叭發聲一律鎖定在 44100Hz 國際標準音訊池，彻底消滅變調雙音與破音！
-    const AUDIO_OUTPUT_RATE = 44100; 
-
     let currentSampleRate = 20000, filteredDataLog = [], bufferIndex = 0;
     let analysisBuffer = new Float32Array(FFT_SIZE), bleCharacteristicObject = null;
     let audioCtx = null, gainNode = null, isSpeakerOn = false;
     let debounceTimer = null;
+
+    // 💡 核心解鎖：音訊時間軸動態追隨指標，徹底根除斷音卡頓
+    let nextStartTime = 0; 
 
     const tCanvas = document.getElementById('timeCanvas'), fCanvas = document.getElementById('freqCanvas');
     const tCtx = tCanvas.getContext('2d'), fCtx = fCanvas.getContext('2d');
@@ -35,13 +36,11 @@ window.addEventListener('DOMContentLoaded', () => {
 
     function initAudio() {
         if (!audioCtx) {
-            // 強制將 AudioContext 初始化在穩定的標準 44100Hz
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: AUDIO_OUTPUT_RATE });
+            // 回歸由瀏覽器硬體自適應的最優基準採樣率，解除鎖定
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             gainNode = audioCtx.createGain(); gainNode.gain.value = parseFloat(document.getElementById('volumeSlider').value);
             gainNode.connect(audioCtx.destination);
-            
-            if (window.audioPlaybackInterval) clearInterval(window.audioPlaybackInterval);
-            window.audioPlaybackInterval = setInterval(playCachedAudio, 12); // 優化消費者時間至 12 毫秒
+            nextStartTime = audioCtx.currentTime;
         }
         if (audioCtx.state === 'suspended') audioCtx.resume();
     }
@@ -50,7 +49,7 @@ window.addEventListener('DOMContentLoaded', () => {
         initAudio(); isSpeakerOn = !isSpeakerOn;
         document.getElementById('speakerBtn').innerText = isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉";
         document.getElementById('speakerBtn').className = isSpeakerOn ? "btn-speaker" : "btn-speaker muted";
-        if (!isSpeakerOn) window.audioPlaybackBuffer = [];
+        if (audioCtx) nextStartTime = audioCtx.currentTime;
     });
 
     document.getElementById('volumeSlider').addEventListener('input', (e) => {
@@ -68,10 +67,11 @@ window.addEventListener('DOMContentLoaded', () => {
             let sr = parseInt(document.getElementById('boardSampleSlider').value);
             let sf = parseInt(document.getElementById('boardSinSlider').value);
             currentSampleRate = sr; updateFilterCoefficients();
+            if (audioCtx) nextStartTime = audioCtx.currentTime; // 重置聲音時間軸
             
             let buf = (new TextEncoder()).encode(sr + "," + sf);
             try { 
-                await new Promise(r => setTimeout(r, 40)); // 擴大留白時間至 40 毫秒
+                await new Promise(r => setTimeout(r, 40)); 
                 await bleCharacteristicObject.writeValue(buf); 
                 document.getElementById('status').innerText = "▶️ 遠端硬體參數同步成功！";
             } catch (err) {
@@ -96,7 +96,7 @@ window.addEventListener('DOMContentLoaded', () => {
         if (currentFilterMode === 'HP') { let rc = 1 / (2 * Math.PI * f1), alpha = rc / (rc + dt); let y = alpha * (lastY_hp + x - lastX_hp); lastX_hp = x; lastY_hp = y; return y; }
         if (currentFilterMode === 'BP') {
             let rc1 = 1 / (2 * Math.PI * f2), a1 = dt / (rc1 + dt); lastY_bp1 = lastY_bp1 + a1 * (x - lastY_bp1);
-            let rc2 = 1 / (2 * Math.PI * f1), a2 = rc2 / (rc2 + dt); let y = a2 * (lastY_bp2 + lastY_bp1 - lastX_bp2); lastX_hp = lastY_bp1; lastY_bp2 = y; return y;
+            let rc2 = 1 / (2 * Math.PI * f1), a2 = rc2 / (rc2 + dt); let y = a2 * (lastY_bp2 + lastY_bp1 - lastX_hp); lastX_hp = lastY_bp1; lastY_bp2 = y; return y;
         }
         return x;
     }
@@ -134,11 +134,15 @@ window.addEventListener('DOMContentLoaded', () => {
             const decoder = new TextDecoder('utf-8');
             bleCharacteristicObject.removeEventListener('characteristicvaluechanged', window.currentBleHandler);
             
+            let leftoverString = "";
             window.currentBleHandler = (e) => {
                 try {
                     let hexStr = decoder.decode(e.target.value).trim();
                     if (hexStr.length % 2 !== 0) return; 
                     let count = hexStr.length / 2;
+                    
+                    // 💡 建立高動態局部音訊塊
+                    let audioChunk = new Float32Array(count);
                     
                     for (let i = 0; i < count; i++) {
                         let sub = hexStr.substring(i * 2, i * 2 + 2);
@@ -146,11 +150,30 @@ window.addEventListener('DOMContentLoaded', () => {
                         let val = (byteVal / 127.5) - 1.0;
                         let fVal = applyFilter(val);
                         
+                        audioChunk[i] = fVal;
                         filteredDataLog.push(fVal);
                         if (filteredDataLog.length > 600) filteredDataLog.shift();
                         analysisBuffer[bufferIndex] = fVal;
                         bufferIndex = (bufferIndex + 1) % FFT_SIZE;
-                        if (isSpeakerOn) window.audioPlaybackBuffer.push(fVal);
+                    }
+                    
+                    // 💡 終極打通防線：採用精準時間軸動態堆疊演算法（Timeline Stacking），把斷音碎片完美拼接！
+                    if (isSpeakerOn && audioCtx) {
+                        let ab = audioCtx.createBuffer(1, audioChunk.length, currentSampleRate); // 100% 動態對齊滑桿採樣率
+                        ab.getChannelData(0).set(audioChunk);
+                        
+                        let src = audioCtx.createBufferSource();
+                        src.buffer = ab;
+                        src.connect(gainNode);
+                        
+                        // 如果播放時間已經落後，立刻拉回目前時間點防延遲
+                        if (nextStartTime < audioCtx.currentTime) {
+                            nextStartTime = audioCtx.currentTime + 0.02; 
+                        }
+                        
+                        src.start(nextStartTime);
+                        // 精準計算這 50 個點在當前採樣率滑桿下，理應播放多少秒，並把下一個點無縫接在後方！
+                        nextStartTime += ab.duration; 
                     }
                 } catch (err) {}
             };
@@ -163,29 +186,6 @@ window.addEventListener('DOMContentLoaded', () => {
             document.getElementById('boardSampleSlider').disabled = false; document.getElementById('boardSinSlider').disabled = false;
         } catch (err) { status.innerText = "底層連線失敗: " + err.message; }
     });
-
-    // 💡 核心播放平滑升級：將定頻 44100Hz 播放核心與硬體解耦，徹底熨平雙音
-    function playCachedAudio() {
-        if (!isSpeakerOn || !audioCtx || window.audioPlaybackBuffer.length < 300) return;
-        try {
-            let chunk = new Float32Array(window.audioPlaybackBuffer.splice(0, 512));
-            let ab = audioCtx.createBuffer(1, chunk.length, 44100); // 鎖死標準輸出率
-            ab.getChannelData(0).set(chunk);
-            let src = audioCtx.createBufferSource(); src.buffer = ab; src.connect(gainNode); src.start();
-        } catch (e) {}
-    }
-
-    function localFFT(re, im) {
-        const n = re.length; if (n <= 1) return;
-        const reE = new Float32Array(n / 2), imE = new Float32Array(n/2), reO = new Float32Array(n / 2), imO = new Float32Array(n / 2);
-        for (let i = 0; i < n / 2; i++) { reE[i] = re[2 * i]; imE[i] = im[2 * i]; reO[i] = re[2 * i + 1]; imO[i] = im[2 * i + 1]; }
-        localFFT(reE, imE); localFFT(reO, imO);
-        for (let i = 0; i < n / 2; i++) {
-            const tr = Math.cos(-2 * Math.PI * i / n) * reO[i] - Math.sin(-2 * Math.PI * i / n) * imO[i];
-            const tj = Math.sin(-2 * Math.PI * i / n) * reO[i] + Math.cos(-2 * Math.PI * i / n) * imO[i];
-            re[i] = reE[i] + tr; im[i] = imE[i] + tj; re[i + n / 2] = reE[i] - tr; im[i + n / 2] = imE[i] - tj;
-        }
-    }
 
     tCanvas.width = 800; tCanvas.height = 400;
     fCanvas.width = 800; fCanvas.height = 400;
