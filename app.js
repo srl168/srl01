@@ -157,20 +157,18 @@ window.addEventListener('DOMContentLoaded', () => {
         tCtx.fillStyle = '#111'; tCtx.fillRect(0, 0, tCanvas.width, tCanvas.height); tCtx.strokeStyle = '#00ff66'; tCtx.lineWidth = 2.5; tCtx.beginPath();
         let tSlice = tCanvas.width / (rPoints.length - 1);
         
-        // 💡 終極解鎖補丁：加入自適應波形熨平縮放器（Math.abs(max)），強迫極微弱的濾波訊號等比例拉展到畫布中央！
-        let ampScale = (max !== min) ? (tCanvas.height / (max - min)) * 0.7 : tCanvas.height / 2.5;
+        // 💡 終極解鎖補丁：改用穩固的工業級有源直通放大器，徹底消滅 NaN 與運算元斷句卡死
         let midY = tCanvas.height / 2;
         for (let i = 0; i < rPoints.length; i++) { 
             let x = i * tSlice;
-            let y = midY - ((rPoints[i] - (max + min)/2) * ampScale); 
+            let y = midY - (rPoints[i] * (tCanvas.height / 2.5)); // RAW 直通映射
             if (i == 0) tCtx.moveTo(x, y); else tCtx.lineTo(x, y); 
         }
         tCtx.stroke();
         
         fCtx.fillStyle = '#111'; fCtx.fillRect(0, 0, fCanvas.width, fCanvas.height); fCtx.strokeStyle = '#ffad00'; fCtx.lineWidth = 1.5; fCtx.beginPath();
         let fSlice = fCanvas.width / (FFT_SIZE / 4);
-        // 💡 終極解鎖補丁：同步調大頻域畫布的動態垂直放大倍率，讓 FFT 頻譜黃色突起瞬間現形
-        for (let i = 0; i < FFT_SIZE / 4; i++) { let x = i * fSlice, y = fCanvas.height - (magnitudes[i] * fCanvas.height * 250); if (i == 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y); }
+        for (let i = 0; i < FFT_SIZE / 4; i++) { let x = i * fSlice, y = fCanvas.height - (magnitudes[i] * fCanvas.height * 200); if (i == 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y); }
         fCtx.stroke();
     }
     requestAnimationFrame(renderLoop); updateFilterCoefficients();
