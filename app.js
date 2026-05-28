@@ -1,6 +1,3 @@
-if (window.audioInterval) clearInterval(window.audioInterval);
-window.isWritingLock = false;
-
 window.addEventListener('DOMContentLoaded', () => {
     const S_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c3318888'.toLowerCase();
     const C_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8'.toLowerCase();
@@ -131,26 +128,22 @@ window.addEventListener('DOMContentLoaded', () => {
             let leftoverString = "";
             window.currentBleHandler = (e) => {
                 try {
-                    let hexStr = decoder.decode(e.target.value).trim();
+                    let hexStr = decoder.decode(e.target.value).trim().replace(/[^0-9A-Fa-f]/g, '');
                     leftoverString += hexStr;
                     
-                    let lines = leftoverString.split("\n");
-                    leftoverString = lines.pop();
-                    
-                    for (let line of lines) {
-                        let cleanLine = line.trim().replace(/[^0-9A-Fa-f]/g, ''); // 💡 清洗非 Hex 字元
-                        if (cleanLine.length < 2) continue;
+                    // 💡 終極打通防線：採用固定長度 400 個字元（200個點）強制裁切法，100% 繞過換行符丟失死結！
+                    while (leftoverString.length >= 400) {
+                        let targetBlock = leftoverString.substring(0, 400);
+                        leftoverString = leftoverString.substring(400); // 留下未滿的碎片
                         
-                        let count = cleanLine.length / 2;
-                        for (let i = 0; i < count; i++) {
-                            // 💡 終極對齊解鎖：不再切逗號！每 2 個 Hex 字元直接抽取為 1 個點
-                            let sub = cleanLine.substring(i * 2, i * 2 + 2);
+                        let audioChunk = new Float32Array(200);
+                        for (let i = 0; i < 200; i++) {
+                            let sub = targetBlock.substring(i * 2, i * 2 + 2);
                             let byteVal = parseInt(sub, 16);
-                            if (isNaN(byteVal)) continue;
-                            
                             let val = (byteVal / 127.5) - 1.0;
                             let fVal = applyFilter(val);
                             
+                            audioChunk[i] = fVal;
                             filteredDataLog.push(fVal);
                             if (filteredDataLog.length > 800) filteredDataLog.shift();
                             analysisBuffer[bufferIndex] = fVal;
@@ -231,5 +224,5 @@ window.addEventListener('DOMContentLoaded', () => {
         for (let i = 0; i < FFT_SIZE / 4; i++) { let x = i * fSlice, y = fCanvas.height - (magnitudes[i] * fCanvas.height * 200); if (i == 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y); }
         fCtx.stroke();
     }
-    window.activeRenderLoop = requestAnimationFrame(renderLoop); updateFilterCoefficients();
+    requestAnimationFrame(renderLoop); updateFilterCoefficients();
 });
