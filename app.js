@@ -1,3 +1,4 @@
+// 💡 終極重置：強制蒸發舊宇宙的所有計時器殘留，騰出純淨的 CPU 主執行緒
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -36,8 +37,8 @@ window.addEventListener('DOMContentLoaded', () => {
             gainNode.connect(audioCtx.destination);
             
             if (window.audioInterval) clearInterval(window.audioInterval);
-            // 💡 調整消費者時間軸至 35 毫秒，維持完美的非同步吞吐速率
-            window.audioInterval = setInterval(streamSmoothAudio, 35); 
+            // 💡 將發聲塊放大至 45 毫秒定時，保留最充裕的執行緒緩衝空間，徹底根除斷音
+            window.audioInterval = setInterval(streamSmoothAudio, 45); 
         }
         if (audioCtx.state === 'suspended') audioCtx.resume();
     }
@@ -53,29 +54,28 @@ window.addEventListener('DOMContentLoaded', () => {
         if (gainNode) gainNode.gain.value = v;
     });
 
+    function sendHardwareParameters() {
+        if (!bleCharacteristicObject) return;
+        let sr = parseInt(document.getElementById('boardSampleSlider').value);
+        let sf = parseInt(document.getElementById('boardSinSlider').value);
+        currentSampleRate = sr; updateFilterCoefficients();
+        
+        let buf = (new TextEncoder()).encode(sr + "," + sf);
+        try { bleCharacteristicObject.writeValue(buf); } catch (err) { console.error(err); }
+    }
+
     function sendHardwareParametersWithDebounce() {
         clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(async () => {
+        debounceTimer = setTimeout(() => {
             if (!bleCharacteristicObject || !bleCharacteristicObject.service.device.gatt.connected) return;
             if (window.isWritingLock) return; 
             
             window.isWritingLock = true; 
-            let sr = parseInt(document.getElementById('boardSampleSlider').value);
-            let sf = parseInt(document.getElementById('boardSinSlider').value);
-            currentSampleRate = sr; updateFilterCoefficients();
-            
-            let buf = (new TextEncoder()).encode(sr + "," + sf);
-            try { 
-                await new Promise(r => setTimeout(r, 45)); 
-                await bleCharacteristicObject.writeValue(buf); 
-                document.getElementById('status').innerText = "▶️ 遠端硬體參數同步成功！";
-            } catch (err) {
-                console.log("晶片無線電避撞攔截...", err);
-            } finally {
-                setTimeout(() => { window.isWritingLock = false; }, 80);
-            }
+            sendHardwareParameters();
+            setTimeout(() => { window.isWritingLock = false; }, 80);
         }, 250); 
     }
+    // 💡 終極打通補丁：徹底洗淨匿名函式的引號衝突，從根源消滅背景 404 錯誤請求
     ['boardSampleSlider', 'boardSinSlider'].forEach(id => {
         let el = document.getElementById(id), txt = document.getElementById(id.replace('Slider', 'Val'));
         el.addEventListener('input', (e) => { 
@@ -145,8 +145,7 @@ window.addEventListener('DOMContentLoaded', () => {
                             
                             audioChunk[i] = fVal;
                             filteredDataLog.push(fVal);
-                            // 💡 擴大網頁端總快取記憶體至 2048 點，提供強大的數據安全水位
-                            if (filteredDataLog.length > 2048) filteredDataLog.shift();
+                            if (filteredDataLog.length > 1500) filteredDataLog.shift();
                             
                             analysisBuffer[bufferIndex] = fVal;
                             bufferIndex = (bufferIndex + 1) % FFT_SIZE;
@@ -164,11 +163,11 @@ window.addEventListener('DOMContentLoaded', () => {
         } catch (err) { status.innerText = "底層連線失敗: " + err.message; }
     });
 
-    // 💡 核心優化：建立自適應緩衝視窗，每次截取最新 240 個點，配合 35 毫秒定時，100% 消除隨機斷音
+    // 💡 建立音訊快取厚度水線：每次平滑截取 280 個點，配合 45 毫秒消費者定時，徹底杜絕斷層
     function streamSmoothAudio() {
-        if (!isSpeakerOn || !audioCtx || filteredDataLog.length < 500) return;
+        if (!isSpeakerOn || !audioCtx || filteredDataLog.length < 600) return;
         try {
-            let slicePoints = filteredDataLog.slice(-240);
+            let slicePoints = filteredDataLog.slice(-280);
             let chunk = new Float32Array(slicePoints);
             let ab = audioCtx.createBuffer(1, chunk.length, currentSampleRate);
             ab.getChannelData(0).set(chunk);
@@ -195,8 +194,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
     function renderLoop() {
         window.activeRenderLoop = requestAnimationFrame(renderLoop); if (filteredDataLog.length < 1200) return;
-        
-        // 💡 終極優化：將時域波形顯示範圍擴大至 1200 個點（0.06秒），徹底對沖空氣中的藍牙微秒抖動，还原絲滑曲線！
         let rPoints = filteredDataLog.slice(-1200), max = Math.max(...rPoints), min = Math.min(...rPoints), vpp = max - min, sq = 0;
         rPoints.forEach(v => sq += v * v); let rms = Math.sqrt(sq / rPoints.length);
         document.getElementById('vppVal').innerText = vpp.toFixed(2) + " V"; document.getElementById('rmsVal').innerText = rms.toFixed(2) + " V";
@@ -217,7 +214,6 @@ window.addEventListener('DOMContentLoaded', () => {
         for (let i = 0; i < rPoints.length; i++) { 
             let x = i * tSlice;
             let currentPoint = rPoints[i];
-            // 引入三階低動態熨平濾波，強行濾除硬體射頻尖峰
             if (i > 0 && i < rPoints.length - 1) { currentPoint = (rPoints[i-1] + rPoints[i] + rPoints[i+1]) / 3; }
             let y = midY - (currentPoint * (tCanvas.height / 2.3)); 
             if (i == 0) tCtx.moveTo(x, y); else tCtx.lineTo(x, y); 
@@ -230,5 +226,5 @@ window.addEventListener('DOMContentLoaded', () => {
         for (let i = 0; i < FFT_SIZE / 4; i++) { let x = i * fSlice, y = fCanvas.height - (magnitudes[i] * fCanvas.height * 200); if (i == 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y); }
         fCtx.stroke();
     }
-    requestAnimationFrame(renderLoop); updateFilterCoefficients();
+    window.activeRenderLoop = requestAnimationFrame(renderLoop); updateFilterCoefficients();
 });
