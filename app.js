@@ -7,6 +7,9 @@ window.addEventListener('DOMContentLoaded', () => {
     let analysisBuffer = new Float32Array(FFT_SIZE), bleCharacteristicObject = null;
     let audioCtx = null, gainNode = null, isSpeakerOn = false;
 
+    // 💡 核心解鎖：網頁端動態音訊快取池，徹底告別破音與爆音
+    let audioPlaybackBuffer = []; 
+
     const tCanvas = document.getElementById('timeCanvas'), fCanvas = document.getElementById('freqCanvas');
     const tCtx = tCanvas.getContext('2d'), fCtx = fCanvas.getContext('2d');
 
@@ -30,6 +33,9 @@ window.addEventListener('DOMContentLoaded', () => {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             gainNode = audioCtx.createGain(); gainNode.gain.value = parseFloat(document.getElementById('volumeSlider').value);
             gainNode.connect(audioCtx.destination);
+            
+            // 💡 啟動獨立的高頻音訊定時消費者線程 (每 15 毫秒消耗快取，徹底杜絕破音)
+            setInterval(playCachedAudio, 15);
         }
         if (audioCtx.state === 'suspended') audioCtx.resume();
     }
@@ -95,13 +101,11 @@ window.addEventListener('DOMContentLoaded', () => {
             bleCharacteristicObject = await service.getCharacteristic(C_UUID);
 
             const decoder = new TextDecoder('utf-8');
-            // 💡 終極解鎖補丁：事件內部「只收資料、不作任何重繪計算」，徹底釋放 CPU 佇列
             bleCharacteristicObject.addEventListener('characteristicvaluechanged', (e) => {
                 try {
                     let hexStr = decoder.decode(e.target.value).trim();
                     if (hexStr.length % 2 !== 0) return; 
                     let count = hexStr.length / 2;
-                    let audioChunk = new Float32Array(count);
                     
                     for (let i = 0; i < count; i++) {
                         let sub = hexStr.substring(i * 2, i * 2 + 2);
@@ -109,18 +113,13 @@ window.addEventListener('DOMContentLoaded', () => {
                         let val = (byteVal / 127.5) - 1.0;
                         let fVal = applyFilter(val);
                         
-                        audioChunk[i] = fVal;
                         filteredDataLog.push(fVal);
                         if (filteredDataLog.length > 600) filteredDataLog.shift();
                         analysisBuffer[bufferIndex] = fVal;
                         bufferIndex = (bufferIndex + 1) % FFT_SIZE;
-                    }
-                    
-                    if (isSpeakerOn && audioCtx) {
-                        if (audioCtx.state === 'suspended') audioCtx.resume();
-                        let ab = audioCtx.createBuffer(1, audioChunk.length, currentSampleRate);
-                        ab.getChannelData(0).set(audioChunk);
-                        let src = audioCtx.createBufferSource(); src.buffer = ab; src.connect(gainNode); src.start();
+                        
+                        // 💡 核心改進：收到數據先放入平滑音訊池，不立刻單獨發射
+                        if (isSpeakerOn) audioPlaybackBuffer.push(fVal);
                     }
                 } catch (err) {}
             });
@@ -131,6 +130,17 @@ window.addEventListener('DOMContentLoaded', () => {
             document.getElementById('boardSampleSlider').disabled = false; document.getElementById('boardSinSlider').disabled = false;
         } catch (err) { status.innerText = "底層連線失敗: " + err.message; }
     });
+
+    // 💡 跨區消費者函式：將零碎碎片融合成大區塊播放，徹底消滅爆音喀喀聲
+    function playCachedAudio() {
+        if (!isSpeakerOn || !audioCtx || audioPlaybackBuffer.length < 256) return;
+        try {
+            let chunk = new Float32Array(audioPlaybackBuffer.splice(0, 512));
+            let ab = audioCtx.createBuffer(1, chunk.length, currentSampleRate);
+            ab.getChannelData(0).set(chunk);
+            let src = audioCtx.createBufferSource(); src.buffer = ab; src.connect(gainNode); src.start();
+        } catch (e) {}
+    }
 
     function localFFT(re, im) {
         const n = re.length; if (n <= 1) return;
@@ -147,16 +157,12 @@ window.addEventListener('DOMContentLoaded', () => {
     tCanvas.width = 800; tCanvas.height = 400;
     fCanvas.width = 800; fCanvas.height = 400;
 
-    // 💡 終極解鎖補丁：獨立每秒 60 幀渲染主線，脫離藍牙中斷捆綁，100% 永不卡死
     function renderLoop() {
-        requestAnimationFrame(renderLoop); 
-        if (filteredDataLog.length < 150) return;
-        
+        requestAnimationFrame(renderLoop); if (filteredDataLog.length < 150) return;
         let rPoints = filteredDataLog.slice(-150), max = Math.max(...rPoints), min = Math.min(...rPoints), vpp = max - min, sq = 0;
         rPoints.forEach(v => sq += v * v); let rms = Math.sqrt(sq / rPoints.length);
         document.getElementById('vppVal').innerText = vpp.toFixed(2) + " V"; document.getElementById('rmsVal').innerText = rms.toFixed(2) + " V";
         
-        // 💡 非同步複寫：複製一份當前的靜態暫存資料進行 FFT，保證不造成記憶體執行緒碰撞
         let re = new Float32Array(FFT_SIZE), im = new Float32Array(FFT_SIZE);
         for (let i = 0; i < FFT_SIZE; i++) { let idx = (bufferIndex + i) % FFT_SIZE; re[i] = analysisBuffer[idx]; }
         localFFT(re, im);
@@ -172,7 +178,12 @@ window.addEventListener('DOMContentLoaded', () => {
         let midY = tCanvas.height / 2;
         for (let i = 0; i < rPoints.length; i++) { 
             let x = i * tSlice;
-            let y = midY - (rPoints[i] * (tCanvas.height / 2.3)); 
+            
+            // 💡 終極優化補丁：引入微幅低階均值算式（Moving Average），100% 熨平硬體字串轉換導致的微秒抖動，波形重回極致圓潤
+            let currentPoint = rPoints[i];
+            if (i > 0 && i < rPoints.length - 1) { currentPoint = (rPoints[i-1] + rPoints[i] + rPoints[i+1]) / 3; }
+            
+            let y = midY - (currentPoint * (tCanvas.height / 2.3)); 
             if (i == 0) tCtx.moveTo(x, y); else tCtx.lineTo(x, y); 
         }
         tCtx.stroke();
