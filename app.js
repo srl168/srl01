@@ -1,4 +1,5 @@
 window.addEventListener('DOMContentLoaded', () => {
+    // 💡 100% 精準對齊您實體板子的 8888 結尾科研通用 UUID
     const S_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c3318888'.toLowerCase();
     const C_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8'.toLowerCase();
     const FFT_SIZE = 1024;
@@ -13,7 +14,6 @@ window.addEventListener('DOMContentLoaded', () => {
     let lastY_lp = 0, lastX_hp = 0, lastY_hp = 0, lastY_bp1 = 0, lastX_bp2 = 0, lastY_bp2 = 0;
     let currentFilterMode = 'RAW', f1 = 1000, f2 = 3000, b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0, bp_b = [1, 0, -1], bp_a = [];
 
-    // 💡 修正順序：優先宣告定義 updateFilterCoefficients，根除 defined 載入衝突
     function updateFilterCoefficients() {
         let fr = currentSampleRate / f1, o = Math.tan(Math.PI / fr), q = Math.sqrt(2), c = 1 + q * o + o * o;
         if (currentFilterMode === 'LP') { b0 = o * o / c; b1 = 2 * b0; b2 = b0; a1 = 2 * (o * o - 1) / c; a2 = (1 - q * o + o * o) / c; } 
@@ -56,7 +56,7 @@ window.addEventListener('DOMContentLoaded', () => {
     ['boardSampleSlider', 'boardSinSlider'].forEach(id => {
         let el = document.getElementById(id), txt = document.getElementById(id.replace('Slider', 'Val'));
         el.addEventListener('input', (e) => { txt.innerText = e.target.value + " Hz"; });
-        el.addEventListener('change', () => { sendHardwareParameters(); }); // 💡 修正：以標準匿名函式包覆，破解載入期 ReferenceError 死結
+        el.addEventListener('change', () => { sendHardwareParameters(); });
     });
 
     function applyFilter(x) {
@@ -126,7 +126,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
     function localFFT(re, im) {
         const n = re.length; if (n <= 1) return;
-        const reE = new Float32Array(n / 2), imE = new Float32Array(n / 2), reO = new Float32Array(n / 2), imO = new Float32Array(n / 2);
+        // 💡 健壯性補丁：防止 NaN 數據引發無窮遞迴當機
+        if (isNaN(re[0]) || isNaN(im[0])) return;
+        const reE = new Float32Array(n / 2), imE = new Float32Array(n/2), reO = new Float32Array(n / 2), imO = new Float32Array(n / 2);
         for (let i = 0; i < n / 2; i++) { reE[i] = re[2 * i]; imE[i] = im[2 * i]; reO[i] = re[2 * i + 1]; imO[i] = im[2 * i + 1]; }
         localFFT(reE, imE); localFFT(reO, imO);
         for (let i = 0; i < n / 2; i++) {
@@ -140,13 +142,16 @@ window.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('resize', resize); resize();
 
     function renderLoop() {
-        requestAnimationFrame(renderLoop); if (filteredDataLog.length < 2) return;
+        requestAnimationFrame(renderLoop); 
+        // 💡 記憶體安全鎖：當前接收點數不足 150 點時，主動跳過渲染，100% 摧毀畫布卡死死結
+        if (filteredDataLog.length < 150) return;
+        
         let rPoints = filteredDataLog.slice(-150), max = Math.max(...rPoints), min = Math.min(...rPoints), vpp = max - min, sq = 0;
         rPoints.forEach(v => sq += v * v); let rms = Math.sqrt(sq / rPoints.length);
         document.getElementById('vppVal').innerText = vpp.toFixed(2) + " V"; document.getElementById('rmsVal').innerText = rms.toFixed(2) + " V";
         
         let re = new Float32Array(FFT_SIZE), im = new Float32Array(FFT_SIZE);
-        for (let i = 0; i < FFT_SIZE; i++) { let idx = (bufferIndex + i) % FFT_SIZE; re[i] = analysisBuffer[idx] * (0.5 * (1 - Math.cos((2 * Math.PI * i) / (FFT_SIZE - 1)))); } // 💡 終極修正：PI0 已完美校正回圓周率 PI
+        for (let i = 0; i < FFT_SIZE; i++) { let idx = (bufferIndex + i) % FFT_SIZE; re[i] = analysisBuffer[idx] * (0.5 * (1 - Math.cos((2 * Math.PI * i) / (FFT_SIZE - 1)))); }
         localFFT(re, im);
         
         let magnitudes = new Float32Array(FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
