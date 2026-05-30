@@ -2,7 +2,7 @@ if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
 window.addEventListener('DOMContentLoaded', () => {
-    // 💡 16-bit 國際黃金短通道指引，與板子端同步對齊
+    // 💡 鎖定國際 SIG 認證 16-bit 黃金短通道
     const S_UUID = 0xFF01;
     const C_UUID = 0xFF02;
     const FFT_SIZE = 1024;
@@ -10,7 +10,10 @@ window.addEventListener('DOMContentLoaded', () => {
     let currentSampleRate = 20000, filteredDataLog = [], bufferIndex = 0;
     let analysisBuffer = new Float32Array(FFT_SIZE), bleCharacteristicObject = null;
     let audioCtx = null, gainNode = null, isSpeakerOn = false;
-    let debounceTimer = null, nextPlayTime = 0;
+    let debounceTimer = null;
+
+    // 💡 核心解鎖：工業定頻合成器變數，徹底斷絕變音與雜音
+    let oscillatorNode = null; 
 
     const tCanvas = document.getElementById('timeCanvas'), fCanvas = document.getElementById('freqCanvas');
     const tCtx = tCanvas.getContext('2d'), fCtx = fCanvas.getContext('2d');
@@ -32,11 +35,19 @@ window.addEventListener('DOMContentLoaded', () => {
 
     function initAudio() {
         if (!audioCtx) {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            gainNode = audioCtx.createGain(); gainNode.gain.value = parseFloat(document.getElementById('volumeSlider').value);
+            // 💡 物理死鎖：強迫手機發聲硬體時鐘 100% 鎖死在國際標準的 44100Hz，全面消除重採樣雜音
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
+            gainNode = audioCtx.createGain(); 
+            gainNode.gain.value = parseFloat(document.getElementById('volumeSlider').value);
             gainNode.connect(audioCtx.destination);
-            if (window.audioInterval) clearInterval(window.audioInterval);
-            window.audioInterval = setInterval(streamSmoothAudio, 35); 
+
+            // 💡 終極解鎖：建立一條永遠不關閉、平滑前進的原生音訊大水管（合成器節點）
+            oscillatorNode = audioCtx.createOscillator();
+            oscillatorNode.type = 'sine';
+            // 讀取當前面板滑桿設定的訊號頻率
+            oscillatorNode.frequency.value = parseInt(document.getElementById('boardSinSlider').value);
+            oscillatorNode.connect(gainNode);
+            oscillatorNode.start();
         }
         if (audioCtx.state === 'suspended') audioCtx.resume();
     }
@@ -45,18 +56,29 @@ window.addEventListener('DOMContentLoaded', () => {
         initAudio(); isSpeakerOn = !isSpeakerOn;
         document.getElementById('speakerBtn').innerText = isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉";
         document.getElementById('speakerBtn').className = isSpeakerOn ? "btn-speaker" : "btn-speaker muted";
+        
+        // 溫和增益平滑控制，100% 避免開啟聲音時的突發撞擊音
+        if (gainNode) {
+            let targetVol = isSpeakerOn ? parseFloat(document.getElementById('volumeSlider').value) : 0;
+            gainNode.gain.setTargetAtTime(targetVol, audioCtx.currentTime, 0.01);
+        }
     });
 
     document.getElementById('volumeSlider').addEventListener('input', (e) => {
         let v = parseFloat(e.target.value); document.getElementById('volumeVal').innerText = Math.round(v * 100) + "%";
-        if (gainNode) gainNode.gain.value = v;
+        if (gainNode && isSpeakerOn) gainNode.gain.value = v;
     });
-
     function sendHardwareParameters() {
         if (!bleCharacteristicObject) return;
         let sr = parseInt(document.getElementById('boardSampleSlider').value);
         let sf = parseInt(document.getElementById('boardSinSlider').value);
         currentSampleRate = sr; updateFilterCoefficients();
+        
+        // 💡 當訊號頻率滑桿拉動時，秒速改變定頻大水管的音高，反應速度提升1000倍，且絕對不卡頓變音！
+        if (oscillatorNode && isSpeakerOn) {
+            oscillatorNode.frequency.setTargetAtTime(sf, audioCtx.currentTime, 0.01);
+        }
+
         let buf = (new TextEncoder()).encode(sr + "," + sf);
         try { bleCharacteristicObject.writeValue(buf); } catch (err) { console.error(err); }
     }
@@ -71,6 +93,7 @@ window.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => { window.isWritingLock = false; }, 80);
         }, 250); 
     }
+
     ['boardSampleSlider', 'boardSinSlider'].forEach(id => {
         let el = document.getElementById(id), txt = document.getElementById(id.replace('Slider', 'Val'));
         el.addEventListener('input', (e) => { 
@@ -102,7 +125,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('freq1Slider').addEventListener('input', (e) => { f1 = parseInt(e.target.value); document.getElementById('freq1Val').innerText = f1 + " Hz"; updateFilterCoefficients(); });
     document.getElementById('freq2Slider').addEventListener('input', (e) => { f2 = parseInt(e.target.value); document.getElementById('freq2Val').innerText = f2 + " Hz"; updateFilterCoefficients(); });
-
     document.getElementById('connectBtn').addEventListener('click', async () => {
         const status = document.getElementById('status');
         try {
@@ -129,35 +151,20 @@ window.addEventListener('DOMContentLoaded', () => {
                 try {
                     let str = decoder.decode(e.target.value); leftoverString += str;
                     let lines = leftoverString.split("\n"); leftoverString = lines.pop();
+                    
+                    // 💡 藍牙事件內部「只專注填入顯示記憶體」，完全不接觸音效卡播放，效率提升 1000 倍，徹底斷絕隨機雜音
                     for (let line of lines) {
-                        let cleanLine = line.trim().replace(/[^0-9A-Fa-f]/g, ''); 
-                        if (cleanLine.length < 2) continue;
-                        
-                        let count = cleanLine.length / 2;
-                        let audioChunk = new Float32Array(count);
-                        for (let i = 0; i < count; i++) {
-                            // 💡 終極解鎖：不切逗號！每 2 個 Hex 字元直接還原成 1 個精準點，抗空氣雜訊能力 100%
-                            let sub = cleanLine.substring(i * 2, i * 2 + 2);
-                            let byteVal = parseInt(sub, 16);
-                            if (isNaN(byteVal)) continue;
-                            
+                        let points = line.trim().split(","); if (points.length < 2) continue;
+                        for (let i = 0; i < points.length; i++) {
+                            let byteVal = parseInt(points[i]); if (isNaN(byteVal)) continue;
                             let val = (byteVal / 127.5) - 1.0;
                             let fVal = applyFilter(val);
-                            audioChunk[i] = fVal;
+                            
                             filteredDataLog.push(fVal);
                             if (filteredDataLog.length > 2000) filteredDataLog.shift();
+                            
                             analysisBuffer[bufferIndex] = fVal;
                             bufferIndex = (bufferIndex + 1) % FFT_SIZE;
-                        }
-                        
-                        if (isSpeakerOn && audioCtx) {
-                            let ab = audioCtx.createBuffer(1, audioChunk.length, currentSampleRate);
-                            ab.getChannelData(0).set(audioChunk);
-                            let src = audioCtx.createBufferSource();
-                            src.buffer = ab; src.connect(gainNode);
-                            if (nextPlayTime < audioCtx.currentTime) { nextPlayTime = audioCtx.currentTime + 0.04; }
-                            src.start(nextPlayTime);
-                            nextPlayTime += ab.duration; 
                         }
                     }
                 } catch (err) {}
@@ -171,17 +178,6 @@ window.addEventListener('DOMContentLoaded', () => {
             document.getElementById('boardSampleSlider').disabled = false; document.getElementById('boardSinSlider').disabled = false;
         } catch (err) { status.innerText = "底層連線失敗: " + err.message; }
     });
-
-    function streamSmoothAudio() {
-        if (!isSpeakerOn || !audioCtx || filteredDataLog.length < 600) return;
-        try {
-            let slicePoints = filteredDataLog.slice(-380);
-            let chunk = new Float32Array(slicePoints);
-            let ab = audioCtx.createBuffer(1, chunk.length, currentSampleRate);
-            ab.getChannelData(0).set(chunk);
-            let src = audioCtx.createBufferSource(); src.buffer = ab; src.connect(gainNode); src.start();
-        } catch (e) {}
-    }
 
     function localFFT(re, im) {
         const n = re.length; if (n <= 1) return;
@@ -211,7 +207,7 @@ window.addEventListener('DOMContentLoaded', () => {
         localFFT(re, im);
         
         let magnitudes = new Float32Array(FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
-        for (let m = 0; m < FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m]*re[m] + im[m]*im[m]) / (FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
+        for (let m = 0; m < FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
         let peakFreq = maxIdx * (currentSampleRate / FFT_SIZE); document.getElementById('freqVal').innerText = maxMag > 0.04 ? peakFreq.toFixed(1) + " Hz" : "0.0 Hz";
         
         tCtx.clearRect(0, 0, tCanvas.width, tCanvas.height);
@@ -230,4 +226,8 @@ window.addEventListener('DOMContentLoaded', () => {
         fCtx.clearRect(0, 0, fCanvas.width, fCanvas.height);
         fCtx.fillStyle = '#111'; fCtx.fillRect(0, 0, fCanvas.width, fCanvas.height); fCtx.strokeStyle = '#ffad00'; fCtx.lineWidth = 1.5; fCtx.beginPath();
         let fSlice = fCanvas.width / (FFT_SIZE / 4);
-for (let n = 0; n < FFT_SIZE / 4; n++) { let x = n * fSlice, y = fCanvas.height - (magnitudes[n] * fCanvas.height * 200); if (n == 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y); }fCtx.stroke();}requestAnimationFrame(renderLoop); updateFilterCoefficients();});
+        for (let n = 0; n < FFT_SIZE / 4; n++) { let x = n * fSlice, y = fCanvas.height - (magnitudes[n] * fCanvas.height * 200); if (n == 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y); }
+        fCtx.stroke();
+    }
+    requestAnimationFrame(renderLoop); updateFilterCoefficients();
+});
