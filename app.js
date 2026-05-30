@@ -92,6 +92,18 @@ window.addEventListener('DOMContentLoaded', () => {
         }
         return x;
     }
+
+    const fModes = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
+    Object.keys(fModes).forEach(m => {
+        document.getElementById(fModes[m]).addEventListener('click', () => {
+            Object.keys(fModes).forEach(k => document.getElementById(fModes[k]).classList.remove('active'));
+            document.getElementById(fModes[m]).classList.add('active'); currentFilterMode = m;
+            document.getElementById('f2Container').style.display = m === 'BP' ? 'flex' : 'none'; updateFilterCoefficients();
+        });
+    });
+
+    document.getElementById('freq1Slider').addEventListener('input', (e) => { f1 = parseInt(e.target.value); document.getElementById('freq1Val').innerText = f1 + " Hz"; updateFilterCoefficients(); });
+    document.getElementById('freq2Slider').addEventListener('input', (e) => { f2 = parseInt(e.target.value); document.getElementById('freq2Val').innerText = f2 + " Hz"; updateFilterCoefficients(); });
     document.getElementById('connectBtn').addEventListener('click', async () => {
         const status = document.getElementById('status');
         try {
@@ -120,11 +132,13 @@ window.addEventListener('DOMContentLoaded', () => {
                     let lines = leftoverString.split("\n"); leftoverString = lines.pop();
                     for (let line of lines) {
                         let points = line.trim().split(","); if (points.length < 2) continue;
+                        let audioChunk = new Float32Array(points.length);
                         for (let i = 0; i < points.length; i++) {
                             let byteVal = parseInt(points[i]); if (isNaN(byteVal)) continue;
                             let val = (byteVal / 127.5) - 1.0;
                             let fVal = applyFilter(val);
                             
+                            audioChunk[i] = fVal;
                             filteredDataLog.push(fVal);
                             if (filteredDataLog.length > 2500) filteredDataLog.shift();
                             
@@ -188,11 +202,8 @@ window.addEventListener('DOMContentLoaded', () => {
     if (window.activeRenderLoop) cancelAnimationFrame(window.activeRenderLoop);
 
     function renderLoop() {
-        window.activeRenderLoop = requestAnimationFrame(renderLoop); 
-        // 💡 終極修正：將門門檻降低至 150 點，100% 釋放圖表刷新
-        if (filteredDataLog.length < 150) return;
+        window.activeRenderLoop = requestAnimationFrame(renderLoop); if (filteredDataLog.length < 150) return;
         
-        // 抓取時域視窗最穩定的最新 150 個點畫出波形
         let rPoints = filteredDataLog.slice(-150), max = Math.max(...rPoints), min = Math.min(...rPoints), vpp = max - min, sq = 0;
         rPoints.forEach(v => sq += v * v); let rms = Math.sqrt(sq / rPoints.length);
         document.getElementById('vppVal').innerText = vpp.toFixed(2) + " V"; document.getElementById('rmsVal').innerText = rms.toFixed(2) + " V";
@@ -212,6 +223,7 @@ window.addEventListener('DOMContentLoaded', () => {
         for (let j = 0; j < rPoints.length; j++) { 
             let x = j * tSlice;
             let currentPoint = rPoints[j];
+            // 💡 終極對齊修正：將 j[j+1] 完美修復還原回歷史資料指標陣列 rPoints[j+1]！
             if (j > 0 && j < rPoints.length - 1) { currentPoint = (rPoints[j-1] + rPoints[j] + rPoints[j+1]) / 3; }
             let y = midY - (currentPoint * (tCanvas.height / 2.3)); 
             if (j == 0) tCtx.moveTo(x, y); else tCtx.lineTo(x, y); 
@@ -221,7 +233,7 @@ window.addEventListener('DOMContentLoaded', () => {
         fCtx.clearRect(0, 0, fCanvas.width, fCanvas.height);
         fCtx.fillStyle = '#111'; fCtx.fillRect(0, 0, fCanvas.width, fCanvas.height); fCtx.strokeStyle = '#ffad00'; fCtx.lineWidth = 1.5; fCtx.beginPath();
         let fSlice = fCanvas.width / (FFT_SIZE / 4);
-        for (let n = 0; n < FFT_SIZE / 4; n++) { let x = n * fSlice, y = fCanvas.height - (magnitudes[n] * fCanvas.height * 200); if (n == 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y); }
+        for (let n = 0; n < FFT_SIZE / 4; n++) { let x = n * fSlice, y = fCanvas.height - (magnitudes[n] * fCanvas.height * 200); if (n == 0) fCtx.moveTo(n * fSlice, y); else fCtx.lineTo(x, y); }
         fCtx.stroke();
     }
     requestAnimationFrame(renderLoop); updateFilterCoefficients();
