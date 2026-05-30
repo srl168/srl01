@@ -2,8 +2,8 @@ if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
 window.addEventListener('DOMContentLoaded', () => {
-    const S_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c3319999'.toLowerCase();
-    const C_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8'.toLowerCase();
+    const S_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c3319997'.toLowerCase();
+    const C_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a7'.toLowerCase();
     const FFT_SIZE = 1024;
 
     let currentSampleRate = 20000, filteredDataLog = [], bufferIndex = 0;
