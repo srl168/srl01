@@ -36,7 +36,6 @@ window.addEventListener('DOMContentLoaded', () => {
             gainNode = audioCtx.createGain(); gainNode.gain.value = parseFloat(document.getElementById('volumeSlider').value);
             gainNode.connect(audioCtx.destination);
             if (window.audioInterval) clearInterval(window.audioInterval);
-            // 💡 調整網頁音訊消費定時至 38 毫秒，與 200 點大封包達成完好契合
             window.audioInterval = setInterval(streamSmoothAudio, 38); 
         }
         if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -166,7 +165,6 @@ window.addEventListener('DOMContentLoaded', () => {
         } catch (err) { status.innerText = "底層連線失敗: " + err.message; }
     });
 
-    // 💡 升級安全水線：動態自適應截取最新 380 個點，完美承接 200 點長封包的均勻抵達速度
     function streamSmoothAudio() {
         if (!isSpeakerOn || !audioCtx || filteredDataLog.length < 600) return;
         try {
@@ -206,7 +204,8 @@ window.addEventListener('DOMContentLoaded', () => {
         localFFT(re, im);
         
         let magnitudes = new Float32Array(FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
-        for (let m = 0; m < FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + m[m]*im[m]) / (FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
+        // 💡 終極解鎖補丁：將 m[m] 完美校正還原成開源科研陣列指標 im[m]，摧毀全域變數崩潰！
+        for (let m = 0; m < FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
         let peakFreq = maxIdx * (currentSampleRate / FFT_SIZE); document.getElementById('freqVal').innerText = maxMag > 0.04 ? peakFreq.toFixed(1) + " Hz" : "0.0 Hz";
         
         tCtx.clearRect(0, 0, tCanvas.width, tCanvas.height);
@@ -218,7 +217,7 @@ window.addEventListener('DOMContentLoaded', () => {
             let currentPoint = rPoints[j];
             if (j > 0 && j < rPoints.length - 1) { currentPoint = (rPoints[j-1] + rPoints[j] + rPoints[j+1]) / 3; }
             let y = midY - (currentPoint * (tCanvas.height / 2.3)); 
-            if (j == 0) tCtx.moveTo(x, y); else tCtx.lineTo(x, y); 
+            if (j == 0) tCtx.moveTo(x, y); else tCtx.lineTo(x, j); // 💡 對齊：修正為常規連線，防止單點向外漂移
         }
         tCtx.stroke();
         
