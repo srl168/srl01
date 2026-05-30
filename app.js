@@ -1,4 +1,3 @@
-// 💡 物理超渡：強制蒸發全域計時器殘留，留出最純淨的 CPU 主執行緒時間
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -35,7 +34,6 @@ window.addEventListener('DOMContentLoaded', () => {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             gainNode = audioCtx.createGain(); gainNode.gain.value = parseFloat(document.getElementById('volumeSlider').value);
             gainNode.connect(audioCtx.destination);
-            
             if (window.audioInterval) clearInterval(window.audioInterval);
             window.audioInterval = setInterval(streamSmoothAudio, 45); 
         }
@@ -58,7 +56,6 @@ window.addEventListener('DOMContentLoaded', () => {
         let sr = parseInt(document.getElementById('boardSampleSlider').value);
         let sf = parseInt(document.getElementById('boardSinSlider').value);
         currentSampleRate = sr; updateFilterCoefficients();
-        
         let buf = (new TextEncoder()).encode(sr + "," + sf);
         try { bleCharacteristicObject.writeValue(buf); } catch (err) { console.error(err); }
     }
@@ -68,7 +65,6 @@ window.addEventListener('DOMContentLoaded', () => {
         debounceTimer = setTimeout(() => {
             if (!bleCharacteristicObject || !bleCharacteristicObject.service.device.gatt.connected) return;
             if (window.isWritingLock) return; 
-            
             window.isWritingLock = true; 
             sendHardwareParameters();
             setTimeout(() => { window.isWritingLock = false; }, 80);
@@ -132,7 +128,6 @@ window.addEventListener('DOMContentLoaded', () => {
                 try {
                     let str = decoder.decode(e.target.value); leftoverString += str;
                     let lines = leftoverString.split("\n"); leftoverString = lines.pop();
-                    
                     for (let line of lines) {
                         let points = line.trim().split(","); if (points.length < 2) continue;
                         let audioChunk = new Float32Array(points.length);
@@ -140,11 +135,9 @@ window.addEventListener('DOMContentLoaded', () => {
                             let byteVal = parseInt(points[i]); if (isNaN(byteVal)) continue;
                             let val = (byteVal / 127.5) - 1.0;
                             let fVal = applyFilter(val);
-                            
                             audioChunk[i] = fVal;
                             filteredDataLog.push(fVal);
                             if (filteredDataLog.length > 1500) filteredDataLog.shift();
-                            
                             analysisBuffer[bufferIndex] = fVal;
                             bufferIndex = (bufferIndex + 1) % FFT_SIZE;
                         }
@@ -198,7 +191,7 @@ window.addEventListener('DOMContentLoaded', () => {
         let re = new Float32Array(FFT_SIZE), im = new Float32Array(FFT_SIZE);
         for (let i = 0; i < FFT_SIZE; i++) { let idx = (bufferIndex + i) % FFT_SIZE; re[i] = analysisBuffer[idx]; }
         
-        // 💡 終極解鎖補丁：校正為純粹的陣列變數 localFFT(re, im)，徹底炸碎背景幽靈請求！
+        // 💡 終極修正：移除錯誤的 [i]，改為傳遞完整的陣列 re 物件指標！
         localFFT(re, im);
         
         let magnitudes = new Float32Array(FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
@@ -208,7 +201,6 @@ window.addEventListener('DOMContentLoaded', () => {
         tCtx.clearRect(0, 0, tCanvas.width, tCanvas.height);
         tCtx.fillStyle = '#111'; tCtx.fillRect(0, 0, tCanvas.width, tCanvas.height); tCtx.strokeStyle = '#00ff66'; tCtx.lineWidth = 2.5; tCtx.beginPath();
         let tSlice = tCanvas.width / (rPoints.length - 1);
-        
         let midY = tCanvas.height / 2;
         for (let i = 0; i < rPoints.length; i++) { 
             let x = i * tSlice;
