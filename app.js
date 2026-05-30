@@ -223,7 +223,6 @@ window.addEventListener('DOMContentLoaded', () => {
         for (let j = 0; j < rPoints.length; j++) { 
             let x = j * tSlice;
             let currentPoint = rPoints[j];
-            // 💡 終極對齊修正：將 j[j+1] 完美修復還原回歷史資料指標陣列 rPoints[j+1]！
             if (j > 0 && j < rPoints.length - 1) { currentPoint = (rPoints[j-1] + rPoints[j] + rPoints[j+1]) / 3; }
             let y = midY - (currentPoint * (tCanvas.height / 2.3)); 
             if (j == 0) tCtx.moveTo(x, y); else tCtx.lineTo(x, y); 
@@ -233,7 +232,12 @@ window.addEventListener('DOMContentLoaded', () => {
         fCtx.clearRect(0, 0, fCanvas.width, fCanvas.height);
         fCtx.fillStyle = '#111'; fCtx.fillRect(0, 0, fCanvas.width, fCanvas.height); fCtx.strokeStyle = '#ffad00'; fCtx.lineWidth = 1.5; fCtx.beginPath();
         let fSlice = fCanvas.width / (FFT_SIZE / 4);
-        for (let n = 0; n < FFT_SIZE / 4; n++) { let x = n * fSlice, y = fCanvas.height - (magnitudes[n] * fCanvas.height * 200); if (n == 0) fCtx.moveTo(n * fSlice, y); else fCtx.lineTo(x, y); }
+        for (let n = 0; n < FFT_SIZE / 4; n++) { 
+            let curX = n * fSlice; 
+            let y = fCanvas.height - (magnitudes[n] * fCanvas.height * 200); 
+            // 💡 終極對齊解鎖：將舊版殘留的未宣告變數 x 精準更正為常規指標 curX！
+            if (n == 0) fCtx.moveTo(curX, y); else fCtx.lineTo(curX, y); 
+        }
         fCtx.stroke();
     }
     requestAnimationFrame(renderLoop); updateFilterCoefficients();
