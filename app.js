@@ -204,7 +204,6 @@ window.addEventListener('DOMContentLoaded', () => {
         localFFT(re, im);
         
         let magnitudes = new Float32Array(FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
-        // 💡 終極解鎖補丁：將 m[m] 完美校正還原成開源科研陣列指標 im[m]，摧毀全域變數崩潰！
         for (let m = 0; m < FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
         let peakFreq = maxIdx * (currentSampleRate / FFT_SIZE); document.getElementById('freqVal').innerText = maxMag > 0.04 ? peakFreq.toFixed(1) + " Hz" : "0.0 Hz";
         
@@ -217,7 +216,7 @@ window.addEventListener('DOMContentLoaded', () => {
             let currentPoint = rPoints[j];
             if (j > 0 && j < rPoints.length - 1) { currentPoint = (rPoints[j-1] + rPoints[j] + rPoints[j+1]) / 3; }
             let y = midY - (currentPoint * (tCanvas.height / 2.3)); 
-            if (j == 0) tCtx.moveTo(x, y); else tCtx.lineTo(x, j); // 💡 對齊：修正為常規連線，防止單點向外漂移
+            if (j == 0) tCtx.moveTo(x, y); else tCtx.lineTo(x, y); // 💡 終極解鎖補丁：將 lineTo(x, j) 完美更正回正宗物理高度 y！
         }
         tCtx.stroke();
         
