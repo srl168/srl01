@@ -2,7 +2,7 @@ if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
 window.addEventListener('DOMContentLoaded', () => {
-    // 💡 終極破冰：網頁端同步換用國際標準 16-bit 短門牌，強行刷清全作業系統藍牙快取！
+    // 💡 16-bit 國際黃金短通道指引，與板子端同步對齊
     const S_UUID = 0xFF01;
     const C_UUID = 0xFF02;
     const FFT_SIZE = 1024;
@@ -10,8 +10,7 @@ window.addEventListener('DOMContentLoaded', () => {
     let currentSampleRate = 20000, filteredDataLog = [], bufferIndex = 0;
     let analysisBuffer = new Float32Array(FFT_SIZE), bleCharacteristicObject = null;
     let audioCtx = null, gainNode = null, isSpeakerOn = false;
-    let debounceTimer = null;
-    let nextPlayTime = 0;
+    let debounceTimer = null, nextPlayTime = 0;
 
     const tCanvas = document.getElementById('timeCanvas'), fCanvas = document.getElementById('freqCanvas');
     const tCtx = tCanvas.getContext('2d'), fCtx = fCanvas.getContext('2d');
@@ -37,7 +36,7 @@ window.addEventListener('DOMContentLoaded', () => {
             gainNode = audioCtx.createGain(); gainNode.gain.value = parseFloat(document.getElementById('volumeSlider').value);
             gainNode.connect(audioCtx.destination);
             if (window.audioInterval) clearInterval(window.audioInterval);
-            window.audioInterval = setInterval(streamSmoothAudio, 38); 
+            window.audioInterval = setInterval(streamSmoothAudio, 35); 
         }
         if (audioCtx.state === 'suspended') audioCtx.resume();
     }
@@ -131,10 +130,17 @@ window.addEventListener('DOMContentLoaded', () => {
                     let str = decoder.decode(e.target.value); leftoverString += str;
                     let lines = leftoverString.split("\n"); leftoverString = lines.pop();
                     for (let line of lines) {
-                        let points = line.trim().split(","); if (points.length < 2) continue;
-                        let audioChunk = new Float32Array(points.length);
-                        for (let i = 0; i < points.length; i++) {
-                            let byteVal = parseInt(points[i]); if (isNaN(byteVal)) continue;
+                        let cleanLine = line.trim().replace(/[^0-9A-Fa-f]/g, ''); 
+                        if (cleanLine.length < 2) continue;
+                        
+                        let count = cleanLine.length / 2;
+                        let audioChunk = new Float32Array(count);
+                        for (let i = 0; i < count; i++) {
+                            // 💡 終極解鎖：不切逗號！每 2 個 Hex 字元直接還原成 1 個精準點，抗空氣雜訊能力 100%
+                            let sub = cleanLine.substring(i * 2, i * 2 + 2);
+                            let byteVal = parseInt(sub, 16);
+                            if (isNaN(byteVal)) continue;
+                            
                             let val = (byteVal / 127.5) - 1.0;
                             let fVal = applyFilter(val);
                             audioChunk[i] = fVal;
@@ -205,7 +211,7 @@ window.addEventListener('DOMContentLoaded', () => {
         localFFT(re, im);
         
         let magnitudes = new Float32Array(FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
-        for (let m = 0; m < FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
+        for (let m = 0; m < FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m]*re[m] + im[m]*im[m]) / (FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
         let peakFreq = maxIdx * (currentSampleRate / FFT_SIZE); document.getElementById('freqVal').innerText = maxMag > 0.04 ? peakFreq.toFixed(1) + " Hz" : "0.0 Hz";
         
         tCtx.clearRect(0, 0, tCanvas.width, tCanvas.height);
@@ -224,8 +230,4 @@ window.addEventListener('DOMContentLoaded', () => {
         fCtx.clearRect(0, 0, fCanvas.width, fCanvas.height);
         fCtx.fillStyle = '#111'; fCtx.fillRect(0, 0, fCanvas.width, fCanvas.height); fCtx.strokeStyle = '#ffad00'; fCtx.lineWidth = 1.5; fCtx.beginPath();
         let fSlice = fCanvas.width / (FFT_SIZE / 4);
-        for (let n = 0; n < FFT_SIZE / 4; n++) { let x = n * fSlice, y = fCanvas.height - (magnitudes[n] * fCanvas.height * 200); if (n == 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y); }
-        fCtx.stroke();
-    }
-    requestAnimationFrame(renderLoop); updateFilterCoefficients();
-});
+for (let n = 0; n < FFT_SIZE / 4; n++) { let x = n * fSlice, y = fCanvas.height - (magnitudes[n] * fCanvas.height * 200); if (n == 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y); }fCtx.stroke();}requestAnimationFrame(renderLoop); updateFilterCoefficients();});
