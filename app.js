@@ -36,7 +36,8 @@ window.addEventListener('DOMContentLoaded', () => {
             gainNode = audioCtx.createGain(); gainNode.gain.value = parseFloat(document.getElementById('volumeSlider').value);
             gainNode.connect(audioCtx.destination);
             if (window.audioInterval) clearInterval(window.audioInterval);
-            window.audioInterval = setInterval(streamSmoothAudio, 30); // 縮短音訊快門至 30 毫秒極速反應
+            // 💡 調整網頁音訊消費定時至 38 毫秒，與 200 點大封包達成完好契合
+            window.audioInterval = setInterval(streamSmoothAudio, 38); 
         }
         if (audioCtx.state === 'suspended') audioCtx.resume();
     }
@@ -148,7 +149,6 @@ window.addEventListener('DOMContentLoaded', () => {
                             ab.getChannelData(0).set(audioChunk);
                             let src = audioCtx.createBufferSource();
                             src.buffer = ab; src.connect(gainNode);
-                            // 自適應安全水位緩衝時間軸黏合
                             if (nextPlayTime < audioCtx.currentTime) { nextPlayTime = audioCtx.currentTime + 0.04; }
                             src.start(nextPlayTime);
                             nextPlayTime += ab.duration; 
@@ -166,11 +166,11 @@ window.addEventListener('DOMContentLoaded', () => {
         } catch (err) { status.innerText = "底層連線失敗: " + err.message; }
     });
 
-    // 💡 升級：優化切片厚度至 300 點，完美配合硬體微秒計時器的均勻輸出速率
+    // 💡 升級安全水線：動態自適應截取最新 380 個點，完美承接 200 點長封包的均勻抵達速度
     function streamSmoothAudio() {
         if (!isSpeakerOn || !audioCtx || filteredDataLog.length < 600) return;
         try {
-            let slicePoints = filteredDataLog.slice(-300);
+            let slicePoints = filteredDataLog.slice(-380);
             let chunk = new Float32Array(slicePoints);
             let ab = audioCtx.createBuffer(1, chunk.length, currentSampleRate);
             ab.getChannelData(0).set(chunk);
@@ -206,7 +206,7 @@ window.addEventListener('DOMContentLoaded', () => {
         localFFT(re, im);
         
         let magnitudes = new Float32Array(FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
-        for (let m = 0; m < FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
+        for (let m = 0; m < FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + m[m]*im[m]) / (FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
         let peakFreq = maxIdx * (currentSampleRate / FFT_SIZE); document.getElementById('freqVal').innerText = maxMag > 0.04 ? peakFreq.toFixed(1) + " Hz" : "0.0 Hz";
         
         tCtx.clearRect(0, 0, tCanvas.width, tCanvas.height);
