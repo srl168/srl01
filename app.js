@@ -2,7 +2,7 @@ if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
 window.addEventListener('DOMContentLoaded', () => {
-    // 💡 鎖定國際 SIG 認證 16-bit 黃金短通道
+    // 💡 國際 SIG 認證 16-bit 黃金短通道
     const S_UUID = 0xFF01;
     const C_UUID = 0xFF02;
     const FFT_SIZE = 1024;
@@ -11,8 +11,6 @@ window.addEventListener('DOMContentLoaded', () => {
     let analysisBuffer = new Float32Array(FFT_SIZE), bleCharacteristicObject = null;
     let audioCtx = null, gainNode = null, isSpeakerOn = false;
     let debounceTimer = null;
-
-    // 💡 建立高流暢音訊解耦時間軸指標
     let nextPlayTime = 0; 
 
     const tCanvas = document.getElementById('timeCanvas'), fCanvas = document.getElementById('freqCanvas');
@@ -39,7 +37,6 @@ window.addEventListener('DOMContentLoaded', () => {
             gainNode = audioCtx.createGain(); gainNode.gain.value = parseFloat(document.getElementById('volumeSlider').value);
             gainNode.connect(audioCtx.destination);
             if (window.audioInterval) clearInterval(window.audioInterval);
-            // 💡 建立 40 毫秒高流暢重採樣快門，保留主執行緒最充足的換氣空間
             window.audioInterval = setInterval(streamSmoothAudio, 40); 
             nextPlayTime = audioCtx.currentTime;
         }
@@ -147,19 +144,14 @@ window.addEventListener('DOMContentLoaded', () => {
         } catch (err) { status.innerText = "底層連線失敗: " + err.message; }
     });
 
-    // 💡 終極解鎖：標準 PCM 數位重採樣直通流！將歷史快取以硬體 44100Hz 時間軸完美黏合
     function streamSmoothAudio() {
-        if (!isSpeakerOn || !audioCtx || filteredDataLog.length < 800) return;
+        if (!isSpeakerOn || !audioCtx || filteredDataLog.length < 500) return;
         try {
-            // 每次定時抽取最新 400 個數據點
             let rawChunk = filteredDataLog.slice(-400);
-            
-            // 💡 核心演算法：根據當前滑桿的 currentSampleRate，動態計算它在 44100Hz 下應該被拉伸成多少個點
             let targetLength = Math.round(rawChunk.length * (audioCtx.sampleRate / currentSampleRate));
             let resampledBuffer = audioCtx.createBuffer(1, targetLength, audioCtx.sampleRate);
             let channelData = resampledBuffer.getChannelData(0);
             
-            // 執行高階線性內插重採樣，100% 熨平任何滑桿拉動時的變音與隨機雜音！
             for (let i = 0; i < targetLength; i++) {
                 let srcIndex = i * (rawChunk.length - 1) / (targetLength - 1);
                 let indexBase = Math.floor(srcIndex);
@@ -170,14 +162,11 @@ window.addEventListener('DOMContentLoaded', () => {
                     channelData[i] = rawChunk[indexBase] * (1 - indexFraction) + rawChunk[indexBase + 1] * indexFraction;
                 }
             }
-            
             let src = audioCtx.createBufferSource();
             src.buffer = resampledBuffer; src.connect(gainNode);
-            
-            // 建立高階動態時間軸安全防禦水位，100% 阻斷空氣無線電抖動
             if (nextPlayTime < audioCtx.currentTime) { nextPlayTime = audioCtx.currentTime + 0.04; }
             src.start(nextPlayTime);
-            nextPlayTime += resampledBuffer.duration; // 物理鋼性死鎖，永不斷音！
+            nextPlayTime += resampledBuffer.duration;
         } catch (e) {}
     }
 
@@ -199,8 +188,12 @@ window.addEventListener('DOMContentLoaded', () => {
     if (window.activeRenderLoop) cancelAnimationFrame(window.activeRenderLoop);
 
     function renderLoop() {
-        window.activeRenderLoop = requestAnimationFrame(renderLoop); if (filteredDataLog.length < 1200) return;
-        let rPoints = filteredDataLog.slice(-1200), max = Math.max(...rPoints), min = Math.min(...rPoints), vpp = max - min, sq = 0;
+        window.activeRenderLoop = requestAnimationFrame(renderLoop); 
+        // 💡 終極修正：將門門檻降低至 150 點，100% 釋放圖表刷新
+        if (filteredDataLog.length < 150) return;
+        
+        // 抓取時域視窗最穩定的最新 150 個點畫出波形
+        let rPoints = filteredDataLog.slice(-150), max = Math.max(...rPoints), min = Math.min(...rPoints), vpp = max - min, sq = 0;
         rPoints.forEach(v => sq += v * v); let rms = Math.sqrt(sq / rPoints.length);
         document.getElementById('vppVal').innerText = vpp.toFixed(2) + " V"; document.getElementById('rmsVal').innerText = rms.toFixed(2) + " V";
         
