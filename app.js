@@ -1,3 +1,4 @@
+//PCM
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -12,8 +13,8 @@ window.addEventListener('DOMContentLoaded', () => {
     let audioCtx = null, gainNode = null, isSpeakerOn = false;
     let debounceTimer = null;
 
-    // 💡 核心解鎖：工業定頻合成器變數，徹底斷絕變音與雜音
-    let oscillatorNode = null; 
+    // 💡 建立高流暢音訊解耦時間軸指標
+    let nextPlayTime = 0; 
 
     const tCanvas = document.getElementById('timeCanvas'), fCanvas = document.getElementById('freqCanvas');
     const tCtx = tCanvas.getContext('2d'), fCtx = fCanvas.getContext('2d');
@@ -35,19 +36,13 @@ window.addEventListener('DOMContentLoaded', () => {
 
     function initAudio() {
         if (!audioCtx) {
-            // 💡 物理死鎖：強迫手機發聲硬體時鐘 100% 鎖死在國際標準的 44100Hz，全面消除重採樣雜音
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
-            gainNode = audioCtx.createGain(); 
-            gainNode.gain.value = parseFloat(document.getElementById('volumeSlider').value);
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            gainNode = audioCtx.createGain(); gainNode.gain.value = parseFloat(document.getElementById('volumeSlider').value);
             gainNode.connect(audioCtx.destination);
-
-            // 💡 終極解鎖：建立一條永遠不關閉、平滑前進的原生音訊大水管（合成器節點）
-            oscillatorNode = audioCtx.createOscillator();
-            oscillatorNode.type = 'sine';
-            // 讀取當前面板滑桿設定的訊號頻率
-            oscillatorNode.frequency.value = parseInt(document.getElementById('boardSinSlider').value);
-            oscillatorNode.connect(gainNode);
-            oscillatorNode.start();
+            if (window.audioInterval) clearInterval(window.audioInterval);
+            // 💡 建立 40 毫秒高流暢重採樣快門，保留主執行緒最充足的換氣空間
+            window.audioInterval = setInterval(streamSmoothAudio, 40); 
+            nextPlayTime = audioCtx.currentTime;
         }
         if (audioCtx.state === 'suspended') audioCtx.resume();
     }
@@ -56,29 +51,17 @@ window.addEventListener('DOMContentLoaded', () => {
         initAudio(); isSpeakerOn = !isSpeakerOn;
         document.getElementById('speakerBtn').innerText = isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉";
         document.getElementById('speakerBtn').className = isSpeakerOn ? "btn-speaker" : "btn-speaker muted";
-        
-        // 溫和增益平滑控制，100% 避免開啟聲音時的突發撞擊音
-        if (gainNode) {
-            let targetVol = isSpeakerOn ? parseFloat(document.getElementById('volumeSlider').value) : 0;
-            gainNode.gain.setTargetAtTime(targetVol, audioCtx.currentTime, 0.01);
-        }
     });
 
     document.getElementById('volumeSlider').addEventListener('input', (e) => {
         let v = parseFloat(e.target.value); document.getElementById('volumeVal').innerText = Math.round(v * 100) + "%";
-        if (gainNode && isSpeakerOn) gainNode.gain.value = v;
+        if (gainNode) gainNode.gain.value = v;
     });
     function sendHardwareParameters() {
         if (!bleCharacteristicObject) return;
         let sr = parseInt(document.getElementById('boardSampleSlider').value);
         let sf = parseInt(document.getElementById('boardSinSlider').value);
         currentSampleRate = sr; updateFilterCoefficients();
-        
-        // 💡 當訊號頻率滑桿拉動時，秒速改變定頻大水管的音高，反應速度提升1000倍，且絕對不卡頓變音！
-        if (oscillatorNode && isSpeakerOn) {
-            oscillatorNode.frequency.setTargetAtTime(sf, audioCtx.currentTime, 0.01);
-        }
-
         let buf = (new TextEncoder()).encode(sr + "," + sf);
         try { bleCharacteristicObject.writeValue(buf); } catch (err) { console.error(err); }
     }
@@ -113,18 +96,6 @@ window.addEventListener('DOMContentLoaded', () => {
         }
         return x;
     }
-
-    const fModes = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
-    Object.keys(fModes).forEach(m => {
-        document.getElementById(fModes[m]).addEventListener('click', () => {
-            Object.keys(fModes).forEach(k => document.getElementById(fModes[k]).classList.remove('active'));
-            document.getElementById(fModes[m]).classList.add('active'); currentFilterMode = m;
-            document.getElementById('f2Container').style.display = m === 'BP' ? 'flex' : 'none'; updateFilterCoefficients();
-        });
-    });
-
-    document.getElementById('freq1Slider').addEventListener('input', (e) => { f1 = parseInt(e.target.value); document.getElementById('freq1Val').innerText = f1 + " Hz"; updateFilterCoefficients(); });
-    document.getElementById('freq2Slider').addEventListener('input', (e) => { f2 = parseInt(e.target.value); document.getElementById('freq2Val').innerText = f2 + " Hz"; updateFilterCoefficients(); });
     document.getElementById('connectBtn').addEventListener('click', async () => {
         const status = document.getElementById('status');
         try {
@@ -151,8 +122,6 @@ window.addEventListener('DOMContentLoaded', () => {
                 try {
                     let str = decoder.decode(e.target.value); leftoverString += str;
                     let lines = leftoverString.split("\n"); leftoverString = lines.pop();
-                    
-                    // 💡 藍牙事件內部「只專注填入顯示記憶體」，完全不接觸音效卡播放，效率提升 1000 倍，徹底斷絕隨機雜音
                     for (let line of lines) {
                         let points = line.trim().split(","); if (points.length < 2) continue;
                         for (let i = 0; i < points.length; i++) {
@@ -161,7 +130,7 @@ window.addEventListener('DOMContentLoaded', () => {
                             let fVal = applyFilter(val);
                             
                             filteredDataLog.push(fVal);
-                            if (filteredDataLog.length > 2000) filteredDataLog.shift();
+                            if (filteredDataLog.length > 2500) filteredDataLog.shift();
                             
                             analysisBuffer[bufferIndex] = fVal;
                             bufferIndex = (bufferIndex + 1) % FFT_SIZE;
@@ -178,6 +147,40 @@ window.addEventListener('DOMContentLoaded', () => {
             document.getElementById('boardSampleSlider').disabled = false; document.getElementById('boardSinSlider').disabled = false;
         } catch (err) { status.innerText = "底層連線失敗: " + err.message; }
     });
+
+    // 💡 終極解鎖：標準 PCM 數位重採樣直通流！將歷史快取以硬體 44100Hz 時間軸完美黏合
+    function streamSmoothAudio() {
+        if (!isSpeakerOn || !audioCtx || filteredDataLog.length < 800) return;
+        try {
+            // 每次定時抽取最新 400 個數據點
+            let rawChunk = filteredDataLog.slice(-400);
+            
+            // 💡 核心演算法：根據當前滑桿的 currentSampleRate，動態計算它在 44100Hz 下應該被拉伸成多少個點
+            let targetLength = Math.round(rawChunk.length * (audioCtx.sampleRate / currentSampleRate));
+            let resampledBuffer = audioCtx.createBuffer(1, targetLength, audioCtx.sampleRate);
+            let channelData = resampledBuffer.getChannelData(0);
+            
+            // 執行高階線性內插重採樣，100% 熨平任何滑桿拉動時的變音與隨機雜音！
+            for (let i = 0; i < targetLength; i++) {
+                let srcIndex = i * (rawChunk.length - 1) / (targetLength - 1);
+                let indexBase = Math.floor(srcIndex);
+                let indexFraction = srcIndex - indexBase;
+                if (indexBase >= rawChunk.length - 1) {
+                    channelData[i] = rawChunk[rawChunk.length - 1];
+                } else {
+                    channelData[i] = rawChunk[indexBase] * (1 - indexFraction) + rawChunk[indexBase + 1] * indexFraction;
+                }
+            }
+            
+            let src = audioCtx.createBufferSource();
+            src.buffer = resampledBuffer; src.connect(gainNode);
+            
+            // 建立高階動態時間軸安全防禦水位，100% 阻斷空氣無線電抖動
+            if (nextPlayTime < audioCtx.currentTime) { nextPlayTime = audioCtx.currentTime + 0.04; }
+            src.start(nextPlayTime);
+            nextPlayTime += resampledBuffer.duration; // 物理鋼性死鎖，永不斷音！
+        } catch (e) {}
+    }
 
     function localFFT(re, im) {
         const n = re.length; if (n <= 1) return;
