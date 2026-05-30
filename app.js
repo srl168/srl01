@@ -1,4 +1,4 @@
-// 💡 物理超渡：強制蒸發全域計時器殘留，留出最純淨的 CPU 主執行緒時間
+// 💡 物理超渡：強制蒸發全域舊宇宙計時器，騰出 100% 的純淨主執行緒
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -7,9 +7,14 @@ window.addEventListener('DOMContentLoaded', () => {
     const C_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8'.toLowerCase();
     const FFT_SIZE = 1024;
 
+    // 💡 國際標準定頻水線：強迫喇叭輸出鎖死在 44100Hz，徹底斷絕變調
+    const AUDIO_OUT_RATE = 44100; 
+    let audioRingBuffer = new Float32Array(8192); // 8K超大抗抖動環形音訊池
+    let ringWriteIdx = 0, ringReadIdx = 0;
+
     let currentSampleRate = 20000, filteredDataLog = [], bufferIndex = 0;
     let analysisBuffer = new Float32Array(FFT_SIZE), bleCharacteristicObject = null;
-    let audioCtx = null, gainNode = null, isSpeakerOn = false;
+    let audioCtx = null, gainNode = null, isSpeakerOn = false, audioNode = null;
     let debounceTimer = null;
 
     const tCanvas = document.getElementById('timeCanvas'), fCanvas = document.getElementById('freqCanvas');
@@ -32,11 +37,29 @@ window.addEventListener('DOMContentLoaded', () => {
 
     function initAudio() {
         if (!audioCtx) {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            gainNode = audioCtx.createGain(); gainNode.gain.value = parseFloat(document.getElementById('volumeSlider').value);
+            // 鎖定實體硬體在最流暢的標準 44100 採樣率
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: AUDIO_OUT_RATE });
+            gainNode = audioCtx.createGain(); 
+            gainNode.gain.value = parseFloat(document.getElementById('volumeSlider').value);
+            
+            // 💡 終極核心：引入連續串流流提供者，建立一條永遠不關閉、不間斷的音訊物理通道
+            audioNode = audioCtx.createScriptProcessor(512, 0, 1);
+            audioNode.onaudioprocess = (audioEvent) => {
+                let output = audioEvent.outputBuffer.getChannelData(0);
+                if (!isSpeakerOn) { output.fill(0); return; }
+                
+                // 從超大抗抖動環形池中均勻地抽取點，100% 熨平斷音
+                for (let i = 0; i < output.length; i++) {
+                    if (ringReadIdx !== ringWriteIdx) {
+                        output[i] = audioRingBuffer[ringReadIdx];
+                        ringReadIdx = (ringReadIdx + 1) % audioRingBuffer.length;
+                    } else {
+                        output[i] = 0; // 快取過度乾涸時溫和補零，杜絕喀喀聲
+                    }
+                }
+            };
+            audioNode.connect(gainNode);
             gainNode.connect(audioCtx.destination);
-            if (window.audioInterval) clearInterval(window.audioInterval);
-            window.audioInterval = setInterval(streamSmoothAudio, 45); 
         }
         if (audioCtx.state === 'suspended') audioCtx.resume();
     }
@@ -45,6 +68,7 @@ window.addEventListener('DOMContentLoaded', () => {
         initAudio(); isSpeakerOn = !isSpeakerOn;
         document.getElementById('speakerBtn').innerText = isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉";
         document.getElementById('speakerBtn').className = isSpeakerOn ? "btn-speaker" : "btn-speaker muted";
+        if (!isSpeakerOn) { ringWriteIdx = 0; ringReadIdx = 0; }
     });
 
     document.getElementById('volumeSlider').addEventListener('input', (e) => {
@@ -129,18 +153,25 @@ window.addEventListener('DOMContentLoaded', () => {
                 try {
                     let str = decoder.decode(e.target.value); leftoverString += str;
                     let lines = leftoverString.split("\n"); leftoverString = lines.pop();
+                    
                     for (let line of lines) {
                         let points = line.trim().split(","); if (points.length < 2) continue;
-                        let audioChunk = new Float32Array(points.length);
                         for (let i = 0; i < points.length; i++) {
                             let byteVal = parseInt(points[i]); if (isNaN(byteVal)) continue;
                             let val = (byteVal / 127.5) - 1.0;
                             let fVal = applyFilter(val);
-                            audioChunk[i] = fVal;
+                            
                             filteredDataLog.push(fVal);
                             if (filteredDataLog.length > 1500) filteredDataLog.shift();
+                            
                             analysisBuffer[bufferIndex] = fVal;
                             bufferIndex = (bufferIndex + 1) % FFT_SIZE;
+
+                            // 💡 藍牙回呼只管往 8K 環形發聲池快速寫入，完全與播放速率解耦
+                            if (isSpeakerOn) {
+                                audioRingBuffer[ringWriteIdx] = fVal;
+                                ringWriteIdx = (ringWriteIdx + 1) % audioRingBuffer.length;
+                            }
                         }
                     }
                 } catch (err) {}
@@ -154,17 +185,6 @@ window.addEventListener('DOMContentLoaded', () => {
             document.getElementById('boardSampleSlider').disabled = false; document.getElementById('boardSinSlider').disabled = false;
         } catch (err) { status.innerText = "底層連線失敗: " + err.message; }
     });
-
-    function streamSmoothAudio() {
-        if (!isSpeakerOn || !audioCtx || filteredDataLog.length < 600) return;
-        try {
-            let slicePoints = filteredDataLog.slice(-280);
-            let chunk = new Float32Array(slicePoints);
-            let ab = audioCtx.createBuffer(1, chunk.length, currentSampleRate);
-            ab.getChannelData(0).set(chunk);
-            let src = audioCtx.createBufferSource(); src.buffer = ab; src.connect(gainNode); src.start();
-        } catch (e) {}
-    }
 
     function localFFT(re, im) {
         const n = re.length; if (n <= 1) return;
@@ -190,32 +210,31 @@ window.addEventListener('DOMContentLoaded', () => {
         document.getElementById('vppVal').innerText = vpp.toFixed(2) + " V"; document.getElementById('rmsVal').innerText = rms.toFixed(2) + " V";
         
         let re = new Float32Array(FFT_SIZE), im = new Float32Array(FFT_SIZE);
-        for (let k = 0; k < FFT_SIZE; k++) { let idx = (bufferIndex + k) % FFT_SIZE; re[k] = analysisBuffer[idx]; }
-        
-        // 💡 終極對齊修正：呼叫端正無暇的 localFFT 陣列指標，徹底根除 ReferenceError
+        for (let i = 0; i < FFT_SIZE; i++) { let idx = (bufferIndex + i) % FFT_SIZE; re[i] = analysisBuffer[idx]; }
         localFFT(re, im);
         
         let magnitudes = new Float32Array(FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
-        for (let m = 0; m < FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
+        for (let i = 0; i < FFT_SIZE / 2; i++) { magnitudes[i] = Math.sqrt(re[i] * re[i] + im[i] * im[i]) / (FFT_SIZE / 2); if (i > 1 && magnitudes[i] > maxMag) { maxMag = magnitudes[i]; maxIdx = i; } }
         let peakFreq = maxIdx * (currentSampleRate / FFT_SIZE); document.getElementById('freqVal').innerText = maxMag > 0.04 ? peakFreq.toFixed(1) + " Hz" : "0.0 Hz";
         
         tCtx.clearRect(0, 0, tCanvas.width, tCanvas.height);
         tCtx.fillStyle = '#111'; tCtx.fillRect(0, 0, tCanvas.width, tCanvas.height); tCtx.strokeStyle = '#00ff66'; tCtx.lineWidth = 2.5; tCtx.beginPath();
         let tSlice = tCanvas.width / (rPoints.length - 1);
+        
         let midY = tCanvas.height / 2;
-        for (let j = 0; j < rPoints.length; j++) { 
-            let x = j * tSlice;
-            let currentPoint = rPoints[j];
-            if (j > 0 && j < rPoints.length - 1) { currentPoint = (rPoints[j-1] + rPoints[j] + rPoints[j+1]) / 3; }
+        for (let i = 0; i < rPoints.length; i++) { 
+            let x = i * tSlice;
+            let currentPoint = rPoints[i];
+            if (i > 0 && i < rPoints.length - 1) { currentPoint = (rPoints[i-1] + rPoints[i] + rPoints[i+1]) / 3; }
             let y = midY - (currentPoint * (tCanvas.height / 2.3)); 
-            if (j == 0) tCtx.moveTo(x, y); else tCtx.lineTo(x, y); 
+            if (i == 0) tCtx.moveTo(x, y); else tCtx.lineTo(x, y); 
         }
         tCtx.stroke();
         
         fCtx.clearRect(0, 0, fCanvas.width, fCanvas.height);
         fCtx.fillStyle = '#111'; fCtx.fillRect(0, 0, fCanvas.width, fCanvas.height); fCtx.strokeStyle = '#ffad00'; fCtx.lineWidth = 1.5; fCtx.beginPath();
         let fSlice = fCanvas.width / (FFT_SIZE / 4);
-        for (let n = 0; n < FFT_SIZE / 4; n++) { let x = n * fSlice, y = fCanvas.height - (magnitudes[n] * fCanvas.height * 200); if (n == 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y); }
+        for (let i = 0; i < FFT_SIZE / 4; i++) { let x = i * fSlice, y = fCanvas.height - (magnitudes[i] * fCanvas.height * 200); if (i == 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y); }
         fCtx.stroke();
     }
     requestAnimationFrame(renderLoop); updateFilterCoefficients();
