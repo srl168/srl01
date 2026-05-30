@@ -1,4 +1,3 @@
-// 💡 物理超渡：強制蒸發全域舊計時器殘留，留出最純淨的 CPU 主執行緒時間
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -11,8 +10,6 @@ window.addEventListener('DOMContentLoaded', () => {
     let analysisBuffer = new Float32Array(FFT_SIZE), bleCharacteristicObject = null;
     let audioCtx = null, gainNode = null, isSpeakerOn = false;
     let debounceTimer = null;
-
-    // 💡 建立全相容高頻平滑播放時間軸，消滅斷音與卡頓
     let nextPlayTime = 0;
 
     const tCanvas = document.getElementById('timeCanvas'), fCanvas = document.getElementById('freqCanvas');
@@ -38,7 +35,8 @@ window.addEventListener('DOMContentLoaded', () => {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             gainNode = audioCtx.createGain(); gainNode.gain.value = parseFloat(document.getElementById('volumeSlider').value);
             gainNode.connect(audioCtx.destination);
-            nextPlayTime = audioCtx.currentTime;
+            if (window.audioInterval) clearInterval(window.audioInterval);
+            window.audioInterval = setInterval(streamSmoothAudio, 30); // 縮短音訊快門至 30 毫秒極速反應
         }
         if (audioCtx.state === 'suspended') audioCtx.resume();
     }
@@ -140,24 +138,20 @@ window.addEventListener('DOMContentLoaded', () => {
                             let fVal = applyFilter(val);
                             audioChunk[i] = fVal;
                             filteredDataLog.push(fVal);
-                            if (filteredDataLog.length > 1500) filteredDataLog.shift();
+                            if (filteredDataLog.length > 2000) filteredDataLog.shift();
                             analysisBuffer[bufferIndex] = fVal;
                             bufferIndex = (bufferIndex + 1) % FFT_SIZE;
                         }
                         
-                        // 💡 終極解鎖補丁：記憶體動態時間軸微塊拼接技術（Dynamic Micro-Buffering）
-                        // 直接用原生高解像 AudioBuffer 發聲，徹底摧毀 Deprecated 警告，消滅變調與斷音！
                         if (isSpeakerOn && audioCtx) {
-                            let ab = audioCtx.createBuffer(1, audioChunk.length, currentSampleRate); // 100% 精準對齊板子採樣率
+                            let ab = audioCtx.createBuffer(1, audioChunk.length, currentSampleRate);
                             ab.getChannelData(0).set(audioChunk);
-                            
                             let src = audioCtx.createBufferSource();
                             src.buffer = ab; src.connect(gainNode);
-                            
-                            // 抵抗空氣中無線電隨機延遲的黃金防禦水位
-                            if (nextPlayTime < audioCtx.currentTime) { nextPlayTime = audioCtx.currentTime + 0.03; }
+                            // 自適應安全水位緩衝時間軸黏合
+                            if (nextPlayTime < audioCtx.currentTime) { nextPlayTime = audioCtx.currentTime + 0.04; }
                             src.start(nextPlayTime);
-                            nextPlayTime += ab.duration; // 時間軸物理死鎖、無縫黏合！
+                            nextPlayTime += ab.duration; 
                         }
                     }
                 } catch (err) {}
@@ -171,6 +165,18 @@ window.addEventListener('DOMContentLoaded', () => {
             document.getElementById('boardSampleSlider').disabled = false; document.getElementById('boardSinSlider').disabled = false;
         } catch (err) { status.innerText = "底層連線失敗: " + err.message; }
     });
+
+    // 💡 升級：優化切片厚度至 300 點，完美配合硬體微秒計時器的均勻輸出速率
+    function streamSmoothAudio() {
+        if (!isSpeakerOn || !audioCtx || filteredDataLog.length < 600) return;
+        try {
+            let slicePoints = filteredDataLog.slice(-300);
+            let chunk = new Float32Array(slicePoints);
+            let ab = audioCtx.createBuffer(1, chunk.length, currentSampleRate);
+            ab.getChannelData(0).set(chunk);
+            let src = audioCtx.createBufferSource(); src.buffer = ab; src.connect(gainNode); src.start();
+        } catch (e) {}
+    }
 
     function localFFT(re, im) {
         const n = re.length; if (n <= 1) return;
