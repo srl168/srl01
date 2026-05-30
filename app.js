@@ -2,8 +2,9 @@ if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
 window.addEventListener('DOMContentLoaded', () => {
-    const S_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c3318888'.toLowerCase();
-    const C_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8'.toLowerCase();
+    // 💡 終極破冰：網頁端同步換用全新 9999 門牌，強制刷新全宇宙手機藍牙快取！
+    const S_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c3319999'.toLowerCase();
+    const C_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a9'.toLowerCase();
     const FFT_SIZE = 1024;
 
     let currentSampleRate = 20000, filteredDataLog = [], bufferIndex = 0;
@@ -204,7 +205,6 @@ window.addEventListener('DOMContentLoaded', () => {
         localFFT(re, im);
         
         let magnitudes = new Float32Array(FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
-        // 💡 終極修正：將 m[m] 完美校正還原回 im[m]，破除型態崩潰
         for (let m = 0; m < FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
         let peakFreq = maxIdx * (currentSampleRate / FFT_SIZE); document.getElementById('freqVal').innerText = maxMag > 0.04 ? peakFreq.toFixed(1) + " Hz" : "0.0 Hz";
         
@@ -215,9 +215,9 @@ window.addEventListener('DOMContentLoaded', () => {
         for (let j = 0; j < rPoints.length; j++) { 
             let x = j * tSlice;
             let currentPoint = rPoints[j];
-            if (j > 0 && j < rPoints.length - 1) { currentPoint = (rPoints[j-1] + rPoints[j] + j[j+1]) / 3; } // 💡 修正：此處維持原生解譯
-            let y = midY - (rPoints[j] * (tCanvas.height / 2.3)); 
-            if (j == 0) tCtx.moveTo(x, y); else tCtx.lineTo(x, y); // 💡 終極修正：lineTo(x, j) 完美校正回 y 座標
+            if (j > 0 && j < rPoints.length - 1) { currentPoint = (rPoints[j-1] + rPoints[j] + rPoints[j+1]) / 3; }
+            let y = midY - (currentPoint * (tCanvas.height / 2.3)); 
+            if (j == 0) tCtx.moveTo(x, y); else tCtx.lineTo(x, y); 
         }
         tCtx.stroke();
         
