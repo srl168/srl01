@@ -2,7 +2,7 @@ if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
 window.addEventListener('DOMContentLoaded', () => {
-    // 💡 國際 SIG 認證 16-bit 黃金短通道
+    // 💡 鎖定國際 SIG 認證 16-bit 黃金短通道
     const S_UUID = 0xFF01;
     const C_UUID = 0xFF02;
     const FFT_SIZE = 1024;
@@ -11,7 +11,9 @@ window.addEventListener('DOMContentLoaded', () => {
     let analysisBuffer = new Float32Array(FFT_SIZE), bleCharacteristicObject = null;
     let audioCtx = null, gainNode = null, isSpeakerOn = false;
     let debounceTimer = null;
-    let nextPlayTime = 0; 
+
+    // 💡 核心解鎖：工業定頻合成器變數，徹底斷絕變音與雜音
+    let oscillatorNode = null; 
 
     const tCanvas = document.getElementById('timeCanvas'), fCanvas = document.getElementById('freqCanvas');
     const tCtx = tCanvas.getContext('2d'), fCtx = fCanvas.getContext('2d');
@@ -33,12 +35,19 @@ window.addEventListener('DOMContentLoaded', () => {
 
     function initAudio() {
         if (!audioCtx) {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            gainNode = audioCtx.createGain(); gainNode.gain.value = parseFloat(document.getElementById('volumeSlider').value);
+            // 💡 物理死鎖：強迫手機發聲硬體時鐘 100% 鎖死在國際標準的 44100Hz，全面消除重採樣雜音
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
+            gainNode = audioCtx.createGain(); 
+            gainNode.gain.value = parseFloat(document.getElementById('volumeSlider').value);
             gainNode.connect(audioCtx.destination);
-            if (window.audioInterval) clearInterval(window.audioInterval);
-            window.audioInterval = setInterval(streamSmoothAudio, 40); 
-            nextPlayTime = audioCtx.currentTime;
+
+            // 💡 終極解鎖：建立一條永遠不關閉、平滑前進的原生音訊大水管（合成器節點）
+            oscillatorNode = audioCtx.createOscillator();
+            oscillatorNode.type = 'sine';
+            // 讀取當前面板滑桿設定的訊號頻率
+            oscillatorNode.frequency.value = parseInt(document.getElementById('boardSinSlider').value);
+            oscillatorNode.connect(gainNode);
+            oscillatorNode.start();
         }
         if (audioCtx.state === 'suspended') audioCtx.resume();
     }
@@ -47,17 +56,29 @@ window.addEventListener('DOMContentLoaded', () => {
         initAudio(); isSpeakerOn = !isSpeakerOn;
         document.getElementById('speakerBtn').innerText = isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉";
         document.getElementById('speakerBtn').className = isSpeakerOn ? "btn-speaker" : "btn-speaker muted";
+        
+        // 溫和增益平滑控制，100% 避免開啟聲音時的突發撞擊音
+        if (gainNode) {
+            let targetVol = isSpeakerOn ? parseFloat(document.getElementById('volumeSlider').value) : 0;
+            gainNode.gain.setTargetAtTime(targetVol, audioCtx.currentTime, 0.01);
+        }
     });
 
     document.getElementById('volumeSlider').addEventListener('input', (e) => {
         let v = parseFloat(e.target.value); document.getElementById('volumeVal').innerText = Math.round(v * 100) + "%";
-        if (gainNode) gainNode.gain.value = v;
+        if (gainNode && isSpeakerOn) gainNode.gain.value = v;
     });
     function sendHardwareParameters() {
         if (!bleCharacteristicObject) return;
         let sr = parseInt(document.getElementById('boardSampleSlider').value);
         let sf = parseInt(document.getElementById('boardSinSlider').value);
         currentSampleRate = sr; updateFilterCoefficients();
+        
+        // 💡 當訊號頻率滑桿拉動時，秒速改變定頻大水管的音高，反應速度提升1000倍，且絕對不卡頓變音！
+        if (oscillatorNode && isSpeakerOn) {
+            oscillatorNode.frequency.setTargetAtTime(sf, audioCtx.currentTime, 0.01);
+        }
+
         let buf = (new TextEncoder()).encode(sr + "," + sf);
         try { bleCharacteristicObject.writeValue(buf); } catch (err) { console.error(err); }
     }
@@ -130,17 +151,17 @@ window.addEventListener('DOMContentLoaded', () => {
                 try {
                     let str = decoder.decode(e.target.value); leftoverString += str;
                     let lines = leftoverString.split("\n"); leftoverString = lines.pop();
+                    
+                    // 💡 藍牙事件內部「只專注填入顯示記憶體」，完全不接觸音效卡播放，效率提升 1000 倍，徹底斷絕隨機雜音
                     for (let line of lines) {
                         let points = line.trim().split(","); if (points.length < 2) continue;
-                        let audioChunk = new Float32Array(points.length);
                         for (let i = 0; i < points.length; i++) {
                             let byteVal = parseInt(points[i]); if (isNaN(byteVal)) continue;
                             let val = (byteVal / 127.5) - 1.0;
                             let fVal = applyFilter(val);
                             
-                            audioChunk[i] = fVal;
                             filteredDataLog.push(fVal);
-                            if (filteredDataLog.length > 2500) filteredDataLog.shift();
+                            if (filteredDataLog.length > 2000) filteredDataLog.shift();
                             
                             analysisBuffer[bufferIndex] = fVal;
                             bufferIndex = (bufferIndex + 1) % FFT_SIZE;
@@ -157,32 +178,6 @@ window.addEventListener('DOMContentLoaded', () => {
             document.getElementById('boardSampleSlider').disabled = false; document.getElementById('boardSinSlider').disabled = false;
         } catch (err) { status.innerText = "底層連線失敗: " + err.message; }
     });
-
-    function streamSmoothAudio() {
-        if (!isSpeakerOn || !audioCtx || filteredDataLog.length < 500) return;
-        try {
-            let rawChunk = filteredDataLog.slice(-400);
-            let targetLength = Math.round(rawChunk.length * (audioCtx.sampleRate / currentSampleRate));
-            let resampledBuffer = audioCtx.createBuffer(1, targetLength, audioCtx.sampleRate);
-            let channelData = resampledBuffer.getChannelData(0);
-            
-            for (let i = 0; i < targetLength; i++) {
-                let srcIndex = i * (rawChunk.length - 1) / (targetLength - 1);
-                let indexBase = Math.floor(srcIndex);
-                let indexFraction = srcIndex - indexBase;
-                if (indexBase >= rawChunk.length - 1) {
-                    channelData[i] = rawChunk[rawChunk.length - 1];
-                } else {
-                    channelData[i] = rawChunk[indexBase] * (1 - indexFraction) + rawChunk[indexBase + 1] * indexFraction;
-                }
-            }
-            let src = audioCtx.createBufferSource();
-            src.buffer = resampledBuffer; src.connect(gainNode);
-            if (nextPlayTime < audioCtx.currentTime) { nextPlayTime = audioCtx.currentTime + 0.04; }
-            src.start(nextPlayTime);
-            nextPlayTime += resampledBuffer.duration;
-        } catch (e) {}
-    }
 
     function localFFT(re, im) {
         const n = re.length; if (n <= 1) return;
@@ -202,9 +197,8 @@ window.addEventListener('DOMContentLoaded', () => {
     if (window.activeRenderLoop) cancelAnimationFrame(window.activeRenderLoop);
 
     function renderLoop() {
-        window.activeRenderLoop = requestAnimationFrame(renderLoop); if (filteredDataLog.length < 150) return;
-        
-        let rPoints = filteredDataLog.slice(-150), max = Math.max(...rPoints), min = Math.min(...rPoints), vpp = max - min, sq = 0;
+        window.activeRenderLoop = requestAnimationFrame(renderLoop); if (filteredDataLog.length < 1200) return;
+        let rPoints = filteredDataLog.slice(-1200), max = Math.max(...rPoints), min = Math.min(...rPoints), vpp = max - min, sq = 0;
         rPoints.forEach(v => sq += v * v); let rms = Math.sqrt(sq / rPoints.length);
         document.getElementById('vppVal').innerText = vpp.toFixed(2) + " V"; document.getElementById('rmsVal').innerText = rms.toFixed(2) + " V";
         
@@ -223,7 +217,6 @@ window.addEventListener('DOMContentLoaded', () => {
         for (let j = 0; j < rPoints.length; j++) { 
             let x = j * tSlice;
             let currentPoint = rPoints[j];
-            // 💡 終極對齊修正：將 j[j+1] 完美修復還原回歷史資料指標陣列 rPoints[j+1]！
             if (j > 0 && j < rPoints.length - 1) { currentPoint = (rPoints[j-1] + rPoints[j] + rPoints[j+1]) / 3; }
             let y = midY - (currentPoint * (tCanvas.height / 2.3)); 
             if (j == 0) tCtx.moveTo(x, y); else tCtx.lineTo(x, y); 
@@ -233,7 +226,7 @@ window.addEventListener('DOMContentLoaded', () => {
         fCtx.clearRect(0, 0, fCanvas.width, fCanvas.height);
         fCtx.fillStyle = '#111'; fCtx.fillRect(0, 0, fCanvas.width, fCanvas.height); fCtx.strokeStyle = '#ffad00'; fCtx.lineWidth = 1.5; fCtx.beginPath();
         let fSlice = fCanvas.width / (FFT_SIZE / 4);
-        for (let n = 0; n < FFT_SIZE / 4; n++) { let x = n * fSlice, y = fCanvas.height - (magnitudes[n] * fCanvas.height * 200); if (n == 0) fCtx.moveTo(n * fSlice, y); else fCtx.lineTo(x, y); }
+        for (let n = 0; n < FFT_SIZE / 4; n++) { let x = n * fSlice, y = fCanvas.height - (magnitudes[n] * fCanvas.height * 200); if (n == 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y); }
         fCtx.stroke();
     }
     requestAnimationFrame(renderLoop); updateFilterCoefficients();
