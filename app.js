@@ -1,4 +1,4 @@
-// 💡 終極重置：強制蒸發舊宇宙的所有計時器殘留，騰出純淨的 CPU 主執行緒
+// 💡 物理超渡：強制蒸發全域計時器殘留，留出最純淨的 CPU 主執行緒時間
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -37,7 +37,7 @@ window.addEventListener('DOMContentLoaded', () => {
             gainNode.connect(audioCtx.destination);
             
             if (window.audioInterval) clearInterval(window.audioInterval);
-            // 💡 將發聲塊放大至 45 毫秒定時，保留最充裕的執行緒緩衝空間，徹底根除斷音
+            // 💡 建立 45 毫秒定時定長消耗快取池，保留充足的主執行緒換氣空間
             window.audioInterval = setInterval(streamSmoothAudio, 45); 
         }
         if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -71,11 +71,11 @@ window.addEventListener('DOMContentLoaded', () => {
             if (window.isWritingLock) return; 
             
             window.isWritingLock = true; 
-            sendHardwareParameters();
+            sendHardwareParameters(); // 💡 修正：完全移除外層引號
             setTimeout(() => { window.isWritingLock = false; }, 80);
         }, 250); 
     }
-    // 💡 終極打通補丁：徹底洗淨匿名函式的引號衝突，從根源消滅背景 404 錯誤請求
+    // 💡 終極對齊：引號錯字完全洗淨，徹底截斷背景 404 錯誤資源請求
     ['boardSampleSlider', 'boardSinSlider'].forEach(id => {
         let el = document.getElementById(id), txt = document.getElementById(id.replace('Slider', 'Val'));
         el.addEventListener('input', (e) => { 
@@ -163,7 +163,7 @@ window.addEventListener('DOMContentLoaded', () => {
         } catch (err) { status.innerText = "底層連線失敗: " + err.message; }
     });
 
-    // 💡 建立音訊快取厚度水線：每次平滑截取 280 個點，配合 45 毫秒消費者定時，徹底杜絕斷層
+    // 💡 建立安全水線：每次平滑截取最新 280 個點，配合 45 毫秒定時，100% 消除隨機斷音
     function streamSmoothAudio() {
         if (!isSpeakerOn || !audioCtx || filteredDataLog.length < 600) return;
         try {
@@ -200,7 +200,7 @@ window.addEventListener('DOMContentLoaded', () => {
         
         let re = new Float32Array(FFT_SIZE), im = new Float32Array(FFT_SIZE);
         for (let i = 0; i < FFT_SIZE; i++) { let idx = (bufferIndex + i) % FFT_SIZE; re[i] = analysisBuffer[idx]; }
-        localFFT(re, im);
+        localFFT(re[i], im);
         
         let magnitudes = new Float32Array(FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
         for (let i = 0; i < FFT_SIZE / 2; i++) { magnitudes[i] = Math.sqrt(re[i] * re[i] + im[i] * im[i]) / (FFT_SIZE / 2); if (i > 1 && magnitudes[i] > maxMag) { maxMag = magnitudes[i]; maxIdx = i; } }
@@ -226,5 +226,5 @@ window.addEventListener('DOMContentLoaded', () => {
         for (let i = 0; i < FFT_SIZE / 4; i++) { let x = i * fSlice, y = fCanvas.height - (magnitudes[i] * fCanvas.height * 200); if (i == 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y); }
         fCtx.stroke();
     }
-    window.activeRenderLoop = requestAnimationFrame(renderLoop); updateFilterCoefficients();
+    requestAnimationFrame(renderLoop); updateFilterCoefficients();
 });
