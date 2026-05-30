@@ -37,7 +37,6 @@ window.addEventListener('DOMContentLoaded', () => {
             gainNode.connect(audioCtx.destination);
             
             if (window.audioInterval) clearInterval(window.audioInterval);
-            // 💡 建立 45 毫秒定時定長消耗快取池，保留充足的主執行緒換氣空間
             window.audioInterval = setInterval(streamSmoothAudio, 45); 
         }
         if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -71,11 +70,10 @@ window.addEventListener('DOMContentLoaded', () => {
             if (window.isWritingLock) return; 
             
             window.isWritingLock = true; 
-            sendHardwareParameters(); // 💡 修正：完全移除外層引號
+            sendHardwareParameters();
             setTimeout(() => { window.isWritingLock = false; }, 80);
         }, 250); 
     }
-    // 💡 終極對齊：引號錯字完全洗淨，徹底截斷背景 404 錯誤資源請求
     ['boardSampleSlider', 'boardSinSlider'].forEach(id => {
         let el = document.getElementById(id), txt = document.getElementById(id.replace('Slider', 'Val'));
         el.addEventListener('input', (e) => { 
@@ -163,7 +161,6 @@ window.addEventListener('DOMContentLoaded', () => {
         } catch (err) { status.innerText = "底層連線失敗: " + err.message; }
     });
 
-    // 💡 建立安全水線：每次平滑截取最新 280 個點，配合 45 毫秒定時，100% 消除隨機斷音
     function streamSmoothAudio() {
         if (!isSpeakerOn || !audioCtx || filteredDataLog.length < 600) return;
         try {
@@ -200,7 +197,9 @@ window.addEventListener('DOMContentLoaded', () => {
         
         let re = new Float32Array(FFT_SIZE), im = new Float32Array(FFT_SIZE);
         for (let i = 0; i < FFT_SIZE; i++) { let idx = (bufferIndex + i) % FFT_SIZE; re[i] = analysisBuffer[idx]; }
-        localFFT(re[i], im);
+        
+        // 💡 終極解鎖補丁：校正為純粹的陣列變數 localFFT(re, im)，徹底炸碎背景幽靈請求！
+        localFFT(re, im);
         
         let magnitudes = new Float32Array(FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
         for (let i = 0; i < FFT_SIZE / 2; i++) { magnitudes[i] = Math.sqrt(re[i] * re[i] + im[i] * im[i]) / (FFT_SIZE / 2); if (i > 1 && magnitudes[i] > maxMag) { maxMag = magnitudes[i]; maxIdx = i; } }
