@@ -4,8 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ESP32 BLE Scope</title>
-    <!-- 引用國際標準微縮科學信號庫 -->
-    <script src="https://cloudflare.com"></script>
+    
+    <!-- 💡 終極大結局解鎖補丁：內嵌虛擬 Base64 圖標，100% 強制熄滅控制台 404 機關槍，完全解放 CPU 執行緒！ -->
+    <link rel="icon" href="data:image/x-icon;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==">
+    
     <style>
         body { font-family: sans-serif; max-width: 900px; margin: 0 auto; padding: 15px; background: #1a1c23; color: #e1e4e8; }
         .card { background: #24292e; border-radius: 8px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); margin-bottom: 15px; border: 1px solid #3f444d; }
@@ -27,9 +29,9 @@
 <body>
 
     <div class="card">
-        <h3>🔬 ESP32-C3 低功耗藍牙行動示波器 (分頁解耦極速版)</h3>
+        <h3>🔬 ESP32-C3 低功耗藍牙行動示波器 (全功能解鎖版)</h3>
         <div class="btn-group">
-            <button id="connectBtn" class="btn-primary">🔌 連線設備 (ESP32C3_SCOPE_PURE17)</button>
+            <button id="connectBtn" class="btn-primary">🔌 連線設備 (ESP32C3_SCOPE_PURE)</button>
             <button id="speakerBtn" class="btn-speaker muted">🔇 喇叭發聲：關閉</button>
         </div>
         <div id="status" style="font-size: 13px;">狀態：等待藍牙連線...</div>
@@ -95,8 +97,6 @@
 
     <audio id="silentAudio" loop src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAAAD"></audio>
 
-    <!-- 💡 外掛黑科技：將邏輯移至外部獨立檔案，永遠防止分段截斷 -->
     <script src="app.js"></script>
 </body>
 </html>
-
