@@ -1,13 +1,17 @@
 if (window.audioInterval) clearInterval(window.audioInterval);
+if (window.simInterval) clearInterval(window.simInterval);
 window.isWritingLock = false;
 
+// 💡 初始化鋼性全域作用域
 window.currentSampleRate = 20000;
 window.filteredDataLog = [];
 window.bufferIndex = 0;
 window.nextPlayTime = 0;
+window.isSpeakerOn = false;
+window.isSimulating = false;
+window.simPhase = 0;
 
 window.addEventListener('DOMContentLoaded', () => {
-    // 💡 鎖定國際 SIG 認證 16-bit 黃金短通道
     const S_UUID = 0xFF01;
     const C_UUID = 0xFF02;
     const FFT_SIZE = 1024;
@@ -59,10 +63,15 @@ window.addEventListener('DOMContentLoaded', () => {
         if (gainNode) gainNode.gain.value = v;
     });
     function sendHardwareParameters() {
-        if (!bleCharacteristicObject) return;
         let sr = parseInt(document.getElementById('boardSampleSlider').value);
         let sf = parseInt(document.getElementById('boardSinSlider').value);
         window.currentSampleRate = sr; window.updateFilterCoefficients();
+        
+        if (window.isSimulating) {
+            document.getElementById('status').innerText = "▶️ 本地模擬參數動態同步成功！";
+            return;
+        }
+        if (!bleCharacteristicObject) return;
         let buf = (new TextEncoder()).encode(sr + "," + sf);
         try { bleCharacteristicObject.writeValue(buf); } catch (err) { console.error(err); }
     }
@@ -70,11 +79,7 @@ window.addEventListener('DOMContentLoaded', () => {
     function sendHardwareParametersWithDebounce() {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
-            if (!bleCharacteristicObject || !bleCharacteristicObject.service.device.gatt.connected) return;
-            if (window.isWritingLock) return; 
-            window.isWritingLock = true; 
             sendHardwareParameters();
-            setTimeout(() => { window.isWritingLock = false; }, 80);
         }, 250); 
     }
 
@@ -86,7 +91,7 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    function applyFilter(x) {
+    window.applyFilter = function(x) {
         if (window.currentFilterMode === 'RAW') return x;
         let dt = 1 / window.currentSampleRate;
         if (window.currentFilterMode === 'LP') { let rc = 1 / (2 * Math.PI * window.f1), alpha = dt / (rc + dt); lastY_lp = lastY_lp + alpha * (x - lastY_lp); return lastY_lp; }
@@ -96,7 +101,7 @@ window.addEventListener('DOMContentLoaded', () => {
             let rc2 = 1 / (2 * Math.PI * window.f1), a2 = rc2 / (rc2 + dt); let y = a2 * (lastY_bp2 + lastY_bp1 - lastX_hp); lastX_hp = lastY_bp1; lastY_bp2 = y; return y;
         }
         return x;
-    }
+    };
 
     const fModes = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
     Object.keys(fModes).forEach(m => {
@@ -109,59 +114,83 @@ window.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('freq1Slider').addEventListener('input', (e) => { window.f1 = parseInt(e.target.value); document.getElementById('freq1Val').innerText = window.f1 + " Hz"; window.updateFilterCoefficients(); });
     document.getElementById('freq2Slider').addEventListener('input', (e) => { window.f2 = parseInt(e.target.value); document.getElementById('freq2Val').innerText = window.f2 + " Hz"; window.updateFilterCoefficients(); });
+    // 💡 核心數據處理引擎（核心消費者）：無論是藍牙還是模擬器，通通走這條純淨解碼大水管！
+    window.consumeRawBuffer = function(rawDataView) {
+        let byteLength = rawDataView.byteLength;
+        let audioChunk = new Float32Array(byteLength);
+        
+        for (let i = 0; i < byteLength; i++) {
+            let byteVal = rawDataView.getUint8(i);
+            let val = (byteVal / 127.5) - 1.0;
+            let fVal = window.applyFilter(val);
+            
+            audioChunk[i] = fVal;
+            window.filteredDataLog.push(fVal);
+            if (window.filteredDataLog.length > 2500) window.filteredDataLog.shift();
+            
+            analysisBuffer[window.bufferIndex] = fVal;
+            window.bufferIndex = (window.bufferIndex + 1) % FFT_SIZE;
+        }
+        
+        if (window.isSpeakerOn && audioCtx) {
+            let ab = audioCtx.createBuffer(1, audioChunk.length, window.currentSampleRate);
+            ab.getChannelData(0).set(audioChunk);
+            let src = audioCtx.createBufferSource(); src.buffer = ab; src.connect(gainNode);
+            if (window.nextPlayTime < audioCtx.currentTime) { window.nextPlayTime = audioCtx.currentTime + 0.04; }
+            src.start(window.nextPlayTime); window.nextPlayTime += ab.duration; 
+        }
+    };
+
+    // 💡 離線核心黑科技：建立 100% 齒輪對齊的「本地板子發射數據模擬按鈕」
+    document.getElementById('simBtn').addEventListener('click', () => {
+        window.isSimulating = !window.isSimulating;
+        const btn = document.getElementById('simBtn');
+        if (window.isSimulating) {
+            initAudio();
+            btn.innerText = "🛑 停止本地模擬測試"; btn.classList.add('active');
+            document.getElementById('status').innerText = "▶️ 本地 20kHz 數據發生器正在全速噴發中...";
+            
+            if (window.simInterval) clearInterval(window.simInterval);
+            // 模擬板子每 6 毫秒發射一包 50 個點的二進位封包
+            window.simInterval = setInterval(() => {
+                let targetSinFreq = parseInt(document.getElementById('boardSinSlider').value);
+                let mockBuffer = new ArrayBuffer(50);
+                let view = new DataView(mockBuffer);
+                
+                let step = 2.0 * Math.PI * (targetSinFreq / window.currentSampleRate);
+                for(let i=0; i<50; i++) {
+                    let s = Math.sin(window.simPhase);
+                    let b = Math.floor((s + 1.0) * 127.5);
+                    view.setUint8(i, b);
+                    window.simPhase += step;
+                    if(window.simPhase >= 2*Math.PI) window.simPhase -= 2*Math.PI;
+                }
+                // 直接灌入解碼大水管！
+                window.consumeRawBuffer(view);
+            }, 6);
+        } else {
+            clearInterval(window.simInterval);
+            btn.innerText = "🛠️ 開啟本地資料模擬測試"; btn.classList.remove('active');
+            document.getElementById('status').innerText = "狀態：模擬測試已停止。";
+        }
+    });
+
     document.getElementById('connectBtn').addEventListener('click', async () => {
+        if (window.isSimulating) document.getElementById('simBtn').click(); // 強制互斥
         const status = document.getElementById('status');
         try {
             status.innerText = "正在搜尋藍牙裝置...";
             const device = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: 'ESP32' }], optionalServices: [S_UUID] });
-            if (device.gatt.connected || window.activeBleDevice) {
-                status.innerText = "發現多重宇宙暫存，強制實體釋放中...";
-                try { await device.gatt.disconnect(); if(window.activeBleDevice) await window.activeBleDevice.gatt.disconnect(); } catch(e){}
-                await new Promise(r => setTimeout(r, 400));
-            }
-            window.activeBleDevice = device; 
-            status.innerText = "GATT 實體通道硬開通中...";
             const server = await device.gatt.connect();
-            status.innerText = "正在索取 16-bit SIG 通道...";
             const service = await server.getPrimaryService(S_UUID);
             bleCharacteristicObject = await service.getCharacteristic(C_UUID);
 
             bleCharacteristicObject.removeEventListener('characteristicvaluechanged', window.currentBleHandler);
-            
-            window.currentBleHandler = (e) => {
-                try {
-                    // 💡 零快取直接還原解碼：完全拆除字串與 TextDecoder，直接讀取二進位資料
-                    let rawDataView = e.target.value;
-                    let byteLength = rawDataView.byteLength;
-                    let audioChunk = new Float32Array(byteLength);
-                    
-                    for (let i = 0; i < byteLength; i++) {
-                        let byteVal = rawDataView.getUint8(i);
-                        let val = (byteVal / 127.5) - 1.0;
-                        let fVal = applyFilter(val);
-                        
-                        audioChunk[i] = fVal;
-                        window.filteredDataLog.push(fVal);
-                        if (window.filteredDataLog.length > 2500) window.filteredDataLog.shift();
-                        
-                        analysisBuffer[window.bufferIndex] = fVal;
-                        window.bufferIndex = (window.bufferIndex + 1) % FFT_SIZE;
-                    }
-                    
-                    if (window.isSpeakerOn && audioCtx) {
-                        let ab = audioCtx.createBuffer(1, audioChunk.length, window.currentSampleRate);
-                        ab.getChannelData(0).set(audioChunk);
-                        let src = audioCtx.createBufferSource(); src.buffer = ab; src.connect(gainNode);
-                        if (window.nextPlayTime < audioCtx.currentTime) { window.nextPlayTime = audioCtx.currentTime + 0.04; }
-                        src.start(window.nextPlayTime); window.nextPlayTime += ab.duration; 
-                    }
-                } catch (err) {}
-            };
+            window.currentBleHandler = (e) => { window.consumeRawBuffer(e.target.value); };
 
             bleCharacteristicObject.addEventListener('characteristicvaluechanged', window.currentBleHandler);
             await bleCharacteristicObject.startNotifications();
-            status.innerText = "▶️ 二進位高階大水管對接大成功！";
-            document.getElementById('boardSampleSlider').disabled = false; document.getElementById('boardSinSlider').disabled = false;
+            status.innerText = "▶️ 實體藍牙二進位通道扣上大成功！";
         } catch (err) { status.innerText = "底層連線失敗: " + err.message; }
     });
 
