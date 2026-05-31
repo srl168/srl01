@@ -2,7 +2,7 @@ if (window.audioInterval) clearInterval(window.audioInterval);
 if (window.simInterval) clearInterval(window.simInterval);
 window.isWritingLock = false;
 
-// 💡 初始化鋼性全域作用域
+// 💡 物理點火：全域記憶體大水管全面開通，100% 阻斷跨執行緒卡死
 window.currentSampleRate = 20000;
 window.filteredDataLog = [];
 window.bufferIndex = 0;
@@ -11,12 +11,15 @@ window.isSpeakerOn = false;
 window.isSimulating = false;
 window.simPhase = 0;
 
+// 💡 升級全域傅立葉分析緩衝池，確保解碼引擎第 0 毫秒完美點名
+window.FFT_SIZE = 1024;
+window.analysisBuffer = new Float32Array(window.FFT_SIZE);
+
 window.addEventListener('DOMContentLoaded', () => {
     const S_UUID = 0xFF01;
     const C_UUID = 0xFF02;
-    const FFT_SIZE = 1024;
 
-    let analysisBuffer = new Float32Array(FFT_SIZE), bleCharacteristicObject = null;
+    let bleCharacteristicObject = null;
     let audioCtx = null, gainNode = null;
     let debounceTimer = null;
 
@@ -66,11 +69,7 @@ window.addEventListener('DOMContentLoaded', () => {
         let sr = parseInt(document.getElementById('boardSampleSlider').value);
         let sf = parseInt(document.getElementById('boardSinSlider').value);
         window.currentSampleRate = sr; window.updateFilterCoefficients();
-        
-        if (window.isSimulating) {
-            document.getElementById('status').innerText = "▶️ 本地模擬參數動態同步成功！";
-            return;
-        }
+        if (window.isSimulating) return;
         if (!bleCharacteristicObject) return;
         let buf = (new TextEncoder()).encode(sr + "," + sf);
         try { bleCharacteristicObject.writeValue(buf); } catch (err) { console.error(err); }
@@ -78,9 +77,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     function sendHardwareParametersWithDebounce() {
         clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-            sendHardwareParameters();
-        }, 250); 
+        debounceTimer = setTimeout(() => { sendHardwareParameters(); }, 250); 
     }
 
     ['boardSampleSlider', 'boardSinSlider'].forEach(id => {
@@ -114,7 +111,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('freq1Slider').addEventListener('input', (e) => { window.f1 = parseInt(e.target.value); document.getElementById('freq1Val').innerText = window.f1 + " Hz"; window.updateFilterCoefficients(); });
     document.getElementById('freq2Slider').addEventListener('input', (e) => { window.f2 = parseInt(e.target.value); document.getElementById('freq2Val').innerText = window.f2 + " Hz"; window.updateFilterCoefficients(); });
-    // 💡 核心數據處理引擎（核心消費者）：無論是藍牙還是模擬器，通通走這條純淨解碼大水管！
+    // 💡 核心解碼水管：全面與全域變數對齊，徹底釋放解碼能效
     window.consumeRawBuffer = function(rawDataView) {
         let byteLength = rawDataView.byteLength;
         let audioChunk = new Float32Array(byteLength);
@@ -128,8 +125,9 @@ window.addEventListener('DOMContentLoaded', () => {
             window.filteredDataLog.push(fVal);
             if (window.filteredDataLog.length > 2500) window.filteredDataLog.shift();
             
-            analysisBuffer[window.bufferIndex] = fVal;
-            window.bufferIndex = (window.bufferIndex + 1) % FFT_SIZE;
+            // 💡 鋼性死鎖：指向全域緩衝區，100% 成功注入
+            window.analysisBuffer[window.bufferIndex] = fVal;
+            window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
         }
         
         if (window.isSpeakerOn && audioCtx) {
@@ -141,17 +139,15 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // 💡 離線核心黑科技：建立 100% 齒輪對齊的「本地板子發射數據模擬按鈕」
     document.getElementById('simBtn').addEventListener('click', () => {
         window.isSimulating = !window.isSimulating;
         const btn = document.getElementById('simBtn');
         if (window.isSimulating) {
             initAudio();
             btn.innerText = "🛑 停止本地模擬測試"; btn.classList.add('active');
-            document.getElementById('status').innerText = "▶️ 本地 20kHz 數據發生器正在全速噴發中...";
+            document.getElementById('status').innerText = "▶️ 本地 20kHz 二進位模擬器全速噴發中...";
             
             if (window.simInterval) clearInterval(window.simInterval);
-            // 模擬板子每 6 毫秒發射一包 50 個點的二進位封包
             window.simInterval = setInterval(() => {
                 let targetSinFreq = parseInt(document.getElementById('boardSinSlider').value);
                 let mockBuffer = new ArrayBuffer(50);
@@ -165,7 +161,6 @@ window.addEventListener('DOMContentLoaded', () => {
                     window.simPhase += step;
                     if(window.simPhase >= 2*Math.PI) window.simPhase -= 2*Math.PI;
                 }
-                // 直接灌入解碼大水管！
                 window.consumeRawBuffer(view);
             }, 6);
         } else {
@@ -176,7 +171,7 @@ window.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('connectBtn').addEventListener('click', async () => {
-        if (window.isSimulating) document.getElementById('simBtn').click(); // 強制互斥
+        if (window.isSimulating) document.getElementById('simBtn').click(); 
         const status = document.getElementById('status');
         try {
             status.innerText = "正在搜尋藍牙裝置...";
@@ -235,13 +230,13 @@ window.addEventListener('DOMContentLoaded', () => {
         rPoints.forEach(v => sq += v * v); let rms = Math.sqrt(sq / rPoints.length);
         document.getElementById('vppVal').innerText = vpp.toFixed(2) + " V"; document.getElementById('rmsVal').innerText = rms.toFixed(2) + " V";
         
-        let re = new Float32Array(FFT_SIZE), im = new Float32Array(FFT_SIZE);
-        for (let k = 0; k < FFT_SIZE; k++) { let idx = (window.bufferIndex + k) % FFT_SIZE; re[k] = analysisBuffer[idx]; }
+        let re = new Float32Array(window.FFT_SIZE), im = new Float32Array(window.FFT_SIZE);
+        for (let k = 0; k < window.FFT_SIZE; k++) { let idx = (window.bufferIndex + k) % window.FFT_SIZE; re[k] = window.analysisBuffer[idx]; }
         localFFT(re, im);
         
-        let magnitudes = new Float32Array(FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
-        for (let m = 0; m < FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
-        let peakFreq = maxIdx * (window.currentSampleRate / FFT_SIZE); document.getElementById('freqVal').innerText = maxMag > 0.04 ? peakFreq.toFixed(1) + " Hz" : "0.0 Hz";
+        let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
+        for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
+        let peakFreq = maxIdx * (window.currentSampleRate / window.FFT_SIZE); document.getElementById('freqVal').innerText = maxMag > 0.04 ? peakFreq.toFixed(1) + " Hz" : "0.0 Hz";
         
         tCtx.clearRect(0, 0, tCanvas.width, tCanvas.height);
         tCtx.fillStyle = '#111'; tCtx.fillRect(0, 0, tCanvas.width, tCanvas.height); tCtx.strokeStyle = '#00ff66'; tCtx.lineWidth = 2.5; tCtx.beginPath();
@@ -257,8 +252,8 @@ window.addEventListener('DOMContentLoaded', () => {
         
         fCtx.clearRect(0, 0, fCanvas.width, fCanvas.height);
         fCtx.fillStyle = '#111'; fCtx.fillRect(0, 0, fCanvas.width, fCanvas.height); fCtx.strokeStyle = '#ffad00'; fCtx.lineWidth = 1.5; fCtx.beginPath();
-        let fSlice = fCanvas.width / (FFT_SIZE / 4);
-        for (let n = 0; n < FFT_SIZE / 4; n++) { let curX = n * fSlice, y = fCanvas.height - (magnitudes[n] * fCanvas.height * 200); if (n == 0) fCtx.moveTo(curX, y); else fCtx.lineTo(curX, y); }
+        let fSlice = fCanvas.width / (window.FFT_SIZE / 4);
+        for (let n = 0; n < window.FFT_SIZE / 4; n++) { let curX = n * fSlice, y = fCanvas.height - (magnitudes[n] * fCanvas.height * 200); if (n == 0) fCtx.moveTo(curX, y); else fCtx.lineTo(curX, y); }
         fCtx.stroke();
     };
 });
