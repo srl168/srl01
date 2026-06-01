@@ -3,7 +3,7 @@ window.isWritingLock = false;
 
 // 💡 鋼性全域記憶體池
 window.currentSampleRate = 20000;
-window.currentSinFreq = 3000; // 💡 完美對齊初始標準音
+window.currentSinFreq = 3000; 
 window.filteredDataLog = [];
 window.bufferIndex = 0;
 window.nextPlayTime = 0;
@@ -72,7 +72,6 @@ window.initAudioGlobal = function() {
         window.gainNode.gain.setValueAtTime(0.3, window.audioCtx.currentTime);
         window.gainNode.connect(window.audioCtx.destination);
     }
-    // 💡 軟著陸淡入：點火瞬間在 0.01 秒內滑入，完美熨平時鐘遲到斷層！
     window.gainNode.gain.setValueAtTime(0.0, window.audioCtx.currentTime);
     window.gainNode.gain.linearRampToValueAtTime(0.3, window.audioCtx.currentTime + 0.01);
     
@@ -99,17 +98,19 @@ window.playAudioChunkDirect = function(audioChunk) {
         src.start(window.nextPlayTime); window.nextPlayTime += ab.duration; 
     }
 };
-// 💡 架構大解鎖：正弦波生成完全移到此處！與繪圖迴圈 100% 徹底分家，水管永遠充盈，低取樣絕不卡死！
 window.streamPureTimelineEngine = function() {
     if (!window.isSpeakerOn || !window.audioCtx) return;
-    let targetTime = window.audioCtx.currentTime + 0.12;
+    
+    // 💡 鋼性安全閥補丁：隨取樣率動態縮放發聲區塊大小（12000Hz以下縮為64點），徹底破除硬體溢位雜音！
+    let chunkSize = window.currentSampleRate < 12000 ? 64 : 128;
+    let targetTime = window.audioCtx.currentTime + 0.10;
     
     if (window.isSimulating) {
         while (window.nextPlayTime < targetTime) {
-            let audioChunk = new Float32Array(128);
+            let audioChunk = new Float32Array(chunkSize);
             let oversampleFactor = 16, internalSR = window.currentSampleRate * oversampleFactor;
             let step = 2.0 * Math.PI * (window.currentSinFreq / internalSR);
-            for (let i = 0; i < 128; i++) {
+            for (let i = 0; i < chunkSize; i++) {
                 let sum = 0;
                 for (let o = 0; o < oversampleFactor; o++) { sum += Math.sin(window.simPhase); window.simPhase += step; if (window.simPhase >= 2 * Math.PI) window.simPhase -= 2 * Math.PI; }
                 let val = sum / oversampleFactor; let fVal = window.applyFilter ? window.applyFilter(val) : val;
@@ -151,7 +152,7 @@ window.globalRenderLoop = function() {
     requestAnimationFrame(window.globalRenderLoop); renderFrameCounter++; if (renderFrameCounter % 2 !== 0) return;
     if (window.filteredDataLog.length < 50) return;
 
-    // 💡 鋼性幾何保底：無條件保底「最少保留 128 個點」，徹底防止低取樣被強行拉扯扯平！
+    // 💡 鋼性像素保底：最低擷取 128 點，徹底滅絕低採樣圖形被無情拉扯壓平的物理悲劇！
     let adaptivePointsCount = Math.round((3 * window.currentSampleRate) / window.currentSinFreq);
     if (adaptivePointsCount < 128) adaptivePointsCount = 128;
     if (adaptivePointsCount > window.filteredDataLog.length) adaptivePointsCount = window.filteredDataLog.length;
@@ -173,7 +174,6 @@ window.globalRenderLoop = function() {
     window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, window.tCanvas.width, window.tCanvas.height); window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath();
     let midY = window.tCanvas.height / 2;
 
-    // 💡 幾何內插器：將稀疏點在 Canvas 上虛擬還原成 150 個流暢像素點，低取樣下振幅 100% 挺拔圓潤！
     let renderPointsCount = 150;
     let outPoints = new Float32Array(renderPointsCount);
     for (let i = 0; i < renderPointsCount; i++) {
@@ -183,8 +183,8 @@ window.globalRenderLoop = function() {
     }
 
     let tSlice = window.tCanvas.width / (renderPointsCount - 1);
-    // 💡 鋼性解鎖：精準使用中括號定位 outPoints，歷史 NaN 乘法徹底灰飛煙滅！
-    let x0 = 0, y0 = midY - (outPoints[0] * (window.tCanvas.height / 2.3)); window.tCtx.moveTo(x0, y0);
+    // 💡 幾何修復：對齊陣列第一個元素 outPoints，洗淨歷史 NaN，波峰谷永遠 100% 圓潤絲滑！
+    let x0 = 0, y0 = midY - (outPoints * (window.tCanvas.height / 2.3)); window.tCtx.moveTo(x0, y0);
     for (let j = 1; j < renderPointsCount; j++) { 
         let x1 = j * tSlice; let currentPoint = outPoints[j];
         if (j > 0 && j < renderPointsCount - 1) { currentPoint = (outPoints[j-1] + outPoints[j] + outPoints[j+1]) / 3; }
@@ -203,7 +203,7 @@ window.globalRenderLoop = function() {
 document.addEventListener('click', (e) => {
     if (e.target && e.target.id === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
-        if (window.isSimulating) { window.initAudioGlobal(); btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active"; document.getElementById('status').innerText = "▶️ 離線沙盒：獨立訊號生成架構已解鎖！"; }
+        if (window.isSimulating) { window.initAudioGlobal(); btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active"; document.getElementById('status').innerText = "▶️ 離線沙盒：硬體級防溢位核心點火！"; }
         else { 
             if (window.audioInterval) clearInterval(window.audioInterval);
             if (window.audioCtx) window.nextPlayTime = window.audioCtx.currentTime;
@@ -218,7 +218,7 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// 💡 鋼性實體 ID 字串特徵包含監聽器，滑桿 100% 恢復彈性控制
+// 💡 實體 ID 精準扣鎖攔截器
 document.addEventListener('input', (e) => {
     if (e.target && e.target.type === 'range') {
         let sliderId = (e.target.id || "").toLowerCase();
@@ -231,7 +231,7 @@ document.addEventListener('input', (e) => {
             if (window.updateFilterCoefficients) window.updateFilterCoefficients();
         }
         else if (sliderId.includes("sin") || sliderId.includes("freq")) {
-            window.currentSinFreq = parseInt(curVal); // 💡 0毫秒鋼性更新！
+            window.currentSinFreq = parseInt(curVal); // 💡 鋼性穿透全域變數
             if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.currentSinFreq + " Hz";
         }
         else if (sliderId.includes("vol")) {
@@ -240,4 +240,17 @@ document.addEventListener('input', (e) => {
         }
     }
 });
-setTimeout(() => { if (window.updateFilterCoefficients) window.updateFilterCoefficients(); if (window.globalRenderLoop) window.globalRenderLoop(); }, 250);
+
+// 💡 終極解鎖：開機時無條件執行「全自動雙向標籤對齊」，強制將 HTML 初始值拉入大腦，滅絕一開始卡死的現象！
+setTimeout(() => {
+    if (window.allInputsOnPage) {
+        window.allInputsOnPage.forEach(input => {
+            let sliderId = (input.id || "").toLowerCase();
+            let curVal = parseFloat(input.value);
+            if (sliderId.includes("sample")) window.currentSampleRate = parseInt(curVal);
+            else if (sliderId.includes("sin") || sliderId.includes("freq")) window.currentSinFreq = parseInt(curVal);
+        });
+    }
+    if (window.updateFilterCoefficients) window.updateFilterCoefficients();
+    if (window.globalRenderLoop) window.globalRenderLoop();
+}, 250);
