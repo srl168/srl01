@@ -24,7 +24,7 @@ window.addEventListener('DOMContentLoaded', () => {
     window.tCtx = window.tCanvas.getContext('2d');
     window.fCtx = window.fCanvas.getContext('2d');
 
-    let lastY_lp = 0, lastX_hp = 0, lastY_hp = 0, lastY_bp1 = 0, lastX_bp2 = 0, lastY_bp2 = 0;
+    let lastY_lp = 0, lastX_hp = 0, lastY_hp = 0, lastY_bp1 = 0, lastX_hp_bp = 0, lastY_bp2 = 0;
     window.currentFilterMode = 'RAW';
     window.f1 = 1000; window.f2 = 3000;
     window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0; window.bp_b = [1, 0, -1]; window.bp_a = [];
@@ -48,7 +48,7 @@ window.addEventListener('DOMContentLoaded', () => {
         if (window.currentFilterMode === 'HP') { let rc = 1 / (2 * Math.PI * window.f1), alpha = rc / (rc + dt); let y = alpha * (lastY_hp + x - lastX_hp); lastX_hp = x; lastY_hp = y; return y; }
         if (window.currentFilterMode === 'BP') {
             let rc1 = 1 / (2 * Math.PI * window.f2), a1 = dt / (rc1 + dt); lastY_bp1 = lastY_bp1 + a1 * (x - lastY_bp1);
-            let rc2 = 1 / (2 * Math.PI * window.f1), a2 = rc2 / (rc2 + dt); let y = a2 * (lastY_bp2 + lastY_bp1 - lastX_hp); lastX_hp = lastY_bp1; lastY_bp2 = y; return y;
+            let rc2 = 1 / (2 * Math.PI * window.f1), a2 = rc2 / (rc2 + dt); let y = a2 * (lastY_bp2 + lastY_bp1 - lastX_hp_bp); lastX_hp_bp = lastY_bp1; lastY_bp2 = y; return y;
         }
         return x;
     };
@@ -90,7 +90,7 @@ window.initAudioGlobal = function() {
     if (!window.audioCtx) {
         window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         window.gainNode = window.audioCtx.createGain(); 
-        window.gainNode.gain.value = window.allInputsOnPage ? parseFloat(window.allInputsOnPage.value) : 0.3;
+        window.gainNode.gain.value = window.allInputsOnPage ? parseFloat(window.allInputsOnPage[0].value) : 0.3;
         window.gainNode.connect(window.audioCtx.destination);
         window.nextPlayTime = window.audioCtx.currentTime;
         window.audioInterval = setInterval(window.streamPureTimelineEngine, 30);
@@ -209,7 +209,7 @@ window.globalRenderLoop = function() {
     
     let tSlice = window.tCanvas.width / (rPoints.length - 1), midY = window.tCanvas.height / 2;
     
-    // 💡 鋼性解鎖：精準鎖定第一個數值 [0]，徹底解鎖貝氏拋物線切線！
+    // 💡 鋼性解鎖：精準鎖定第一個數值指標 rPoints[0]，徹底洗淨歷史 NaN 死鎖！
     let x0 = 0, y0 = midY - (rPoints[0] * (window.tCanvas.height / 2.3));
     window.tCtx.moveTo(x0, y0);
     
@@ -228,7 +228,7 @@ window.globalRenderLoop = function() {
     window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, window.fCanvas.width, window.fCanvas.height); window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 1.5; window.fCtx.beginPath();
     let fSlice = window.fCanvas.width / (window.FFT_SIZE / 4);
     for (let n = 0; n < window.FFT_SIZE / 4; n++) { let curX = n * fSlice, y = window.fCanvas.height - (magnitudes[n] * window.fCanvas.height * 200); if (n == 0) window.fCtx.moveTo(curX, y); else window.fCtx.lineTo(curX, y); }
-    window.fCtx.stroke();
+    fCtx.stroke();
 };
 
 document.addEventListener('click', (e) => {
@@ -254,7 +254,10 @@ document.addEventListener('input', (e) => {
         let idx = window.allInputsOnPage.indexOf(e.target);
         let nextSpan = e.target.nextElementSibling;
         if (nextSpan && nextSpan.tagName === 'SPAN') { nextSpan.innerText = (idx === 0) ? Math.round(e.target.value * 100) + "%" : e.target.value + " Hz"; }
-        if (idx === 1) { window.currentSampleRate = parseInt(e.target.value); if (window.updateFilterCoefficients) window.updateFilterCoefficients(); }
+        if (idx === 1) { 
+            window.currentSampleRate = parseInt(e.target.value); 
+            if (window.updateFilterCoefficients) window.updateFilterCoefficients(); 
+        }
         if (window.gainNode && idx === 0) window.gainNode.gain.value = parseFloat(e.target.value);
     }
 });
