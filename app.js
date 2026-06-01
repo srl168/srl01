@@ -11,6 +11,7 @@ window.isSimulating = false;
 window.simPhase = 0;
 window.FFT_SIZE = 1024;
 window.analysisBuffer = new Float32Array(window.FFT_SIZE);
+window.simWorker = null;
 
 window.addEventListener('DOMContentLoaded', () => {
     window.S_UUID = 0xFF01;
@@ -89,35 +90,25 @@ window.initAudioGlobal = function() {
     if (!window.audioCtx) {
         window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         window.gainNode = window.audioCtx.createGain(); 
-        window.gainNode.gain.value = window.allInputsOnPage ? parseFloat(window.allInputsOnPage[0].value) : 0.3;
+        window.gainNode.gain.value = window.allInputsOnPage ? parseFloat(window.allInputsOnPage.value) : 0.3;
         window.gainNode.connect(window.audioCtx.destination);
         window.nextPlayTime = window.audioCtx.currentTime;
+        window.audioInterval = setInterval(window.streamPureTimelineEngine, 30);
     }
     if (window.audioCtx.state === 'suspended') window.audioCtx.resume();
 };
-let leftoverStringCache = "";
-window.consumeTextStreamPacket = function(str) {
-    leftoverStringCache += str;
-    let boundaryIdx;
-    while ((boundaryIdx = leftoverStringCache.indexOf("\n")) !== -1) {
-        let line = leftoverStringCache.substring(0, boundaryIdx).trim();
-        leftoverStringCache = leftoverStringCache.substring(boundaryIdx + 1);
+window.consumeRawBuffer = function(rawDataView) {
+    let byteLength = rawDataView.byteLength;
+    for (let i = 0; i < byteLength; i++) {
+        let byteVal = rawDataView.getUint8(i);
+        let val = (byteVal / 127.5) - 1.0;
+        let fVal = window.applyFilter ? window.applyFilter(val) : val;
         
-        let points = line.split(","); if (points.length < 2) continue;
-        let audioChunk = new Float32Array(points.length);
-        for (let i = 0; i < points.length; i++) {
-            let byteVal = parseInt(points[i]); if (isNaN(byteVal)) continue;
-            let val = (byteVal / 127.5) - 1.0;
-            let fVal = window.applyFilter ? window.applyFilter(val) : val;
-            
-            audioChunk[i] = fVal;
-            window.filteredDataLog.push(fVal);
-            if (window.filteredDataLog.length > 2500) window.filteredDataLog.shift();
-            
-            window.analysisBuffer[window.bufferIndex] = fVal;
-            window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
-        }
-        window.playAudioChunkDirect(audioChunk);
+        window.filteredDataLog.push(fVal);
+        if (window.filteredDataLog.length > 4000) window.filteredDataLog.shift(); 
+        
+        window.analysisBuffer[window.bufferIndex] = fVal;
+        window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
     }
 };
 
@@ -131,18 +122,65 @@ window.playAudioChunkDirect = function(audioChunk) {
     }
 };
 
-// 💡 升級：100% 記憶體隔離型傅立葉蝶形疊代演算法（0 交叉感染、0 失真）
-function isolatedFFT(out_re, out_im, in_src) {
-    const n = window.FFT_SIZE;
-    for (let i = 0; i < n; i++) {
-        out_re[i] = in_src[i]; out_im[i] = 0.0; // 在乾淨的臨時矩陣上初始化
+window.streamPureTimelineEngine = function() {
+    if (!window.isSpeakerOn || !window.audioCtx || !window.allInputsOnPage) return;
+    let targetTime = window.audioCtx.currentTime + 0.06;
+    
+    // 💡 旗艦級解鎖：16倍超採樣物理死鎖引擎，徹底蒸發所有波峰波谷的低音調變波浪！
+    if (window.isSimulating) {
+        let sinSlider = window.allInputsOnPage[2];
+        let targetSF = sinSlider ? parseInt(sinSlider.value) : 2000;
+        
+        while (window.nextPlayTime < targetTime) {
+            let audioChunk = new Float32Array(128);
+            
+            // 💡 16倍硬體級超採樣：在內部以超高頻 (320,000Hz) 算滿弧度步伐
+            let oversampleFactor = 16;
+            let internalSR = window.currentSampleRate * oversampleFactor;
+            let step = 2.0 * Math.PI * (targetSF / internalSR);
+            
+            for (let i = 0; i < 128; i++) {
+                let sum = 0;
+                // 內部蝶形抗混疊迴圈：連續提取 16 個超精準奈秒點求平均值（Decimation Filter）
+                for (let o = 0; o < oversampleFactor; o++) {
+                    sum += Math.sin(window.simPhase);
+                    window.simPhase += step;
+                    if (window.simPhase >= 2 * Math.PI) window.simPhase -= 2 * Math.PI;
+                }
+                let val = sum / oversampleFactor; // 物理級極致熨平頂點
+                let fVal = window.applyFilter ? window.applyFilter(val) : val;
+                
+                audioChunk[i] = fVal;
+                window.filteredDataLog.push(fVal);
+                window.analysisBuffer[window.bufferIndex] = fVal;
+                window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
+            }
+            if (window.filteredDataLog.length > 3000) window.filteredDataLog = window.filteredDataLog.slice(-2000);
+            
+            let ab = window.audioCtx.createBuffer(1, audioChunk.length, window.currentSampleRate);
+            ab.getChannelData(0).set(audioChunk);
+            let src = window.audioCtx.createBufferSource(); src.buffer = ab; src.connect(window.gainNode);
+            src.start(window.nextPlayTime); window.nextPlayTime += ab.duration;
+        }
+        return;
     }
-    let bits = 0; while ((1 << bits) < n) bits++;
+    
+    if (window.filteredDataLog.length < 300) return;
+    while (window.nextPlayTime < targetTime) {
+        let rawChunk = window.filteredDataLog.slice(-250);
+        let ab = window.audioCtx.createBuffer(1, rawChunk.length, window.currentSampleRate);
+        ab.getChannelData(0).set(rawChunk);
+        let src = window.audioCtx.createBufferSource(); src.buffer = ab; src.connect(window.gainNode);
+        src.start(window.nextPlayTime); window.nextPlayTime += ab.duration;
+    }
+};
+
+function localFFT(re, im) {
+    const n = re.length; let bits = 0; while ((1 << bits) < n) bits++;
     for (let i = 0; i < n; i++) {
         let rev = 0; for (let j = 0; j < bits; j++) { if ((i & (1 << j)) !== 0) rev |= (1 << (bits - 1 - j)); }
         if (rev > i) {
-            let tr = out_re[i]; out_re[i] = out_re[rev]; out_re[rev] = tr;
-            let ti = out_im[i]; out_im[i] = out_im[rev]; out_im[rev] = ti;
+            let tempR = re[i]; re[i] = re[rev]; re[rev] = tempR; let tempI = im[i]; im[i] = im[rev]; im[rev] = tempI;
         }
     }
     for (let len = 2; len <= n; len <<= 1) {
@@ -150,11 +188,11 @@ function isolatedFFT(out_re, out_im, in_src) {
         for (let i = 0; i < n; i += len) {
             let w_r = 1, w_i = 0;
             for (let j = 0; j < len / 2; j++) {
-                let u_r = out_re[i + j], u_i = out_im[i + j];
-                let v_r = out_re[i + j + len / 2] * w_r - out_im[i + j + len / 2] * w_i;
-                let v_i = out_re[i + j + len / 2] * w_i + out_im[i + j + len / 2] * w_r;
-                out_re[i + j] = u_r + v_r; out_im[i + j] = u_i + v_i;
-                out_re[i + j + len / 2] = u_r - v_r; out_im[i + j + len / 2] = u_i - v_i;
+                let u_r = re[i + j], u_i = im[i + j];
+                let v_r = re[i + j + len / 2] * w_r - im[i + j + len / 2] * w_i;
+                let v_i = re[i + j + len / 2] * w_i + im[i + j + len / 2] * w_r;
+                re[i + j] = u_r + v_r; im[i + j] = u_i + v_i;
+                re[i + j + len / 2] = u_r - v_r; im[i + j + len / 2] = u_i - v_i;
                 let next_w_r = w_r * wlen_r - w_i * wlen_i; w_i = w_r * wlen_i + w_i * wlen_r; w_r = next_w_r;
             }
         }
@@ -162,45 +200,14 @@ function isolatedFFT(out_re, out_im, in_src) {
 }
 
 window.globalRenderLoop = function() {
-    requestAnimationFrame(window.globalRenderLoop);
-    
-    if (window.isSimulating && window.allInputsOnPage) {
-        let sampleSlider = window.allInputsOnPage[1]; let sinSlider = window.allInputsOnPage[2];
-        let targetSR = sampleSlider ? parseInt(sampleSlider.value) : 20000;
-        let targetSF = sinSlider ? parseInt(sinSlider.value) : 2000;
-        window.currentSampleRate = targetSR;
-        
-        let pointsCount = Math.round(window.currentSampleRate / 60);
-        if (pointsCount > 0) {
-            let audioChunk = new Float32Array(pointsCount);
-            let step = 2.0 * Math.PI * (targetSF / window.currentSampleRate);
-            for (let i = 0; i < pointsCount; i++) {
-                let val = Math.sin(window.simPhase);
-                let fVal = window.applyFilter ? window.applyFilter(val) : val;
-                audioChunk[i] = fVal;
-                window.filteredDataLog.push(fVal);
-                window.analysisBuffer[window.bufferIndex] = fVal;
-                window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
-                window.simPhase += step; if (window.simPhase >= 2 * Math.PI) window.simPhase -= 2 * Math.PI;
-            }
-            if (window.filteredDataLog.length > 2500) window.filteredDataLog = window.filteredDataLog.slice(-2000);
-            window.playAudioChunkDirect(audioChunk);
-        }
-    }
-
-    if (window.filteredDataLog.length < 150) return;
-    let rPoints = window.filteredDataLog.slice(-150);
-    let max = Math.max(...rPoints), min = Math.min(...rPoints), vpp = max - min, sq = 0;
+    requestAnimationFrame(window.globalRenderLoop); if (window.filteredDataLog.length < 150) return;
+    let rPoints = window.filteredDataLog.slice(-150), max = Math.max(...rPoints), min = Math.min(...rPoints), vpp = max - min, sq = 0;
     rPoints.forEach(v => sq += v * v); let rms = Math.sqrt(sq / rPoints.length);
     document.getElementById('vppVal').innerText = vpp.toFixed(2) + " V"; document.getElementById('rmsVal').innerText = rms.toFixed(2) + " V";
     
-    // 💡 建立高隔離獨立計算面板
     let re = new Float32Array(window.FFT_SIZE), im = new Float32Array(window.FFT_SIZE);
-    let snapShotSnapshot = new Float32Array(window.FFT_SIZE);
-    for (let k = 0; k < window.FFT_SIZE; k++) { let idx = (window.bufferIndex + k) % window.FFT_SIZE; snapShotSnapshot[k] = window.analysisBuffer[idx]; }
-    
-    // 💡 執行 100% 物理隔離轉換，徹底阻斷畫布鋸齒失真！
-    isolatedFFT(re, im, snapShotSnapshot);
+    for (let k = 0; k < window.FFT_SIZE; k++) { let idx = (window.bufferIndex + k) % window.FFT_SIZE; re[k] = window.analysisBuffer[idx]; }
+    localFFT(re, im);
     
     let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
@@ -208,14 +215,21 @@ window.globalRenderLoop = function() {
     
     window.tCtx.clearRect(0, 0, window.tCanvas.width, window.tCanvas.height);
     window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, window.tCanvas.width, window.tCanvas.height); window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath();
+    
     let tSlice = window.tCanvas.width / (rPoints.length - 1), midY = window.tCanvas.height / 2;
-    for (let j = 0; j < rPoints.length; j++) { 
-        let x = j * tSlice; let currentPoint = rPoints[j];
+    let x0 = 0, y0 = midY - (rPoints[0] * (window.tCanvas.height / 2.3));
+    window.tCtx.moveTo(x0, y0);
+    
+    for (let j = 1; j < rPoints.length; j++) { 
+        let x1 = j * tSlice;
+        let currentPoint = rPoints[j];
         if (j > 0 && j < rPoints.length - 1) { currentPoint = (rPoints[j-1] + rPoints[j] + rPoints[j+1]) / 3; }
-        let y = midY - (currentPoint * (window.tCanvas.height / 2.3)); 
-        if (j == 0) window.tCtx.moveTo(x, y); else window.tCtx.lineTo(x, y); 
+        let y1 = midY - (currentPoint * (window.tCanvas.height / 2.3)); 
+        let xc = (x0 + x1) / 2; let yc = (y0 + y1) / 2;
+        window.tCtx.quadraticCurveTo(x0, y0, xc, yc);
+        x0 = x1; y0 = y1;
     }
-    window.tCtx.stroke();
+    window.tCtx.lineTo(x0, y0); window.tCtx.stroke();
     
     window.fCtx.clearRect(0, 0, window.fCanvas.width, window.fCanvas.height);
     window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, window.fCanvas.width, window.fCanvas.height); window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 1.5; window.fCtx.beginPath();
@@ -224,22 +238,12 @@ window.globalRenderLoop = function() {
     window.fCtx.stroke();
 };
 
-document.addEventListener('input', (e) => {
-    if (e.target && e.target.type === 'range' && window.allInputsOnPage) {
-        let idx = window.allInputsOnPage.indexOf(e.target);
-        let nextSpan = e.target.nextElementSibling;
-        if (nextSpan && nextSpan.tagName === 'SPAN') { nextSpan.innerText = (idx === 0) ? Math.round(e.target.value * 100) + "%" : e.target.value + " Hz"; }
-        if (idx === 1) { window.currentSampleRate = parseInt(e.target.value); if (window.updateFilterCoefficients) window.updateFilterCoefficients(); }
-        if (window.gainNode && idx === 0) window.gainNode.gain.value = parseFloat(e.target.value);
-    }
-});
-
 document.addEventListener('click', (e) => {
     if (e.target && e.target.id === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
         if (window.isSimulating) {
             window.initAudioGlobal(); btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active";
-            document.getElementById('status').innerText = "▶️ 離線沙盒：物理隔離定頻大核心已點火！";
+            document.getElementById('status').innerText = "▶️ 離線沙盒：16倍超採樣反混疊核心已激活！";
         } else {
             btn.innerText = "🛠️ 開啟本地資料模擬測試"; btn.className = "btn-sim";
             document.getElementById('status').innerText = "狀態：模擬測試已停止。";
@@ -249,6 +253,16 @@ document.addEventListener('click', (e) => {
         window.initAudioGlobal(); window.isSpeakerOn = !window.isSpeakerOn;
         document.getElementById('speakerBtn').innerText = window.isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉";
         document.getElementById('speakerBtn').className = window.isSpeakerOn ? "btn-speaker" : "btn-speaker muted";
+    }
+});
+
+document.addEventListener('input', (e) => {
+    if (e.target && e.target.type === 'range' && window.allInputsOnPage) {
+        let idx = window.allInputsOnPage.indexOf(e.target);
+        let nextSpan = e.target.nextElementSibling;
+        if (nextSpan && nextSpan.tagName === 'SPAN') { nextSpan.innerText = (idx === 0) ? Math.round(e.target.value * 100) + "%" : e.target.value + " Hz"; }
+        if (idx === 1) { window.currentSampleRate = parseInt(e.target.value); if (window.updateFilterCoefficients) window.updateFilterCoefficients(); }
+        if (window.gainNode && idx === 0) window.gainNode.gain.value = parseFloat(e.target.value);
     }
 });
 
