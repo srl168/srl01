@@ -1,7 +1,7 @@
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
-// 💡 鋼性全域記憶體池
+// 💡 建立鋼性純淨全域記憶體池
 window.currentSampleRate = 20000;
 window.currentSinFreq = 3000; 
 window.filteredDataLog = [];
@@ -101,8 +101,9 @@ window.playAudioChunkDirect = function(audioChunk) {
 window.streamPureTimelineEngine = function() {
     if (!window.isSpeakerOn || !window.audioCtx) return;
     
-    // 💡 鋼性安全閥補丁：隨取樣率動態縮放發聲區塊大小（12000Hz以下縮為64點），徹底破除硬體溢位雜音！
-    let chunkSize = window.currentSampleRate < 12000 ? 64 : 128;
+    // 💡 5毫秒精密微切片技術：隨取樣率動態計算點數，每包長度死鎖在 5ms，徹底根除硬體溢位微雜音！
+    let chunkSize = Math.round(window.currentSampleRate * 0.005);
+    if (chunkSize < 16) chunkSize = 16;
     let targetTime = window.audioCtx.currentTime + 0.10;
     
     if (window.isSimulating) {
@@ -152,7 +153,6 @@ window.globalRenderLoop = function() {
     requestAnimationFrame(window.globalRenderLoop); renderFrameCounter++; if (renderFrameCounter % 2 !== 0) return;
     if (window.filteredDataLog.length < 50) return;
 
-    // 💡 鋼性像素保底：最低擷取 128 點，徹底滅絕低採樣圖形被無情拉扯壓平的物理悲劇！
     let adaptivePointsCount = Math.round((3 * window.currentSampleRate) / window.currentSinFreq);
     if (adaptivePointsCount < 128) adaptivePointsCount = 128;
     if (adaptivePointsCount > window.filteredDataLog.length) adaptivePointsCount = window.filteredDataLog.length;
@@ -183,7 +183,7 @@ window.globalRenderLoop = function() {
     }
 
     let tSlice = window.tCanvas.width / (renderPointsCount - 1);
-    // 💡 幾何修復：對齊陣列第一個元素 outPoints，洗淨歷史 NaN，波峰谷永遠 100% 圓潤絲滑！
+    // 💡 幾何修復：對齊第一個實體點 outPoints，洗淨歷史 NaN 錯字，波峰谷永遠 100% 圓潤絲滑！
     let x0 = 0, y0 = midY - (outPoints * (window.tCanvas.height / 2.3)); window.tCtx.moveTo(x0, y0);
     for (let j = 1; j < renderPointsCount; j++) { 
         let x1 = j * tSlice; let currentPoint = outPoints[j];
@@ -203,7 +203,7 @@ window.globalRenderLoop = function() {
 document.addEventListener('click', (e) => {
     if (e.target && e.target.id === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
-        if (window.isSimulating) { window.initAudioGlobal(); btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active"; document.getElementById('status').innerText = "▶️ 離線沙盒：硬體級防溢位核心點火！"; }
+        if (window.isSimulating) { window.initAudioGlobal(); btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active"; document.getElementById('status').innerText = "▶️ 離線沙盒：5ms 微切片引擎已啟動！"; }
         else { 
             if (window.audioInterval) clearInterval(window.audioInterval);
             if (window.audioCtx) window.nextPlayTime = window.audioCtx.currentTime;
@@ -218,7 +218,7 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// 💡 實體 ID 精準扣鎖攔截器
+// 💡 鋼性實體 ID 模糊包含匹配監聽器
 document.addEventListener('input', (e) => {
     if (e.target && e.target.type === 'range') {
         let sliderId = (e.target.id || "").toLowerCase();
@@ -231,7 +231,7 @@ document.addEventListener('input', (e) => {
             if (window.updateFilterCoefficients) window.updateFilterCoefficients();
         }
         else if (sliderId.includes("sin") || sliderId.includes("freq")) {
-            window.currentSinFreq = parseInt(curVal); // 💡 鋼性穿透全域變數
+            window.currentSinFreq = parseInt(curVal); 
             if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.currentSinFreq + " Hz";
         }
         else if (sliderId.includes("vol")) {
@@ -241,10 +241,11 @@ document.addEventListener('input', (e) => {
     }
 });
 
-// 💡 終極解鎖：開機時無條件執行「全自動雙向標籤對齊」，強制將 HTML 初始值拉入大腦，滅絕一開始卡死的現象！
-setTimeout(() => {
-    if (window.allInputsOnPage) {
-        window.allInputsOnPage.forEach(input => {
+// 💡 終極對齊防線：改用 window.onload！強迫瀏覽器在所有 HTML 標籤渲染完畢的第 0 毫秒，絕對無條件強制同步初始值！
+window.onload = function() {
+    let allInputs = Array.from(document.querySelectorAll('input[type="range"]'));
+    if (allInputs && allInputs.length > 0) {
+        allInputs.forEach(input => {
             let sliderId = (input.id || "").toLowerCase();
             let curVal = parseFloat(input.value);
             if (sliderId.includes("sample")) window.currentSampleRate = parseInt(curVal);
@@ -253,4 +254,4 @@ setTimeout(() => {
     }
     if (window.updateFilterCoefficients) window.updateFilterCoefficients();
     if (window.globalRenderLoop) window.globalRenderLoop();
-}, 250);
+};
