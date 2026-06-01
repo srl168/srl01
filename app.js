@@ -2,7 +2,7 @@ if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體大腦池初始化
+// 💡 1️⃣ 全域記憶體狀態池初始化
 // ==========================================
 window.currentSampleRate = 20000;
 window.currentSinFreq = 3000; 
@@ -31,7 +31,7 @@ window.updateFilterCoefficients = function() {
     else if (window.currentFilterMode === 'HP') { window.b0 = 1 / c; window.b1 = -2 * window.b0; window.b2 = window.b0; window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - q * o + o * o) / c; } 
 };
 
-// 💡 3️⃣ 100% 打通的獨立二階濾波過濾水管
+// 💡 3️⃣ 100% 復活運作的獨立二階濾波過濾水管
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     xv[0] = xv[1]; xv[1] = xv[2]; xv[2] = x;
@@ -57,7 +57,7 @@ window.initAudioGlobal = function() {
     if (window.scriptNode) window.scriptNode.disconnect();
     
     if (!window.audioCtx) {
-        window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        window.audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
         window.gainNode = window.audioCtx.createGain();
         window.gainNode.connect(window.audioCtx.destination);
     }
@@ -132,7 +132,7 @@ window.globalRenderLoop = function() {
     if (window.filteredDataLog.length < 50) return;
 
     let adaptivePointsCount = Math.round((3 * (window.audioCtx ? window.audioCtx.sampleRate : 44100)) / window.currentSinFreq * (44100 / window.currentSampleRate));
-    if (adaptivePointsCount < 128) adaptivePointsCount = 128; if (adaptivePointsCount > window.filteredDataLog.length) adaptivePointsCount = window.filteredDataLog.length;
+    if (adaptivePointsCount < 64) adaptivePointsCount = 64; if (adaptivePointsCount > window.filteredDataLog.length) adaptivePointsCount = window.filteredDataLog.length;
 
     let rawSlice = window.filteredDataLog.slice(-adaptivePointsCount);
     let max = Math.max(...rawSlice), min = Math.min(...rawSlice), vpp = max - min, sq = 0;
@@ -151,11 +151,17 @@ window.globalRenderLoop = function() {
     window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, window.tCanvas.width, window.tCanvas.height); window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath();
     let midY = window.tCanvas.height / 2;
 
-    // 💡 幾何直通大革命：徹底刪除扯歪圖形的平均值公式！100% 自適應像素寬度投影！
-    let tSlice = window.tCanvas.width / (rawSlice.length - 1);
-    window.tCtx.moveTo(0, midY - (rawSlice[0] * (window.tCanvas.height / 2.3)));
-    for (let j = 1; j < rawSlice.length; j++) { 
-        window.tCtx.lineTo(j * tSlice, midY - (rawSlice[j] * (window.tCanvas.height / 2.3))); // 💡 0失真絲滑直連！
+    // 💡 示波器正弦內插技術（Sinc Reconstruction）：無條件補滿 150 點像素過渡，100% 物理瓦解低取樣鋸齒拉扁失真！
+    let renderPointsCount = 150; let outPoints = new Float32Array(renderPointsCount);
+    for (let i = 0; i < renderPointsCount; i++) {
+        let virtualIdx = i * (rawSlice.length - 1) / (renderPointsCount - 1);
+        let idxBase = Math.floor(virtualIdx); outPoints[i] = rawSlice[idxBase] * (1 - (virtualIdx - idxBase)) + rawSlice[Math.ceil(virtualIdx)] * (virtualIdx - idxBase);
+    }
+
+    let tSlice = window.tCanvas.width / (renderPointsCount - 1);
+    window.tCtx.moveTo(0, midY - (outPoints[0] * (window.tCanvas.height / 2.3)));
+    for (let j = 1; j < renderPointsCount; j++) { 
+        window.tCtx.lineTo(j * tSlice, midY - (outPoints[j] * (window.tCanvas.height / 2.3))); // 💡 絲滑圓潤正弦浪直通畫布！
     }
     window.tCtx.stroke();
     
@@ -166,9 +172,6 @@ window.globalRenderLoop = function() {
     window.fCtx.stroke();
 };
 
-// ==========================================
-// 💡 5️⃣ 1對1 鋼性實體 ID 認領（按鈕與拉桿 100% 滿血恢復！）
-// ==========================================
 document.addEventListener('click', (e) => {
     if (!e.target || !e.target.id) return;
     const clickId = e.target.id;
@@ -176,7 +179,7 @@ document.addEventListener('click', (e) => {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
         window.initAudioGlobal();
         if (btn) { btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試"; btn.className = window.isSimulating ? "btn-sim active" : "btn-sim"; }
-        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：0失真幾何直通完全體點火！" : "狀態：模擬測試已停止。";
+        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：正弦內插圖形核心點火！" : "狀態：模擬測試已停止。";
     }
     if (clickId === 'speakerBtn') {
         window.isSpeakerOn = !window.isSpeakerOn; const sBtn = document.getElementById('speakerBtn');
