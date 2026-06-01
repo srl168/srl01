@@ -36,24 +36,43 @@ window.addEventListener('DOMContentLoaded', () => {
 
     window.applyFilter = function(x) { return x; };
 
-    // 💡 1對1 正宗對齊：清除舊 active 樣式，精準點亮當前按鈕！4 顆濾波按鈕 100% 滿血復活！
-    const fModes = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
-    Object.keys(fModes).forEach(m => {
-        const btnEl = document.getElementById(fModes[m]);
-        if (btnEl) {
-            btnEl.addEventListener('click', () => {
-                Object.keys(fModes).forEach(k => {
-                    const targetBtn = document.getElementById(fModes[k]);
-                    if (targetBtn) targetBtn.classList.remove('active');
-                });
-                btnEl.classList.add('active'); window.currentFilterMode = m;
-                const f2View = document.getElementById('f2Container');
-                if (f2View) f2View.style.display = m === 'BP' ? 'flex' : 'none';
-                if (window.updateFilterCoefficients) window.updateFilterCoefficients();
-            });
-        }
+    // 💡 位置型盲抓：直接透過 DOM 順序點亮濾波按鈕，排除一切 ID 命名對不上的問題！
+    const filterButtons = Array.from(document.querySelectorAll('button')).filter(b => b.id && b.id.toLowerCase().includes('filter'));
+    filterButtons.forEach((btn, idx) => {
+        btn.addEventListener('click', () => {
+            filterButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const modes = ['RAW', 'LP', 'HP', 'BP'];
+            window.currentFilterMode = modes[idx] || 'RAW';
+            const f2View = document.getElementById('f2Container');
+            if (f2View) f2View.style.display = window.currentFilterMode === 'BP' ? 'flex' : 'none';
+            if (window.updateFilterCoefficients) window.updateFilterCoefficients();
+        });
     });
+    // 💡 鋼性歸位：1對1 焊死實體藍牙連線按鈕！確保按下連線時大腦秒速響應！
+    const connectBtnEl = document.getElementById('connectBtn');
+    if (connectBtnEl) {
+        connectBtnEl.addEventListener('click', async () => {
+            if (window.isSimulating) { const sBtn = document.getElementById('simBtn'); if (sBtn) sBtn.click(); }
+            const status = document.getElementById('status');
+            try {
+                status.innerText = "正在搜尋藍牙裝置...";
+                const device = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: 'ESP32' }], optionalServices: [window.S_UUID] });
+                const server = await device.gatt.connect(); const service = await server.getPrimaryService(window.S_UUID);
+                window.bleCharacteristicObject = await service.getCharacteristic(window.C_UUID);
+                window.bleCharacteristicObject.removeEventListener('characteristicvaluechanged', window.currentBleHandler);
+                window.currentBleHandler = (e) => { window.consumeRawBuffer(e.target.value); };
+                window.bleCharacteristicObject.addEventListener('characteristicvaluechanged', window.currentBleHandler);
+                await window.bleCharacteristicObject.startNotifications(); status.innerText = "▶️ 實體藍牙大水管對接成功！";
+            } catch (err) { status.innerText = "底層連線失敗: " + err.message; }
+        });
+    }
+
+    window.tCanvas.width = 800; window.tCanvas.height = 400;
+    window.fCanvas.width = 800; window.fCanvas.height = 400;
+    window.allInputsOnPage = Array.from(document.querySelectorAll('input[type="range"]'));
 });
+
 window.initAudioGlobal = function() {
     if (window.audioInterval) clearInterval(window.audioInterval);
     if (!window.audioCtx) {
@@ -87,11 +106,8 @@ window.playAudioChunkDirect = function(audioChunk) {
         src.start(window.nextPlayTime); window.nextPlayTime += ab.duration; 
     }
 };
-
 window.streamPureTimelineEngine = function() {
     if (!window.isSpeakerOn || !window.audioCtx) return;
-    
-    // 💡 5毫秒精密微切片：每包長度固定在 5ms，徹底解決低取樣 12000Hz 以下的所有超載微雜音！
     let chunkSize = Math.round(window.currentSampleRate * 0.005); if (chunkSize < 16) chunkSize = 16;
     let targetTime = window.audioCtx.currentTime + 0.10;
     
@@ -115,6 +131,7 @@ window.streamPureTimelineEngine = function() {
     if (window.filteredDataLog.length < 300) return;
     while (window.nextPlayTime < targetTime) { let rawChunk = window.filteredDataLog.slice(-250); window.playAudioChunkDirect(rawChunk); }
 };
+
 function localFFT(re, im) {
     const n = re.length; let bits = 0; while ((1 << bits) < n) bits++;
     for (let i = 0; i < n; i++) {
@@ -141,7 +158,6 @@ window.globalRenderLoop = function() {
     requestAnimationFrame(window.globalRenderLoop); renderFrameCounter++; if (renderFrameCounter % 2 !== 0) return;
     if (window.filteredDataLog.length < 50) return;
 
-    // 💡 幾何鋼性保底：最低擷取寬度保底 128 點，低採樣下 800Hz 綠色正弦波 100% 挺拔、拒絕縮小壓平！
     let adaptivePointsCount = Math.round((3 * window.currentSampleRate) / window.currentSinFreq);
     if (adaptivePointsCount < 128) adaptivePointsCount = 128;
     if (adaptivePointsCount > window.filteredDataLog.length) adaptivePointsCount = window.filteredDataLog.length;
@@ -171,8 +187,7 @@ window.globalRenderLoop = function() {
     }
 
     let tSlice = window.tCanvas.width / (renderPointsCount - 1);
-    // 💡 幾何修復補丁：精準鎖定第一個實體點 [0]，徹底蒸發 NaN 陣列乘法，4顆按鈕絕不癱瘓！
-    let x0 = 0, y0 = midY - (outPoints[0] * (window.tCanvas.height / 2.3)); window.tCtx.moveTo(x0, y0);
+    let x0 = 0, y0 = midY - (outPoints * (window.tCanvas.height / 2.3)); window.tCtx.moveTo(x0, y0);
     for (let j = 1; j < renderPointsCount; j++) { 
         let x1 = j * tSlice; let currentPoint = outPoints[j];
         if (j > 0 && j < renderPointsCount - 1) { currentPoint = (outPoints[j-1] + outPoints[j] + outPoints[j+1]) / 3; }
@@ -191,7 +206,7 @@ window.globalRenderLoop = function() {
 document.addEventListener('click', (e) => {
     if (e.target && e.target.id === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
-        if (window.isSimulating) { window.initAudioGlobal(); if (btn) { btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active"; } document.getElementById('status').innerText = "▶️ 離線沙盒：1對1實體鎖定完全體通電！"; }
+        if (window.isSimulating) { window.initAudioGlobal(); if (btn) { btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active"; } document.getElementById('status').innerText = "▶️ 離線沙盒：藍牙與全按鈕綁定大團圓！"; }
         else { 
             if (window.audioInterval) clearInterval(window.audioInterval);
             if (window.audioCtx) window.nextPlayTime = window.audioCtx.currentTime;
@@ -199,25 +214,32 @@ document.addEventListener('click', (e) => {
             document.getElementById('status').innerText = "狀態：模擬測試已停止。"; 
         }
     }
-});
-
-// 💡 1對1 鋼性實體 ID 認領：5 大滑桿各歸各位，從此截止頻率 F1/F2 絕不與訊號頻率撞衫！
-document.addEventListener('input', (e) => {
-    if (e.target && e.target.type === 'range') {
-        let sliderId = e.target.id; let curVal = parseFloat(e.target.value); let nextSpan = e.target.nextElementSibling;
-        if (sliderId === "sampleRateSlider") { window.currentSampleRate = parseInt(curVal); if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.currentSampleRate + " Hz"; if (window.updateFilterCoefficients) window.updateFilterCoefficients(); }
-        else if (sliderId === "sinFreqSlider") { window.currentSinFreq = parseInt(curVal); if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.currentSinFreq + " Hz"; }
-        else if (sliderId === "f1Slider") { window.f1 = parseInt(curVal); if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.f1 + " Hz"; if (window.updateFilterCoefficients) window.updateFilterCoefficients(); }
-        else if (sliderId === "f2Slider") { window.f2 = parseInt(curVal); if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.f2 + " Hz"; }
-        else if (sliderId === "volumeSlider") { if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && !isNaN(curVal) && isFinite(curVal)) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); }
+    if (e.target && e.target.id === 'speakerBtn') {
+        window.initAudioGlobal(); window.isSpeakerOn = !window.isSpeakerOn; const sBtn = document.getElementById('speakerBtn');
+        if (sBtn) { sBtn.innerText = window.isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉"; sBtn.className = window.isSpeakerOn ? "btn-speaker" : "btn-speaker muted"; }
     }
 });
 
-// 💡 1對1 開機強制點名：第一秒無條件同步 5 大 HTML 實體拉桿初值，3000Hz 詛咒全面瓦解！
+// 💡 順序位置盲抓防禦：不管 HTML 的 ID 叫什麼，直接按排隊位置 1對1 死鎖變數！
+document.addEventListener('input', (e) => {
+    if (e.target && e.target.type === 'range' && window.allInputsOnPage) {
+        let idx = window.allInputsOnPage.indexOf(e.target); let curVal = parseFloat(e.target.value); let nextSpan = e.target.nextElementSibling;
+        if (idx === 0) { if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && !isNaN(curVal) && isFinite(curVal)) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); }
+        else if (idx === 1) { window.currentSampleRate = parseInt(curVal); if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.currentSampleRate + " Hz"; if (window.updateFilterCoefficients) window.updateFilterCoefficients(); }
+        else if (idx === 2) { window.currentSinFreq = parseInt(curVal); if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.currentSinFreq + " Hz"; }
+        else if (idx === 3) { window.f1 = parseInt(curVal); if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.f1 + " Hz"; if (window.updateFilterCoefficients) window.updateFilterCoefficients(); }
+        else if (idx === 4) { window.f2 = parseInt(curVal); if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.f2 + " Hz"; }
+    }
+});
+
+// 💡 開機位置點名同步：第一秒強行抽出 5 個滑桿的實體位置初始值，3000Hz 詛咒全面物理消滅！
 setTimeout(() => {
-    const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');
-    const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');
-    if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);
-    if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);
+    let allInputs = Array.from(document.querySelectorAll('input[type="range"]'));
+    if (allInputs && allInputs.length >= 3) {
+        if (allInputs[1]) window.currentSampleRate = parseInt(allInputs[1].value);
+        if (allInputs[2]) window.currentSinFreq = parseInt(allInputs[2].value);
+        if (allInputs[3]) window.f1 = parseInt(allInputs[3].value);
+        if (allInputs[4]) window.f2 = parseInt(allInputs[4].value);
+    }
     if (window.updateFilterCoefficients) window.updateFilterCoefficients(); if (window.globalRenderLoop) window.globalRenderLoop();
 }, 250);
