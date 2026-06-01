@@ -2,7 +2,7 @@ if (window.audioInterval) clearInterval(window.audioInterval);
 if (window.simInterval) clearInterval(window.simInterval);
 window.isWritingLock = false;
 
-// 💡 鋼性全域記憶體，確保全宇宙執行緒 0 毫秒秒速點名
+// 💡 鋼性全域作用域
 window.currentSampleRate = 20000;
 window.filteredDataLog = [];
 window.bufferIndex = 0;
@@ -89,7 +89,6 @@ window.addEventListener('DOMContentLoaded', () => {
     window.tCanvas.width = 800; window.tCanvas.height = 400;
     window.fCanvas.width = 800; window.fCanvas.height = 400;
 });
-// 💡 至高無上全域發聲與模擬點火控制核（徹底移出 DOMContentLoaded 閉包）
 window.initAudioGlobal = function() {
     if (!window.audioCtx) {
         window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -155,6 +154,26 @@ function localFFT(re, im) {
     }
 }
 
+// 💡 建立高動態全域自適應模擬點火循環
+window.runSimulationLoop = function() {
+    if (!window.isSimulating) return;
+    
+    let targetSinFreq = parseInt(document.getElementById('boardSinSlider').value);
+    let mockBuffer = new ArrayBuffer(50); let view = new DataView(mockBuffer);
+    
+    // 💡 數學死鎖：每一步前進弧度完美與當前 currentSampleRate 對齊
+    let step = 2.0 * Math.PI * (targetSinFreq / window.currentSampleRate);
+    for(let i=0; i<50; i++) {
+        view.setUint8(i, Math.floor((Math.sin(window.simPhase) + 1.0) * 127.5));
+        window.simPhase += step; if(window.simPhase >= 2*Math.PI) window.simPhase -= 2*Math.PI;
+    }
+    window.consumeRawBuffer(view);
+    
+    // 💡 核心算力補丁：根據目前採樣率，動態精準計算這 50 個點在物理世界中相隔多少毫秒，分秒不差！
+    let nextTimeoutMs = (50 / window.currentSampleRate) * 1000;
+    window.simInterval = setTimeout(window.runSimulationLoop, nextTimeoutMs);
+};
+
 window.globalRenderLoop = function() {
     requestAnimationFrame(window.globalRenderLoop); if (window.filteredDataLog.length < 150) return;
     let rPoints = window.filteredDataLog.slice(-150), max = Math.max(...rPoints), min = Math.min(...rPoints), vpp = max - min, sq = 0;
@@ -175,6 +194,7 @@ window.globalRenderLoop = function() {
     for (let j = 0; j < rPoints.length; j++) { 
         let x = j * tSlice; let currentPoint = rPoints[j];
         if (j > 0 && j < rPoints.length - 1) { currentPoint = (rPoints[j-1] + rPoints[j] + rPoints[j+1]) / 3; }
+        // 💡 終極修正：對齊平滑後的數值 currentPoint，徹底碾碎時域失真
         let y = midY - (currentPoint * (window.tCanvas.height / 2.3)); 
         if (j == 0) window.tCtx.moveTo(x, y); else window.tCtx.lineTo(x, y); 
     }
@@ -187,28 +207,15 @@ window.globalRenderLoop = function() {
     window.fCtx.stroke();
 };
 
-// 💡 物理全域最高權限按鈕監聽綁定，徹底秒殺最新 Chrome 作用域攔截！
 document.addEventListener('click', (e) => {
     if (e.target && e.target.id === 'simBtn') {
-        window.isSimulating = !window.isSimulating;
-        const btn = document.getElementById('simBtn');
+        window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
         if (window.isSimulating) {
-            window.initAudioGlobal();
-            btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active";
-            document.getElementById('status').innerText = "▶️ 100% 全域模擬發射核心已點火通電！";
-            if (window.simInterval) clearInterval(window.simInterval);
-            window.simInterval = setInterval(() => {
-                let targetSinFreq = parseInt(document.getElementById('boardSinSlider').value);
-                let mockBuffer = new ArrayBuffer(50); let view = new DataView(mockBuffer);
-                let step = 2.0 * Math.PI * (targetSinFreq / window.currentSampleRate);
-                for(let i=0; i<50; i++) {
-                    view.setUint8(i, Math.floor((Math.sin(window.simPhase) + 1.0) * 127.5));
-                    window.simPhase += step; if(window.simPhase >= 2*Math.PI) window.simPhase -= 2*Math.PI;
-                }
-                window.consumeRawBuffer(view);
-            }, 6);
+            window.initAudioGlobal(); btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active";
+            document.getElementById('status').innerText = "▶️ 鋼性時鐘死鎖模擬器全速發射中...";
+            clearTimeout(window.simInterval); window.runSimulationLoop(); // 點火點對點自適應遞迴
         } else {
-            clearInterval(window.simInterval); btn.innerText = "🛠️ 開啟本地資料模擬測試"; btn.className = "btn-sim";
+            clearTimeout(window.simInterval); btn.innerText = "🛠️ 開啟本地資料模擬測試"; btn.className = "btn-sim";
             document.getElementById('status').innerText = "狀態：模擬測試已停止。";
         }
     }
@@ -218,6 +225,16 @@ document.addEventListener('click', (e) => {
         document.getElementById('speakerBtn').className = window.isSpeakerOn ? "btn-speaker" : "btn-speaker muted";
     }
 });
+
+function sendHardwareParameters() {
+    let sr = parseInt(document.getElementById('boardSampleSlider').value);
+    let sf = parseInt(document.getElementById('boardSinSlider').value);
+    window.currentSampleRate = sr; if (window.updateFilterCoefficients) window.updateFilterCoefficients();
+    if (window.isSimulating) return;
+    if (!window.bleCharacteristicObject) return;
+    let buf = (new TextEncoder()).encode(sr + "," + sf);
+    try { window.bleCharacteristicObject.writeValue(buf); } catch (err) {}
+}
 
 setTimeout(() => {
     if (window.updateFilterCoefficients) window.updateFilterCoefficients();
