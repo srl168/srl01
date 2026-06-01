@@ -3,7 +3,7 @@ window.isWritingLock = false;
 
 // 💡 鋼性全域記憶體池
 window.currentSampleRate = 20000;
-window.currentSinFreq = 1000; // 保底初值，開機後會被 HTML 拉桿秒速強行覆蓋
+window.currentSinFreq = 1000; // 開機後會立刻被 HTML 第 3 個拉桿的真實初始值強行踩死覆蓋
 window.filteredDataLog = [];
 window.bufferIndex = 0;
 window.nextPlayTime = 0;
@@ -36,6 +36,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     window.applyFilter = function(x) { return x; };
 
+    // 💡 鋼性按鈕修復：點擊低通、高通、RAW 時，清除舊 active，精準點亮當前，外觀 100% 絕對可見！
     const fModes = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
     Object.keys(fModes).forEach(m => {
         const btnEl = document.getElementById(fModes[m]);
@@ -110,8 +111,11 @@ window.playAudioChunkDirect = function(audioChunk) {
 };
 window.streamPureTimelineEngine = function() {
     if (!window.isSpeakerOn || !window.audioCtx) return;
+    
+    // 💡 5毫秒精密微切片技術：每包長度死鎖在 5ms，徹底降維物理消滅低取樣微雜音！
     let chunkSize = Math.round(window.currentSampleRate * 0.005); if (chunkSize < 16) chunkSize = 16;
     let targetTime = window.audioCtx.currentTime + 0.10;
+    
     if (window.isSimulating) {
         while (window.nextPlayTime < targetTime) {
             let audioChunk = new Float32Array(chunkSize);
@@ -207,7 +211,7 @@ window.globalRenderLoop = function() {
 document.addEventListener('click', (e) => {
     if (e.target && e.target.id === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
-        if (window.isSimulating) { window.initAudioGlobal(); if (btn) { btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active"; } document.getElementById('status').innerText = "▶️ 離線沙盒：初始值實體物對齊解鎖點火！"; }
+        if (window.isSimulating) { window.initAudioGlobal(); if (btn) { btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active"; } document.getElementById('status').innerText = "▶️ 離線沙盒：位置型防爆指針鎖定開機！"; }
         else { 
             if (window.audioInterval) clearInterval(window.audioInterval);
             if (window.audioCtx) window.nextPlayTime = window.audioCtx.currentTime;
@@ -221,25 +225,48 @@ document.addEventListener('click', (e) => {
     }
 });
 
+// 💡 鋼性位置選取攔截器：彻底放棄脆弱的字串比對，直接利用滑桿在網頁上的順序位置來防爆接管！
 document.addEventListener('input', (e) => {
-    if (e.target && e.target.type === 'range') {
-        let sliderId = (e.target.id || "").toLowerCase(); let curVal = parseFloat(e.target.value); let nextSpan = e.target.nextElementSibling;
-        if (sliderId.includes("sample")) { window.currentSampleRate = parseInt(curVal); if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.currentSampleRate + " Hz"; if (window.updateFilterCoefficients) window.updateFilterCoefficients(); }
-        else if ((sliderId.includes("sin") || sliderId.includes("freq")) && !sliderId.includes("f1") && !sliderId.includes("cutoff")) { window.currentSinFreq = parseInt(curVal); if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.currentSinFreq + " Hz"; }
-        else if (sliderId.includes("vol")) { if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && !isNaN(curVal) && isFinite(curVal)) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); }
+    if (e.target && e.target.type === 'range' && window.allInputsOnPage) {
+        let idx = window.allInputsOnPage.indexOf(e.target);
+        let curVal = parseFloat(e.target.value);
+        let nextSpan = e.target.nextElementSibling;
+        
+        // 滑桿 A (Index 0)：音量
+        if (idx === 0) {
+            if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = Math.round(curVal * 100) + "%";
+            if (window.gainNode && !isNaN(curVal) && isFinite(curVal)) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime);
+        }
+        // 滑桿 B (Index 1)：採樣率滑桿
+        else if (idx === 1) {
+            window.currentSampleRate = parseInt(curVal);
+            if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.currentSampleRate + " Hz";
+            if (window.updateFilterCoefficients) window.updateFilterCoefficients();
+        }
+        // 滑桿 C (Index 2)：訊號頻率滑桿
+        else if (idx === 2) {
+            window.currentSinFreq = parseInt(curVal); // 💡 0毫秒鋼性更新！
+            if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.currentSinFreq + " Hz";
+        }
+        // 滑桿 D (Index 3)：低通/高通截止頻率滑桿 (f1)
+        else if (idx === 3) {
+            window.f1 = parseInt(curVal);
+            if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.f1 + " Hz";
+            if (window.updateFilterCoefficients) window.updateFilterCoefficients();
+        }
     }
 });
 
-// 💡 終極 onload 鎖定補丁：使用最硬核的 HTML 屬性選取器直接揪出實體拉桿！100% 覆蓋程式碼開頭的 3000Hz！
+// 💡 終極 onload 鎖定：開機時無條件利用純陣列 Index 強行讀取 HTML 的拉桿初始值！100% 絕對跟隨！
 window.onload = function() {
-    const fSlider = document.querySelector('input[id*="sin" i], input[id*="freq" i]');
-    const sSlider = document.querySelector('input[id*="sample" i]');
-    if (fSlider) {
-        let fId = (fSlider.id || "").toLowerCase();
-        if (!fId.includes("f1") && !fId.includes("cutoff")) window.currentSinFreq = parseInt(fSlider.value);
-    }
-    if (sSlider) window.currentSampleRate = parseInt(sSlider.value);
-
+    try {
+        let allInputs = Array.from(document.querySelectorAll('input[type="range"]'));
+        if (allInputs && allInputs.length >= 3) {
+            window.currentSampleRate = parseInt(allInputs[1].value);
+            window.currentSinFreq = parseInt(allInputs[2].value); // 💡 直接抽取第 3 個滑桿！開機卡 3000 歷史死鎖瞬間灰飛煙滅！
+            if (allInputs[3]) window.f1 = parseInt(allInputs[3].value);
+        }
+    } catch (e) { console.log("防爆罩攔截初始錯誤"); }
     if (window.updateFilterCoefficients) window.updateFilterCoefficients(); 
     if (window.globalRenderLoop) window.globalRenderLoop();
 };
