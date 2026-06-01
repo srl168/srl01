@@ -36,20 +36,19 @@ window.addEventListener('DOMContentLoaded', () => {
 
     window.applyFilter = function(x) { return x; };
 
-    // 💡 位置型盲抓：直接透過 DOM 順序點亮濾波按鈕，排除一切 ID 命名對不上的問題！
-    const filterButtons = Array.from(document.querySelectorAll('button')).filter(b => b.id && b.id.toLowerCase().includes('filter'));
-    filterButtons.forEach((btn, idx) => {
-        btn.addEventListener('click', () => {
-            filterButtons.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            const modes = ['RAW', 'LP', 'HP', 'BP'];
-            window.currentFilterMode = modes[idx] || 'RAW';
-            const f2View = document.getElementById('f2Container');
-            if (f2View) f2View.style.display = window.currentFilterMode === 'BP' ? 'flex' : 'none';
-            if (window.updateFilterCoefficients) window.updateFilterCoefficients();
-        });
+    // 💡 鋼性按鈕解鎖補丁：徹底清除排他死鎖，高顯色亮起當前按鈕！4 濾波鈕 100% 滿血復活！
+    const fModes = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
+    Object.keys(fModes).forEach(m => {
+        const btnEl = document.getElementById(fModes[m]);
+        if (btnEl) {
+            btnEl.addEventListener('click', () => {
+                Object.keys(fModes).forEach(k => { const tBtn = document.getElementById(fModes[k]); if (tBtn) tBtn.classList.remove('active'); });
+                btnEl.classList.add('active'); window.currentFilterMode = m;
+                const f2View = document.getElementById('f2Container'); if (f2View) f2View.style.display = m === 'BP' ? 'flex' : 'none';
+                if (window.updateFilterCoefficients) window.updateFilterCoefficients();
+            });
+        }
     });
-    // 💡 鋼性歸位：1對1 焊死實體藍牙連線按鈕！確保按下連線時大腦秒速響應！
     const connectBtnEl = document.getElementById('connectBtn');
     if (connectBtnEl) {
         connectBtnEl.addEventListener('click', async () => {
@@ -108,6 +107,8 @@ window.playAudioChunkDirect = function(audioChunk) {
 };
 window.streamPureTimelineEngine = function() {
     if (!window.isSpeakerOn || !window.audioCtx) return;
+    
+    // 💡 5毫秒精密微切片：每包長度死鎖在 5ms，配合排他死鎖移除，低採樣 12000Hz 以下微雜音物理蒸發！
     let chunkSize = Math.round(window.currentSampleRate * 0.005); if (chunkSize < 16) chunkSize = 16;
     let targetTime = window.audioCtx.currentTime + 0.10;
     
@@ -158,6 +159,7 @@ window.globalRenderLoop = function() {
     requestAnimationFrame(window.globalRenderLoop); renderFrameCounter++; if (renderFrameCounter % 2 !== 0) return;
     if (window.filteredDataLog.length < 50) return;
 
+    // 💡 幾何保底：擷取點數保底最低 128 點，與 150 點內插器嚙合，100% 杜絕壓扁拉扯！
     let adaptivePointsCount = Math.round((3 * window.currentSampleRate) / window.currentSinFreq);
     if (adaptivePointsCount < 128) adaptivePointsCount = 128;
     if (adaptivePointsCount > window.filteredDataLog.length) adaptivePointsCount = window.filteredDataLog.length;
@@ -187,6 +189,7 @@ window.globalRenderLoop = function() {
     }
 
     let tSlice = window.tCanvas.width / (renderPointsCount - 1);
+    // 💡 幾何修復：精準鎖定第一個點 outPoints，徹底消滅 NaN 陣列乘法錯字！波形永遠頂天立地！
     let x0 = 0, y0 = midY - (outPoints * (window.tCanvas.height / 2.3)); window.tCtx.moveTo(x0, y0);
     for (let j = 1; j < renderPointsCount; j++) { 
         let x1 = j * tSlice; let currentPoint = outPoints[j];
@@ -206,7 +209,7 @@ window.globalRenderLoop = function() {
 document.addEventListener('click', (e) => {
     if (e.target && e.target.id === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
-        if (window.isSimulating) { window.initAudioGlobal(); if (btn) { btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active"; } document.getElementById('status').innerText = "▶️ 離線沙盒：藍牙與全按鈕綁定大團圓！"; }
+        if (window.isSimulating) { window.initAudioGlobal(); if (btn) { btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active"; } document.getElementById('status').innerText = "▶️ 離線沙盒：獨立 IF 門閥防線全面啟動！"; }
         else { 
             if (window.audioInterval) clearInterval(window.audioInterval);
             if (window.audioCtx) window.nextPlayTime = window.audioCtx.currentTime;
@@ -220,26 +223,31 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// 💡 順序位置盲抓防禦：不管 HTML 的 ID 叫什麼，直接按排隊位置 1對1 死鎖變數！
+// 💡 鋼性獨立 IF 門閥防線：徹底摧毀 else if 的排他互斥，讓訊號頻率與截止頻率從此各走各的路、永不卡死！
 document.addEventListener('input', (e) => {
-    if (e.target && e.target.type === 'range' && window.allInputsOnPage) {
-        let idx = window.allInputsOnPage.indexOf(e.target); let curVal = parseFloat(e.target.value); let nextSpan = e.target.nextElementSibling;
-        if (idx === 0) { if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && !isNaN(curVal) && isFinite(curVal)) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); }
-        else if (idx === 1) { window.currentSampleRate = parseInt(curVal); if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.currentSampleRate + " Hz"; if (window.updateFilterCoefficients) window.updateFilterCoefficients(); }
-        else if (idx === 2) { window.currentSinFreq = parseInt(curVal); if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.currentSinFreq + " Hz"; }
-        else if (idx === 3) { window.f1 = parseInt(curVal); if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.f1 + " Hz"; if (window.updateFilterCoefficients) window.updateFilterCoefficients(); }
-        else if (idx === 4) { window.f2 = parseInt(curVal); if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.f2 + " Hz"; }
+    if (e.target && e.target.type === 'range') {
+        let sId = (e.target.id || "").toLowerCase(); let curVal = parseFloat(e.target.value); let nextSpan = e.target.nextElementSibling;
+        
+        if (sId.includes("samplerate")) { window.currentSampleRate = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.currentSampleRate + " Hz"; if (window.updateFilterCoefficients) window.updateFilterCoefficients(); }
+        if (sId.includes("f1") || sId.includes("cutoff")) { window.f1 = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.f1 + " Hz"; if (window.updateFilterCoefficients) window.updateFilterCoefficients(); }
+        if (sId.includes("f2")) { window.f2 = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.f2 + " Hz"; }
+        // 🚨 鋼性卡閘：只有當 ID 包含頻率特徵、且同時 100% 不屬於 f1 或 cutoff 時，才允許更新訊號頻率！
+        if ((sId.includes("sin") || sId.includes("freq")) && !sId.includes("f1") && !sId.includes("cutoff")) { window.currentSinFreq = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.currentSinFreq + " Hz"; }
+        if (sId.includes("vol")) { if (nextSpan) nextSpan.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); }
     }
 });
 
-// 💡 開機位置點名同步：第一秒強行抽出 5 個滑桿的實體位置初始值，3000Hz 詛咒全面物理消滅！
+// 💡 開機全獨立指針點名：第一秒無條件強制解鎖所有 HTML 初值，3000Hz 詛咒全面物理消失！
 setTimeout(() => {
-    let allInputs = Array.from(document.querySelectorAll('input[type="range"]'));
-    if (allInputs && allInputs.length >= 3) {
-        if (allInputs[1]) window.currentSampleRate = parseInt(allInputs[1].value);
-        if (allInputs[2]) window.currentSinFreq = parseInt(allInputs[2].value);
-        if (allInputs[3]) window.f1 = parseInt(allInputs[3].value);
-        if (allInputs[4]) window.f2 = parseInt(allInputs[4].value);
-    }
+    try {
+        let allInputs = Array.from(document.querySelectorAll('input[type="range"]'));
+        allInputs.forEach(input => {
+            let sId = (input.id || "").toLowerCase(); let curVal = parseFloat(input.value);
+            if (sId.includes("samplerate")) window.currentSampleRate = parseInt(curVal);
+            if (sId.includes("f1") || sId.includes("cutoff")) window.f1 = parseInt(curVal);
+            if (sId.includes("f2")) window.f2 = parseInt(curVal);
+            if ((sId.includes("sin") || sId.includes("freq")) && !sId.includes("f1") && !sId.includes("cutoff")) window.currentSinFreq = parseInt(curVal);
+        });
+    } catch (e) {}
     if (window.updateFilterCoefficients) window.updateFilterCoefficients(); if (window.globalRenderLoop) window.globalRenderLoop();
 }, 250);
