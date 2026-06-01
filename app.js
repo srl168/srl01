@@ -139,16 +139,33 @@ window.streamSmoothAudioGlobal = function() {
     } catch (e) {}
 };
 
-function localFFT(re, im) {
-    const n = re.length; if (n <= 1) return;
-    const reE = new Float32Array(n / 2), imE = new Float32Array(n/2), reO = new Float32Array(n / 2), imO = new Float32Array(n / 2);
-    for (let i = 0; i < n / 2; i++) { reE[i] = re[2 * i]; imE[i] = im[2 * i]; reO[i] = re[2 * i + 1]; imO[i] = im[2 * i + 1]; }
-    localFFT(reE, imE); localFFT(reO, imO);
-    // 💡 終極修正：將此處第二個隱蔽殘留的 int i 完美更正為網頁原生 let i 宣告！
-    for (let i = 0; i < n / 2; i++) {
-        const tr = Math.cos(-2 * Math.PI * i / n) * reO[i] - Math.sin(-2 * Math.PI * i / n) * imO[i];
-        const tj = Math.sin(-2 * Math.PI * i / n) * reO[i] + Math.cos(-2 * Math.PI * i / n) * imO[i];
-        re[i] = reE[i] + tr; im[i] = imE[i] + tj; re[i + n / 2] = reE[i] - tr; im[i + n / 2] = imE[i] - tj;
+// 💡 終極高效率解鎖：非遞迴蝶形疊代型傅立葉轉換，0記憶體堆疊開銷，100% 絕對永不溢位！
+function iterativeFFT(re, im) {
+    const n = re.length;
+    let bits = 0; while ((1 << bits) < n) bits++;
+    for (let i = 0; i < n; i++) {
+        let rev = 0;
+        for (let j = 0; j < bits; j++) { if ((i & (1 << j)) !== 0) rev |= (1 << (bits - 1 - j)); }
+        if (rev > i) {
+            let tempR = re[i]; re[i] = re[rev]; re[rev] = tempR;
+            let tempI = im[i]; im[i] = im[rev]; im[rev] = tempI;
+        }
+    }
+    for (let len = 2; len <= n; len <<= 1) {
+        let ang = 2 * Math.PI / len * -1;
+        let wlen_r = Math.cos(ang), wlen_i = Math.sin(ang);
+        for (let i = 0; i < n; i += len) {
+            let w_r = 1, w_i = 0;
+            for (let j = 0; j < len / 2; j++) {
+                let u_r = re[i + j], u_i = im[i + j];
+                let v_r = re[i + j + len / 2] * w_r - im[i + j + len / 2] * w_i;
+                let v_i = re[i + j + len / 2] * w_i + im[i + j + len / 2] * w_r;
+                re[i + j] = u_r + v_r; im[i + j] = u_i + v_i;
+                re[i + j + len / 2] = u_r - v_r; im[i + j + len / 2] = u_i - v_i;
+                let next_w_r = w_r * wlen_r - w_i * wlen_i;
+                w_i = w_r * wlen_i + w_i * wlen_r; w_r = next_w_r;
+            }
+        }
     }
 }
 
@@ -161,7 +178,9 @@ window.globalRenderLoop = function() {
     
     let re = new Float32Array(window.FFT_SIZE), im = new Float32Array(window.FFT_SIZE);
     for (let k = 0; k < window.FFT_SIZE; k++) { let idx = (window.bufferIndex + k) % window.FFT_SIZE; re[k] = window.analysisBuffer[idx]; }
-    localFFT(re, im);
+    
+    // 💡 呼叫高階安全非遞迴演算法，徹底破除堆疊崩潰
+    iterativeFFT(re, im);
     
     let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
