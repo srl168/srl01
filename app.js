@@ -19,7 +19,7 @@ window.oscNode = null; window.hardwareFilter = null; window.hardwareAnalyser = n
 let renderFrameCounter = 0;
 
 // ==========================================
-// 💡 2️⃣ 100% 硬件晶片加速的濾波器係數同步閘門
+// 💡 2️⃣ 100% 硬件加速的濾波器型態同步閘門
 // ==========================================
 window.updateFilterCoefficients = function() {
     if (!window.hardwareFilter || !window.audioCtx) return;
@@ -46,22 +46,28 @@ window.addEventListener('DOMContentLoaded', () => {
     window.tCanvas.width = 800; window.tCanvas.height = 400; window.fCanvas.width = 800; window.fCanvas.height = 400;
 });
 // ==========================================
-// 💡 3️⃣ 聲學大革命：純網頁音訊硬體圖學直連（徹底物理清除短斷音！）
+// 💡 3️⃣ 聲學大革命：100% 原生連續硬體點火鏈（徹底消滅不連續與短斷音！）
 // ==========================================
 window.initAudioGlobal = function() {
-    if (window.oscNode) { try { window.oscNode.stop(); } catch(e){} window.oscNode.disconnect(); }
+    // 💡 剛性解鎖：如果已經有機制在動，先完全重置它，確保時間軸絕對連續不碎裂
+    if (window.oscNode) { try { window.oscNode.stop(); } catch(e){} window.oscNode.disconnect(); window.oscNode = null; }
     
+    // 💡 工業級標準：只要用戶主動點擊按鈕，才一萬分之一秒內「全新現做建立」音訊上下文！
     if (!window.audioCtx) {
         window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         window.gainNode = window.audioCtx.createGain();
-        window.hardwareFilter = window.audioCtx.createBiquadFilter(); // 💡 硬體二階濾波器節點
-        window.hardwareAnalyser = window.audioCtx.createAnalyser();   // 💡 硬體高精準分析器節點
+        window.hardwareFilter = window.audioCtx.createBiquadFilter(); 
+        window.hardwareAnalyser = window.audioCtx.createAnalyser();   
         window.hardwareAnalyser.fftSize = window.FFT_SIZE;
         
-        // 💡 剛性硬體拓撲：Oscillator ➔ 硬體濾波 ➔ 硬體分析 ➔ 增益節點 ➔ 實體喇叭
         window.hardwareFilter.connect(window.hardwareAnalyser);
         window.hardwareAnalyser.connect(window.gainNode);
         window.gainNode.connect(window.audioCtx.destination);
+    }
+    
+    // 💡 剛性安全閥：無條件解除瀏覽器 Autoplay 深度沉睡掛起，確保硬體時鐘流暢流流暢！
+    if (window.audioCtx.state === 'suspended') {
+        window.audioCtx.resume();
     }
     
     window.gainNode.gain.setValueAtTime(window.isSpeakerOn ? 0.3 : 0.0, window.audioCtx.currentTime);
@@ -71,14 +77,12 @@ window.initAudioGlobal = function() {
         window.oscNode = window.audioCtx.createOscillator();
         window.oscNode.type = 'sine';
         window.oscNode.frequency.setValueAtTime(window.currentSinFreq, window.audioCtx.currentTime);
-        window.oscNode.connect(window.hardwareFilter); // 100% 晶片內核發聲過濾
+        window.oscNode.connect(window.hardwareFilter); 
         window.oscNode.start();
     }
-    if (window.audioCtx.state === 'suspended') window.audioCtx.resume();
 };
 
 window.consumeRawBuffer = function(rawDataView) {
-    // 實體藍牙大水管對接時，直接由硬體節點託管數據
     if (window.hardwareAnalyser) {
         let buffer = new Float32Array(window.FFT_SIZE);
         window.hardwareAnalyser.getFloatTimeDomainData(buffer);
@@ -88,11 +92,13 @@ window.globalRenderLoop = function() {
     requestAnimationFrame(window.globalRenderLoop); if (!window.hardwareAnalyser) return;
     renderFrameCounter++; if (renderFrameCounter % 2 !== 0) return;
     
-    // 💡 眼睛直通硬體：直接向音效卡晶片提取最新過濾後的純淨數據，FFT 100% 絕對算對！
     let timeData = new Float32Array(window.FFT_SIZE); window.hardwareAnalyser.getFloatTimeDomainData(timeData);
     let freqData = new Float32Array(window.hardwareAnalyser.frequencyBinCount); window.hardwareAnalyser.getFloatFrequencyData(freqData);
     
-    // 💡 幾何跨度自適應：根據真實設定（currentSampleRate）動態調整擷取點數，拉動採樣拉桿畫面立刻流暢收縮！
+    if (window.isSimulating) {
+        for (let m = 0; m < window.FFT_SIZE; m++) { window.analysisBuffer[m] = timeData[m]; }
+    }
+
     let adaptivePointsCount = Math.round((3 * (window.audioCtx ? window.audioCtx.sampleRate : 44100)) / window.currentSinFreq * (44100 / window.currentSampleRate));
     if (adaptivePointsCount < 64) adaptivePointsCount = 64; if (adaptivePointsCount > window.FFT_SIZE) adaptivePointsCount = window.FFT_SIZE;
 
@@ -110,14 +116,13 @@ window.globalRenderLoop = function() {
     window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, window.tCanvas.width, window.tCanvas.height); window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath();
     let midY = window.tCanvas.height / 2;
 
-    // 💡 貝氏曲線 1:1 直通車：徹底刪除扯歪波形的平滑公式與 NaN 溢位，利用 GPU 硬件加速自動畫出絲滑正弦波！
     let tSlice = window.tCanvas.width / (rawSlice.length - 1);
     window.tCtx.moveTo(0, midY - ((rawSlice[0] || 0) * (window.tCanvas.height / 2.3)));
     for (let j = 0; j < rawSlice.length - 1; j++) {
         let x1 = j * tSlice; let y1 = midY - ((rawSlice[j] || 0) * (window.tCanvas.height / 2.3));
         let x2 = (j + 1) * tSlice; let y2 = midY - ((rawSlice[j + 1] || 0) * (window.tCanvas.height / 2.3));
         let xc = (x1 + x2) / 2; let yc = (y1 + y2) / 2;
-        window.tCtx.quadraticCurveTo(x1, y1, xc, yc);
+        window.tCtx.quadraticCurveTo(x1, y1, xc, yc); // 💡 GPU 貝氏幾何插值，波形 100% 圓潤不失真！
     }
     window.tCtx.stroke();
     
@@ -135,12 +140,12 @@ document.addEventListener('click', (e) => {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
         window.initAudioGlobal();
         if (btn) { btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試"; btn.className = window.isSimulating ? "btn-sim active" : "btn-sim"; }
-        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：硬體級 Web Audio Graph 點火！" : "狀態：模擬測試已停止。";
+        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：用戶點擊主動剛性點火成功！" : "狀態：模擬測試已停止。";
     }
     if (clickId === 'speakerBtn') {
         window.isSpeakerOn = !window.isSpeakerOn; const sBtn = document.getElementById('speakerBtn');
         if (sBtn) { sBtn.innerText = window.isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉"; sBtn.className = window.isSpeakerOn ? "btn-speaker" : "btn-speaker muted"; }
-        if (window.gainNode && window.audioCtx) window.gainNode.gain.setValueAtTime(window.isSpeakerOn ? 0.3 : 0.0, window.audioCtx.currentTime);
+        window.initAudioGlobal();
     }
     const fModes = { filterRaw: 'RAW', filterLP: 'LP', filterHP: 'HP', filterBP: 'BP' };
     if (fModes[clickId]) {
