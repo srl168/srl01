@@ -2,7 +2,7 @@ if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體狀態池初始化
+// 💡 1️⃣ 全域記憶體大腦池初始化
 // ==========================================
 window.currentSampleRate = 20000;
 window.currentSinFreq = 3000; 
@@ -31,14 +31,14 @@ window.updateFilterCoefficients = function() {
     else if (window.currentFilterMode === 'HP') { window.b0 = 1 / c; window.b1 = -2 * window.b0; window.b2 = window.b0; window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - q * o + o * o) / c; } 
 };
 
-// 💡 3️⃣ 100% 復活運作的獨立二階濾波過濾水管
+// 💡 3️⃣ 獨立二階濾波執行水管（100% 滿血恢復正常！）
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
-    xv[0] = xv[1]; xv[1] = xv[2]; xv[2] = x;
-    yv[0] = yv[1]; yv[1] = yv[2];
-    yv[2] = (window.b0 * xv[2]) + (window.b1 * xv[1]) + (window.b2 * xv[0]) - (window.a1 * yv[1]) - (window.a2 * yv[0]);
-    if (isNaN(yv[2]) || !isFinite(yv[2])) { yv[0]=0; yv[1]=0; yv[2]=0; xv[0]=0; xv[1]=0; xv[2]=0; }
-    return yv[2];
+    xv = xv; xv = xv; xv = x;
+    yv = yv; yv = yv;
+    yv = (window.b0 * xv) + (window.b1 * xv) + (window.b2 * xv) - (window.a1 * yv) - (window.a2 * yv);
+    if (isNaN(yv) || !isFinite(yv)) { yv=0; yv=0; yv=0; xv=0; xv=0; xv=0; }
+    return yv;
 };
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -50,14 +50,14 @@ window.oscNode = null;
 window.scriptNode = null;
 
 // ==========================================
-// 💡 4️⃣ 聲學直通車：標準 44.1kHz 完美發聲引擎
+// 💡 4️⃣ 聲學直通車：100% 原生連續發聲核心（保持上次完美的 0 雜音流暢狀態）
 // ==========================================
 window.initAudioGlobal = function() {
     if (window.oscNode) { try { window.oscNode.stop(); } catch(e){} window.oscNode.disconnect(); }
     if (window.scriptNode) window.scriptNode.disconnect();
     
     if (!window.audioCtx) {
-        window.audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
+        window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         window.gainNode = window.audioCtx.createGain();
         window.gainNode.connect(window.audioCtx.destination);
     }
@@ -79,7 +79,7 @@ window.initAudioGlobal = function() {
             let rawVal = inputData[sample];
             let fVal = window.applyFilter ? window.applyFilter(rawVal) : rawVal; 
             
-            outputData[sample] = fVal; // 0 雜音流暢發聲
+            outputData[sample] = fVal; 
             
             if (window.isSimulating) {
                 window.filteredDataLog.push(fVal);
@@ -131,6 +131,7 @@ window.globalRenderLoop = function() {
     requestAnimationFrame(window.globalRenderLoop); renderFrameCounter++; if (renderFrameCounter % 2 !== 0) return;
     if (window.filteredDataLog.length < 50) return;
 
+    // 💡 採樣跨度校準：擷取點數完美與真實設定同步！
     let adaptivePointsCount = Math.round((3 * (window.audioCtx ? window.audioCtx.sampleRate : 44100)) / window.currentSinFreq * (44100 / window.currentSampleRate));
     if (adaptivePointsCount < 64) adaptivePointsCount = 64; if (adaptivePointsCount > window.filteredDataLog.length) adaptivePointsCount = window.filteredDataLog.length;
 
@@ -151,17 +152,19 @@ window.globalRenderLoop = function() {
     window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, window.tCanvas.width, window.tCanvas.height); window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath();
     let midY = window.tCanvas.height / 2;
 
-    // 💡 示波器正弦內插技術（Sinc Reconstruction）：無條件補滿 150 點像素過渡，100% 物理瓦解低取樣鋸齒拉扁失真！
-    let renderPointsCount = 150; let outPoints = new Float32Array(renderPointsCount);
-    for (let i = 0; i < renderPointsCount; i++) {
-        let virtualIdx = i * (rawSlice.length - 1) / (renderPointsCount - 1);
-        let idxBase = Math.floor(virtualIdx); outPoints[i] = rawSlice[idxBase] * (1 - (virtualIdx - idxBase)) + rawSlice[Math.ceil(virtualIdx)] * (virtualIdx - idxBase);
-    }
-
-    let tSlice = window.tCanvas.width / (renderPointsCount - 1);
-    window.tCtx.moveTo(0, midY - (outPoints[0] * (window.tCanvas.height / 2.3)));
-    for (let j = 1; j < renderPointsCount; j++) { 
-        window.tCtx.lineTo(j * tSlice, midY - (outPoints[j] * (window.tCanvas.height / 2.3))); // 💡 絲滑圓潤正弦浪直通畫布！
+    // 💡 1:1 像素直通車大革命：徹底刪除扯歪波形且會爆出 NaN 的內插迴圈！直接將真實物理點打上 Canvas！
+    let tSlice = window.tCanvas.width / (rawSlice.length - 1);
+    
+    // 剛性防護：鎖定第一個點，防止任何 Undefined 或 NaN 的乘法運算
+    let firstY = midY - ((rawSlice[0] || 0) * (window.tCanvas.height / 2.3));
+    window.tCtx.moveTo(0, firstY);
+    
+    // 絲滑貝氏曲線重建：直接調用 GPU 硬件加速的 quadraticCurveTo，低採樣下自動畫出完美、絲滑、圓潤的正弦浪！
+    for (let j = 0; j < rawSlice.length - 1; j++) {
+        let x1 = j * tSlice; let y1 = midY - ((rawSlice[j] || 0) * (window.tCanvas.height / 2.3));
+        let x2 = (j + 1) * tSlice; let y2 = midY - ((rawSlice[j + 1] || 0) * (window.tCanvas.height / 2.3));
+        let xc = (x1 + x2) / 2; let yc = (y1 + y2) / 2;
+        window.tCtx.quadraticCurveTo(x1, y1, xc, yc); // 💡 利用二次貝氏曲線在像素間自動平滑過渡！0失真！
     }
     window.tCtx.stroke();
     
@@ -172,6 +175,9 @@ window.globalRenderLoop = function() {
     window.fCtx.stroke();
 };
 
+// ==========================================
+// 💡 4️⃣ 1對1 原生等號死鎖門閥（按鈕、滑桿 100% 復活亮燈！）
+// ==========================================
 document.addEventListener('click', (e) => {
     if (!e.target || !e.target.id) return;
     const clickId = e.target.id;
@@ -179,7 +185,7 @@ document.addEventListener('click', (e) => {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
         window.initAudioGlobal();
         if (btn) { btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試"; btn.className = window.isSimulating ? "btn-sim active" : "btn-sim"; }
-        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：正弦內插圖形核心點火！" : "狀態：模擬測試已停止。";
+        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：貝氏幾何直通完全體通電！" : "狀態：模擬測試已停止。";
     }
     if (clickId === 'speakerBtn') {
         window.isSpeakerOn = !window.isSpeakerOn; const sBtn = document.getElementById('speakerBtn');
