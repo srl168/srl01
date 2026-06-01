@@ -27,7 +27,6 @@ let renderFrameCounter = 0;
 window.updateFilterCoefficients = function() {
     if (!window.hardwareFilter || !window.audioCtx) return;
     try {
-        // 💡 降維打擊：將模式直接映射給音效卡硬體晶片，徹底解決手寫公式不準、爆音與失效的歷史難題！
         if (window.currentFilterMode === 'RAW') { 
             window.hardwareFilter.type = 'allpass'; 
         }
@@ -42,7 +41,6 @@ window.updateFilterCoefficients = function() {
         else if (window.currentFilterMode === 'BP') { 
             window.hardwareFilter.type = 'bandpass'; 
             window.hardwareFilter.frequency.setValueAtTime(window.f1, window.audioCtx.currentTime); 
-            // 利用 F1/F2 換算成標準硬體品質因數 Q，拉動拉桿 100% 精準對齊！
             let qVal = window.f1 / (window.f2 > 0 ? window.f2 : 1.0); if (qVal < 0.1) qVal = 0.1;
             window.hardwareFilter.Q.setValueAtTime(qVal, window.audioCtx.currentTime);
         }
@@ -58,7 +56,7 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 //
 // ==========================================
-// 💡 3️⃣ 聲學大革命：純網頁音訊硬體圖學直連（徹底物理清除短斷音！）
+// 💡 3️⃣ 聲學大革命：純網頁音訊硬體圖學直連（徹底物理清除短斷音與控制台過時警告！）
 // ==========================================
 window.initAudioGlobal = function() {
     if (window.oscNode) { try { window.oscNode.stop(); } catch(e){} window.oscNode.disconnect(); window.oscNode = null; }
@@ -70,7 +68,7 @@ window.initAudioGlobal = function() {
         window.hardwareAnalyser = window.audioCtx.createAnalyser();   // 💡 建立晶片硬體分析器節點
         window.hardwareAnalyser.fftSize = window.FFT_SIZE;
         
-        // 💡 1對1 鋼性硬體鏈：Oscillator ➔ 硬體濾波 ➔ 硬體分析 ➔ 增益節點 ➔ 實體喇叭
+        // 💡 1對1 鋼性硬體直通網路：Oscillator ➔ 硬體濾波 ➔ 硬體分析 ➔ 增益節點 ➔ 實體喇叭
         window.hardwareFilter.connect(window.hardwareAnalyser);
         window.hardwareAnalyser.connect(window.gainNode);
         window.gainNode.connect(window.audioCtx.destination);
@@ -84,7 +82,7 @@ window.initAudioGlobal = function() {
         window.oscNode = window.audioCtx.createOscillator();
         window.oscNode.type = 'sine';
         window.oscNode.frequency.setValueAtTime(window.currentSinFreq, window.audioCtx.currentTime);
-        window.oscNode.connect(window.hardwareFilter); // 100% 晶片內核加速點火
+        window.oscNode.connect(window.hardwareFilter); // 100% 晶片內核加速點火，絕不調用過時 ScriptProcessor！
         window.oscNode.start();
     }
 };
@@ -176,7 +174,7 @@ document.addEventListener('input', (e) => {
         if (sliderId === "sampleRateSlider") { window.currentSampleRate = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.currentSampleRate + " Hz"; window.updateFilterCoefficients(); }
         if (sliderId === "sinFreqSlider") { window.currentSinFreq = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.currentSinFreq + " Hz"; if (window.oscNode && window.audioCtx) window.oscNode.frequency.setValueAtTime(window.currentSinFreq, window.audioCtx.currentTime); }
         if (sliderId === "f1Slider") { window.f1 = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.f1 + " Hz"; window.updateFilterCoefficients(); }
-        if (sliderId === "f2Slider") { window.f2 = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.f2 + " Hz"; window.updateFilterCoefficients(); }
+        if (sliderId === "f2Slider") { window.f2 = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.f2 + " Hz"; }
         if (sliderId === "volumeSlider") { if (nextSpan) nextSpan.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && window.audioCtx) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); }
     }
 });
