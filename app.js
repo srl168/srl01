@@ -1,20 +1,20 @@
 if (window.audioInterval) clearInterval(window.audioInterval);
-if (window.simInterval) clearInterval(window.simInterval);
 window.isWritingLock = false;
 
-// 💡 鋼性全域作用域
+// 💡 鋼性全域記憶體池，100% 阻斷多執行緒作用域斷層
 window.currentSampleRate = 20000;
 window.filteredDataLog = [];
 window.bufferIndex = 0;
 window.nextPlayTime = 0;
 window.isSpeakerOn = false;
 window.isSimulating = false;
-window.simPhase = 0;
 window.FFT_SIZE = 1024;
 window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 
+// 💡 宣告全域 Worker 射頻指針，防止重複宣告卡死
+window.simWorker = null;
+
 window.addEventListener('DOMContentLoaded', () => {
-    // 💡 鎖定國際 SIG 認證 16-bit 標準黃金短通道
     window.S_UUID = 0xFF01;
     window.C_UUID = 0xFF02;
     window.bleCharacteristicObject = null;
@@ -53,7 +53,6 @@ window.addEventListener('DOMContentLoaded', () => {
         }
         return x;
     };
-
     const fModes = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
     Object.keys(fModes).forEach(m => {
         document.getElementById(fModes[m]).addEventListener('click', () => {
@@ -65,7 +64,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('freq1Slider').addEventListener('input', (e) => { window.f1 = parseInt(e.target.value); document.getElementById('freq1Val').innerText = window.f1 + " Hz"; window.updateFilterCoefficients(); });
     document.getElementById('freq2Slider').addEventListener('input', (e) => { window.f2 = parseInt(e.target.value); document.getElementById('freq2Val').innerText = window.f2 + " Hz"; window.updateFilterCoefficients(); });
-    // 💡 實體藍牙連線控制核心
+
     document.getElementById('connectBtn').addEventListener('click', async () => {
         if (window.isSimulating) document.getElementById('simBtn').click(); 
         const status = document.getElementById('status');
@@ -89,6 +88,7 @@ window.addEventListener('DOMContentLoaded', () => {
     window.tCanvas.width = 800; window.tCanvas.height = 400;
     window.fCanvas.width = 800; window.fCanvas.height = 400;
 });
+
 window.initAudioGlobal = function() {
     if (!window.audioCtx) {
         window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -100,7 +100,6 @@ window.initAudioGlobal = function() {
     }
     if (window.audioCtx.state === 'suspended') window.audioCtx.resume();
 };
-
 window.consumeRawBuffer = function(rawDataView) {
     let byteLength = rawDataView.byteLength;
     let audioChunk = new Float32Array(byteLength);
@@ -111,7 +110,7 @@ window.consumeRawBuffer = function(rawDataView) {
         
         audioChunk[i] = fVal;
         window.filteredDataLog.push(fVal);
-        if (window.filteredDataLog.length > 2500) window.filteredDataLog.shift();
+        if (window.filteredDataLog.length > 3000) window.filteredDataLog.shift(); 
         
         window.analysisBuffer[window.bufferIndex] = fVal;
         window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
@@ -126,7 +125,7 @@ window.consumeRawBuffer = function(rawDataView) {
 };
 
 window.streamSmoothAudioGlobal = function() {
-    if (!window.isSpeakerOn || !window.audioCtx || window.filteredDataLog.length < 500) return;
+    if (!window.isSpeakerOn || !window.audioCtx || window.filteredDataLog.length < 600) return;
     try {
         let rawChunk = window.filteredDataLog.slice(-400);
         let targetLength = Math.round(rawChunk.length * (window.audioCtx.sampleRate / window.currentSampleRate));
@@ -154,29 +153,10 @@ function localFFT(re, im) {
     }
 }
 
-// 💡 建立高動態全域自適應模擬點火循環
-window.runSimulationLoop = function() {
-    if (!window.isSimulating) return;
-    
-    let targetSinFreq = parseInt(document.getElementById('boardSinSlider').value);
-    let mockBuffer = new ArrayBuffer(50); let view = new DataView(mockBuffer);
-    
-    // 💡 數學死鎖：每一步前進弧度完美與當前 currentSampleRate 對齊
-    let step = 2.0 * Math.PI * (targetSinFreq / window.currentSampleRate);
-    for(let i=0; i<50; i++) {
-        view.setUint8(i, Math.floor((Math.sin(window.simPhase) + 1.0) * 127.5));
-        window.simPhase += step; if(window.simPhase >= 2*Math.PI) window.simPhase -= 2*Math.PI;
-    }
-    window.consumeRawBuffer(view);
-    
-    // 💡 核心算力補丁：根據目前採樣率，動態精準計算這 50 個點在物理世界中相隔多少毫秒，分秒不差！
-    let nextTimeoutMs = (50 / window.currentSampleRate) * 1000;
-    window.simInterval = setTimeout(window.runSimulationLoop, nextTimeoutMs);
-};
-
 window.globalRenderLoop = function() {
-    requestAnimationFrame(window.globalRenderLoop); if (window.filteredDataLog.length < 150) return;
-    let rPoints = window.filteredDataLog.slice(-150), max = Math.max(...rPoints), min = Math.min(...rPoints), vpp = max - min, sq = 0;
+    requestAnimationFrame(window.globalRenderLoop); if (window.filteredDataLog.length < 300) return;
+    
+    let rPoints = window.filteredDataLog.slice(-300), max = Math.max(...rPoints), min = Math.min(...rPoints), vpp = max - min, sq = 0;
     rPoints.forEach(v => sq += v * v); let rms = Math.sqrt(sq / rPoints.length);
     document.getElementById('vppVal').innerText = vpp.toFixed(2) + " V"; document.getElementById('rmsVal').innerText = rms.toFixed(2) + " V";
     
@@ -194,7 +174,6 @@ window.globalRenderLoop = function() {
     for (let j = 0; j < rPoints.length; j++) { 
         let x = j * tSlice; let currentPoint = rPoints[j];
         if (j > 0 && j < rPoints.length - 1) { currentPoint = (rPoints[j-1] + rPoints[j] + rPoints[j+1]) / 3; }
-        // 💡 終極修正：對齊平滑後的數值 currentPoint，徹底碾碎時域失真
         let y = midY - (currentPoint * (window.tCanvas.height / 2.3)); 
         if (j == 0) window.tCtx.moveTo(x, y); else window.tCtx.lineTo(x, y); 
     }
@@ -207,15 +186,46 @@ window.globalRenderLoop = function() {
     window.fCtx.stroke();
 };
 
+const workerCode = `
+    let simPhase = 0;
+    let timerId = null;
+    self.onmessage = function(e) {
+        if (e.data.cmd === 'start') {
+            let sr = e.data.sr; let sf = e.data.sf;
+            if(timerId) clearInterval(timerId);
+            timerId = setInterval(() => {
+                let step = 2.0 * Math.PI * (sf / sr);
+                let mockBuffer = new ArrayBuffer(200);
+                let view = new DataView(mockBuffer);
+                for(let i=0; i<200; i++) {
+                    view.setUint8(i, Math.floor((Math.sin(simPhase) + 1.0) * 127.5));
+                    simPhase += step; if(simPhase >= 2*Math.PI) simPhase -= 2*Math.PI;
+                }
+                self.postMessage(mockBuffer, [mockBuffer]);
+            }, 35);
+        } else if (e.data.cmd === 'stop') {
+            if(timerId) clearInterval(timerId);
+        }
+    };
+`;
+
 document.addEventListener('click', (e) => {
     if (e.target && e.target.id === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
         if (window.isSimulating) {
             window.initAudioGlobal(); btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active";
-            document.getElementById('status').innerText = "▶️ 鋼性時鐘死鎖模擬器全速發射中...";
-            clearTimeout(window.simInterval); window.runSimulationLoop(); // 點火點對點自適應遞迴
+            document.getElementById('status').innerText = "▶️ Web Worker 獨立背景核心已通電發射！";
+            if(!window.simWorker) {
+                let blob = new Blob([workerCode], {type: 'application/javascript'});
+                window.simWorker = new Worker(URL.createObjectURL(blob));
+                window.simWorker.onmessage = function(evt) { window.consumeRawBuffer(new DataView(evt.data)); };
+            }
+            let sr = parseInt(document.getElementById('boardSampleSlider').value);
+            let sf = parseInt(document.getElementById('boardSinSlider').value);
+            window.simWorker.postMessage({cmd: 'start', sr: sr, sf: sf});
         } else {
-            clearTimeout(window.simInterval); btn.innerText = "🛠️ 開啟本地資料模擬測試"; btn.className = "btn-sim";
+            if(window.simWorker) window.simWorker.postMessage({cmd: 'stop'});
+            btn.innerText = "🛠️ 開氣本地資料模擬測試"; btn.className = "btn-sim";
             document.getElementById('status').innerText = "狀態：模擬測試已停止。";
         }
     }
@@ -230,7 +240,10 @@ function sendHardwareParameters() {
     let sr = parseInt(document.getElementById('boardSampleSlider').value);
     let sf = parseInt(document.getElementById('boardSinSlider').value);
     window.currentSampleRate = sr; if (window.updateFilterCoefficients) window.updateFilterCoefficients();
-    if (window.isSimulating) return;
+    if (window.isSimulating && window.simWorker) {
+        window.simWorker.postMessage({cmd: 'start', sr: sr, sf: sf});
+        return;
+    }
     if (!window.bleCharacteristicObject) return;
     let buf = (new TextEncoder()).encode(sr + "," + sf);
     try { window.bleCharacteristicObject.writeValue(buf); } catch (err) {}
