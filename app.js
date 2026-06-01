@@ -90,7 +90,7 @@ window.initAudioGlobal = function() {
     if (!window.audioCtx) {
         window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         window.gainNode = window.audioCtx.createGain(); 
-        window.gainNode.gain.value = window.allInputsOnPage ? parseFloat(window.allInputsOnPage[0].value) : 0.3;
+        window.gainNode.gain.value = window.allInputsOnPage ? parseFloat(window.allInputsOnPage.value) : 0.3;
         window.gainNode.connect(window.audioCtx.destination);
         window.nextPlayTime = window.audioCtx.currentTime;
         window.audioInterval = setInterval(window.streamPureTimelineEngine, 30);
@@ -134,7 +134,6 @@ window.streamPureTimelineEngine = function() {
             let oversampleFactor = 16;
             let internalSR = window.currentSampleRate * oversampleFactor;
             let step = 2.0 * Math.PI * (targetSF / internalSR);
-            
             for (let i = 0; i < 128; i++) {
                 let sum = 0;
                 for (let o = 0; o < oversampleFactor; o++) {
@@ -210,7 +209,7 @@ window.globalRenderLoop = function() {
     
     let tSlice = window.tCanvas.width / (rPoints.length - 1), midY = window.tCanvas.height / 2;
     
-    // 💡 終極對齊：精準將原來的陣列乘法錯字校正還原為第一個實體座標指標 rPoints[0]，解開像素鋸齒！
+    // 💡 鋼性解鎖：精準鎖定第一個數值 [0]，徹底解鎖貝氏拋物線切線！
     let x0 = 0, y0 = midY - (rPoints[0] * (window.tCanvas.height / 2.3));
     window.tCtx.moveTo(x0, y0);
     
@@ -237,7 +236,7 @@ document.addEventListener('click', (e) => {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
         if (window.isSimulating) {
             window.initAudioGlobal(); btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active";
-            document.getElementById('status').innerText = "▶️ 離線沙盒：二階貝氏拋物線完好點火！";
+            document.getElementById('status').innerText = "▶️ 離線沙盒：拋物線極致抗失真核心已開通！";
         } else {
             btn.innerText = "🛠️ 開啟本地資料模擬測試"; btn.className = "btn-sim";
             document.getElementById('status').innerText = "狀態：模擬測試已停止。";
@@ -245,7 +244,7 @@ document.addEventListener('click', (e) => {
     }
     if (e.target && e.target.id === 'speakerBtn') {
         window.initAudioGlobal(); window.isSpeakerOn = !window.isSpeakerOn;
-        document.getElementById('speakerBtn').innerText = window.isSpeakerOn ? "🔊 喇暴發聲：開啟" : "🔇 喇叭發聲：關閉";
+        document.getElementById('speakerBtn').innerText = window.isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉";
         document.getElementById('speakerBtn').className = window.isSpeakerOn ? "btn-speaker" : "btn-speaker muted";
     }
 });
