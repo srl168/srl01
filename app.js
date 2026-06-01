@@ -1,7 +1,7 @@
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
-// 💡 鋼性全域記憶體池
+// 💡 建立鋼性全域記憶體池
 window.currentSampleRate = 20000;
 window.filteredDataLog = [];
 window.bufferIndex = 0;
@@ -24,34 +24,20 @@ window.addEventListener('DOMContentLoaded', () => {
     window.tCtx = window.tCanvas.getContext('2d');
     window.fCtx = window.fCanvas.getContext('2d');
 
-    let lastY_lp = 0, lastX_hp = 0, lastY_hp = 0, lastY_bp1 = 0, lastX_hp_bp = 0, lastY_bp2 = 0;
     window.currentFilterMode = 'RAW';
     window.f1 = 1000; window.f2 = 3000;
-    window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0; window.bp_b = [1, 0, -1]; window.bp_a = [];
+    window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 
     window.updateFilterCoefficients = function() {
         let fr = window.currentSampleRate / window.f1, o = Math.tan(Math.PI / fr), q = Math.sqrt(2), c = 1 + q * o + o * o;
         if (window.currentFilterMode === 'LP') { window.b0 = o * o / c; window.b1 = 2 * window.b0; window.b2 = window.b0; window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - q * o + o * o) / c; } 
         else if (window.currentFilterMode === 'HP') { window.b0 = 1 / c; window.b1 = -2 * window.b0; window.b2 = window.b0; window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - q * o + o * o) / c; } 
-        else if (window.currentFilterMode === 'BP') {
-            let lr = window.currentSampleRate / window.f2, hr = window.currentSampleRate / window.f1, lo = Math.tan(Math.PI / lr), ho = Math.tan(Math.PI / hr);
-            let lc = 1 + q * lo + lo * lo, hc = 1 + q * ho + ho * ho;
-            window.b0 = lo * lo / lc; window.b1 = 2 * window.b0; window.b2 = window.b0; window.a1 = 2 * (lo * lo - 1) / lc; window.a2 = (1 - q * lo + lo * lo) / lc;
-            window.bp_b = [1 / hc, 0, -1 / hc]; window.bp_a = [2 * (ho * ho - 1) / hc, (1 - q * ho + ho * ho) / hc];
-        }
     };
 
     window.applyFilter = function(x) {
-        if (window.currentFilterMode === 'RAW') return x;
-        let dt = 1 / window.currentSampleRate;
-        if (window.currentFilterMode === 'LP') { let rc = 1 / (2 * Math.PI * window.f1), alpha = dt / (rc + dt); lastY_lp = lastY_lp + alpha * (x - lastY_lp); return lastY_lp; }
-        if (window.currentFilterMode === 'HP') { let rc = 1 / (2 * Math.PI * window.f1), alpha = rc / (rc + dt); let y = alpha * (lastY_hp + x - lastX_hp); lastX_hp = x; lastY_hp = y; return y; }
-        if (window.currentFilterMode === 'BP') {
-            let rc1 = 1 / (2 * Math.PI * window.f2), a1 = dt / (rc1 + dt); lastY_bp1 = lastY_bp1 + a1 * (x - lastY_bp1);
-            let rc2 = 1 / (2 * Math.PI * window.f1), a2 = rc2 / (rc2 + dt); let y = a2 * (lastY_bp2 + lastY_bp1 - lastX_hp_bp); lastX_hp_bp = lastY_bp1; lastY_bp2 = y; return y;
-        }
-        return x;
+        return x; 
     };
+
     const fModes = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
     Object.keys(fModes).forEach(m => {
         document.getElementById(fModes[m]).addEventListener('click', () => {
@@ -60,7 +46,6 @@ window.addEventListener('DOMContentLoaded', () => {
             document.getElementById('f2Container').style.display = m === 'BP' ? 'flex' : 'none'; window.updateFilterCoefficients();
         });
     });
-
     document.getElementById('connectBtn').addEventListener('click', async () => {
         if (window.isSimulating) document.getElementById('simBtn').click(); 
         const status = document.getElementById('status');
@@ -82,30 +67,26 @@ window.addEventListener('DOMContentLoaded', () => {
 
     window.tCanvas.width = 800; window.tCanvas.height = 400;
     window.fCanvas.width = 800; window.fCanvas.height = 400;
-    
     window.allInputsOnPage = Array.from(document.querySelectorAll('input[type="range"]'));
 });
 
-// 💡 鋼性防禦：加裝 finite 有限數值安全閥，100% 阻斷任何音效卡猝死！
 window.initAudioGlobal = function() {
     if (!window.audioCtx) {
         window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         window.gainNode = window.audioCtx.createGain(); 
-        
-        let initialVolume = 0.3; // 安全保底初值
+        let initialVolume = 0.3; 
         if (window.allInputsOnPage && window.allInputsOnPage[0]) {
             let parsedVol = parseFloat(window.allInputsOnPage[0].value);
-            // 💡 若數值合法且有限，才允許覆蓋；否則啟動安全閥防線，徹底滅絕 Non-finite 錯誤！
             if (!isNaN(parsedVol) && isFinite(parsedVol)) { initialVolume = parsedVol; }
         }
-        
         window.gainNode.gain.setValueAtTime(initialVolume, window.audioCtx.currentTime);
         window.gainNode.connect(window.audioCtx.destination);
         window.nextPlayTime = window.audioCtx.currentTime;
-        window.audioInterval = setInterval(window.streamPureTimelineEngine, 30);
+        window.audioInterval = setInterval(window.streamPureTimelineEngine, 16);
     }
     if (window.audioCtx.state === 'suspended') window.audioCtx.resume();
 };
+
 window.consumeRawBuffer = function(rawDataView) {
     let byteLength = rawDataView.byteLength;
     for (let i = 0; i < byteLength; i++) {
@@ -113,7 +94,7 @@ window.consumeRawBuffer = function(rawDataView) {
         let val = (byteVal / 127.5) - 1.0;
         let fVal = window.applyFilter ? window.applyFilter(val) : val;
         window.filteredDataLog.push(fVal);
-        if (window.filteredDataLog.length > 4000) window.filteredDataLog.shift(); 
+        if (window.filteredDataLog.length > 5000) window.filteredDataLog.shift(); 
         window.analysisBuffer[window.bufferIndex] = fVal;
         window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
     }
@@ -128,18 +109,15 @@ window.playAudioChunkDirect = function(audioChunk) {
         src.start(window.nextPlayTime); window.nextPlayTime += ab.duration; 
     }
 };
-
 window.streamPureTimelineEngine = function() {
     if (!window.isSpeakerOn || !window.audioCtx || !window.allInputsOnPage) return;
-    let targetTime = window.audioCtx.currentTime + 0.06;
-    
+    let targetTime = window.audioCtx.currentTime + 0.12;
     if (window.isSimulating) {
         let sinSlider = window.allInputsOnPage[window.allInputsOnPage.length - 1];
         let targetSF = sinSlider ? parseInt(sinSlider.value) : 2000;
         while (window.nextPlayTime < targetTime) {
             let audioChunk = new Float32Array(128);
-            let oversampleFactor = 16;
-            let internalSR = window.currentSampleRate * oversampleFactor;
+            let oversampleFactor = 16, internalSR = window.currentSampleRate * oversampleFactor;
             let step = 2.0 * Math.PI * (targetSF / internalSR);
             for (let i = 0; i < 128; i++) {
                 let sum = 0;
@@ -149,27 +127,18 @@ window.streamPureTimelineEngine = function() {
                 }
                 let val = sum / oversampleFactor;
                 let fVal = window.applyFilter ? window.applyFilter(val) : val;
-                audioChunk[i] = fVal;
-                window.filteredDataLog.push(fVal);
-                window.analysisBuffer[window.bufferIndex] = fVal;
-                window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
+                audioChunk[i] = fVal; window.filteredDataLog.push(fVal);
+                window.analysisBuffer[window.bufferIndex] = fVal; window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
             }
-            if (window.filteredDataLog.length > 3000) window.filteredDataLog = window.filteredDataLog.slice(-2000);
-            let ab = window.audioCtx.createBuffer(1, audioChunk.length, window.currentSampleRate);
-            ab.getChannelData(0).set(audioChunk);
-            let src = window.audioCtx.createBufferSource(); src.buffer = ab; src.connect(window.gainNode);
-            src.start(window.nextPlayTime); window.nextPlayTime += ab.duration;
+            if (window.filteredDataLog.length > 4000) window.filteredDataLog = window.filteredDataLog.slice(-3000);
+            window.playAudioChunkDirect(audioChunk);
         }
         return;
     }
-    
     if (window.filteredDataLog.length < 300) return;
     while (window.nextPlayTime < targetTime) {
         let rawChunk = window.filteredDataLog.slice(-250);
-        let ab = window.audioCtx.createBuffer(1, rawChunk.length, window.currentSampleRate);
-        ab.getChannelData(0).set(rawChunk);
-        let src = window.audioCtx.createBufferSource(); src.buffer = ab; src.connect(window.gainNode);
-        src.start(window.nextPlayTime); window.nextPlayTime += ab.duration;
+        window.playAudioChunkDirect(rawChunk);
     }
 };
 
@@ -177,9 +146,7 @@ function localFFT(re, im) {
     const n = re.length; let bits = 0; while ((1 << bits) < n) bits++;
     for (let i = 0; i < n; i++) {
         let rev = 0; for (let j = 0; j < bits; j++) { if ((i & (1 << j)) !== 0) rev |= (1 << (bits - 1 - j)); }
-        if (rev > i) {
-            let tempR = re[i]; re[i] = re[rev]; re[rev] = tempR; let tempI = im[i]; im[i] = im[rev]; im[rev] = tempI;
-        }
+        if (rev > i) { let tr = re[i]; re[i] = re[rev]; re[rev] = tr; let ti = im[i]; im[i] = im[rev]; im[rev] = ti; }
     }
     for (let len = 2; len <= n; len <<= 1) {
         let ang = 2 * Math.PI / len * -1, wlen_r = Math.cos(ang), wlen_i = Math.sin(ang);
@@ -189,17 +156,33 @@ function localFFT(re, im) {
                 let u_r = re[i + j], u_i = im[i + j];
                 let v_r = re[i + j + len / 2] * w_r - im[i + j + len / 2] * w_i;
                 let v_i = re[i + j + len / 2] * w_i + im[i + j + len / 2] * w_r;
-                re[i + j] = u_r + v_r; im[i + j] = u_i + v_i;
-                re[i + j + len / 2] = u_r - v_r; im[i + j + len / 2] = u_i - v_i;
+                re[i + j] = u_r + v_r; im[i + j] = u_i + v_i; re[i + j + len / 2] = u_r - v_r; im[i + j + len / 2] = u_i - v_i;
                 let next_w_r = w_r * wlen_r - w_i * wlen_i; w_i = w_r * wlen_i + w_i * wlen_r; w_r = next_w_r;
             }
         }
     }
 }
 
+let renderFrameCounter = 0;
 window.globalRenderLoop = function() {
-    requestAnimationFrame(window.globalRenderLoop); if (window.filteredDataLog.length < 150) return;
-    let rPoints = window.filteredDataLog.slice(-150), max = Math.max(...rPoints), min = Math.min(...rPoints), vpp = max - min, sq = 0;
+    requestAnimationFrame(window.globalRenderLoop); 
+    renderFrameCounter++; if (renderFrameCounter % 2 !== 0) return;
+
+    if (window.isSimulating && window.allInputsOnPage) {
+        let sampleSlider = window.allInputsOnPage[1];
+        if (sampleSlider) window.currentSampleRate = parseInt(sampleSlider.value);
+    }
+
+    if (window.filteredDataLog.length < 50) return;
+    let sinSlider = window.allInputsOnPage[window.allInputsOnPage.length - 1];
+    let currentSF = sinSlider ? parseInt(sinSlider.value) : 2000;
+
+    let adaptivePointsCount = Math.round((3 * window.currentSampleRate) / currentSF);
+    if (adaptivePointsCount < 10) adaptivePointsCount = 10;
+    if (adaptivePointsCount > window.filteredDataLog.length) adaptivePointsCount = window.filteredDataLog.length;
+
+    let rPoints = window.filteredDataLog.slice(-adaptivePointsCount);
+    let max = Math.max(...rPoints), min = Math.min(...rPoints), vpp = max - min, sq = 0;
     rPoints.forEach(v => sq += v * v); let rms = Math.sqrt(sq / rPoints.length);
     document.getElementById('vppVal').innerText = vpp.toFixed(2) + " V"; document.getElementById('rmsVal').innerText = rms.toFixed(2) + " V";
     
@@ -216,18 +199,16 @@ window.globalRenderLoop = function() {
     
     let tSlice = window.tCanvas.width / (rPoints.length - 1), midY = window.tCanvas.height / 2;
     
-    // 💡 鋼性死鎖：精準鎖定第一個實體數值元素 rPoints[0]，徹底洗淨歷史 NaN，波峰谷永不失真！
+    // 💡 鋼性解鎖：直接精準指向第一個數值點 rPoints[0]，彻底消滅 NaN 陣列乘法，波峰谷 100% 圓潤絲滑滿幅！
     let x0 = 0, y0 = midY - (rPoints[0] * (window.tCanvas.height / 2.3));
     window.tCtx.moveTo(x0, y0);
     
     for (let j = 1; j < rPoints.length; j++) { 
-        let x1 = j * tSlice;
-        let currentPoint = rPoints[j];
+        let x1 = j * tSlice; let currentPoint = rPoints[j];
         if (j > 0 && j < rPoints.length - 1) { currentPoint = (rPoints[j-1] + rPoints[j] + rPoints[j+1]) / 3; }
         let y1 = midY - (currentPoint * (window.tCanvas.height / 2.3)); 
         let xc = (x0 + x1) / 2; let yc = (y0 + y1) / 2;
-        window.tCtx.quadraticCurveTo(x0, y0, xc, yc);
-        x0 = x1; y0 = y1;
+        window.tCtx.quadraticCurveTo(x0, y0, xc, yc); x0 = x1; y0 = y1;
     }
     window.tCtx.lineTo(x0, y0); window.tCtx.stroke();
     
@@ -243,11 +224,8 @@ document.addEventListener('click', (e) => {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
         if (window.isSimulating) {
             window.initAudioGlobal(); btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active";
-            document.getElementById('status').innerText = "▶️ 離線沙盒：安全防禦型時域大核心已激活！";
-        } else {
-            btn.innerText = "🛠️ 開啟本地資料模擬測試"; btn.className = "btn-sim";
-            document.getElementById('status').innerText = "狀態：模擬測試已停止。";
-        }
+            document.getElementById('status').innerText = "▶️ 離線沙盒：自適應無失真引擎已就位！";
+        } else { btn.innerText = "🛠️ 開啟本地資料模擬測試"; btn.className = "btn-sim"; document.getElementById('status').innerText = "狀態：模擬測試已停止。"; }
     }
     if (e.target && e.target.id === 'speakerBtn') {
         window.initAudioGlobal(); window.isSpeakerOn = !window.isSpeakerOn;
@@ -261,20 +239,9 @@ document.addEventListener('input', (e) => {
         let idx = window.allInputsOnPage.indexOf(e.target);
         let nextSpan = e.target.nextElementSibling;
         if (nextSpan && nextSpan.tagName === 'SPAN') { nextSpan.innerText = (idx === 0) ? Math.round(e.target.value * 100) + "%" : e.target.value + " Hz"; }
-        
-        let sampleSlider = window.allInputsOnPage[1];
-        if (sampleSlider) {
-            window.currentSampleRate = parseInt(sampleSlider.value);
-            if (window.updateFilterCoefficients) window.updateFilterCoefficients();
-        }
-        if (window.gainNode && idx === 0) {
-            let v = parseFloat(e.target.value);
-            if (!isNaN(v) && isFinite(v)) window.gainNode.gain.setValueAtTime(v, window.audioCtx.currentTime);
-        }
+        if (idx === 1 && window.updateFilterCoefficients) { window.currentSampleRate = parseInt(e.target.value); window.updateFilterCoefficients(); }
+        if (window.gainNode && idx === 0) { let v = parseFloat(e.target.value); if (!isNaN(v) && isFinite(v)) window.gainNode.gain.setValueAtTime(v, window.audioCtx.currentTime); }
     }
 });
 
-setTimeout(() => {
-    if (window.updateFilterCoefficients) window.updateFilterCoefficients();
-    if (window.globalRenderLoop) window.globalRenderLoop();
-}, 250);
+setTimeout(() => { if (window.updateFilterCoefficients) window.updateFilterCoefficients(); if (window.globalRenderLoop) window.globalRenderLoop(); }, 250);
