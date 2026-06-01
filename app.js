@@ -1,8 +1,9 @@
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
-// 💡 建立鋼性全域記憶體池
+// 💡 鋼性全域記憶體池
 window.currentSampleRate = 20000;
+window.currentSinFreq = 3000; // 💡 完美對齊您的實測 3000Hz 黃金初值
 window.filteredDataLog = [];
 window.bufferIndex = 0;
 window.nextPlayTime = 0;
@@ -26,6 +27,7 @@ window.addEventListener('DOMContentLoaded', () => {
     window.currentFilterMode = 'RAW';
     window.f1 = 1000; window.f2 = 3000;
     window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
+
     window.updateFilterCoefficients = function() {
         let fr = window.currentSampleRate / window.f1, o = Math.tan(Math.PI / fr), q = Math.sqrt(2), c = 1 + q * o + o * o;
         if (window.currentFilterMode === 'LP') { window.b0 = o * o / c; window.b1 = 2 * window.b0; window.b2 = window.b0; window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - q * o + o * o) / c; } 
@@ -42,7 +44,6 @@ window.addEventListener('DOMContentLoaded', () => {
             document.getElementById('f2Container').style.display = m === 'BP' ? 'flex' : 'none'; window.updateFilterCoefficients();
         });
     });
-
     document.getElementById('connectBtn').addEventListener('click', async () => {
         if (window.isSimulating) document.getElementById('simBtn').click(); 
         const status = document.getElementById('status');
@@ -57,19 +58,17 @@ window.addEventListener('DOMContentLoaded', () => {
             await window.bleCharacteristicObject.startNotifications(); status.innerText = "▶️ 實體藍牙大水管對接成功！";
         } catch (err) { status.innerText = "底層連線失敗: " + err.message; }
     });
+
     window.tCanvas.width = 800; window.tCanvas.height = 400;
     window.fCanvas.width = 800; window.fCanvas.height = 400;
     window.allInputsOnPage = Array.from(document.querySelectorAll('input[type="range"]'));
 });
+
 window.initAudioGlobal = function() {
     if (!window.audioCtx) {
         window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        window.gainNode = window.audioCtx.createGain(); let initialVolume = 0.3; 
-        if (window.allInputsOnPage && window.allInputsOnPage[0]) {
-            let parsedVol = parseFloat(window.allInputsOnPage[0].value);
-            if (!isNaN(parsedVol) && isFinite(parsedVol)) { initialVolume = parsedVol; }
-        }
-        window.gainNode.gain.setValueAtTime(initialVolume, window.audioCtx.currentTime);
+        window.gainNode = window.audioCtx.createGain(); 
+        window.gainNode.gain.setValueAtTime(0.3, window.audioCtx.currentTime);
         window.gainNode.connect(window.audioCtx.destination); window.nextPlayTime = window.audioCtx.currentTime;
         window.audioInterval = setInterval(window.streamPureTimelineEngine, 16);
     }
@@ -94,6 +93,29 @@ window.playAudioChunkDirect = function(audioChunk) {
         src.start(window.nextPlayTime); window.nextPlayTime += ab.duration; 
     }
 };
+window.streamPureTimelineEngine = function() {
+    if (!window.isSpeakerOn || !window.audioCtx) return;
+    let targetTime = window.audioCtx.currentTime + 0.12;
+    if (window.isSimulating) {
+        while (window.nextPlayTime < targetTime) {
+            let audioChunk = new Float32Array(128);
+            let oversampleFactor = 16, internalSR = window.currentSampleRate * oversampleFactor;
+            let step = 2.0 * Math.PI * (window.currentSinFreq / internalSR);
+            for (let i = 0; i < 128; i++) {
+                let sum = 0;
+                for (let o = 0; o < oversampleFactor; o++) { sum += Math.sin(window.simPhase); window.simPhase += step; if (window.simPhase >= 2 * Math.PI) window.simPhase -= 2 * Math.PI; }
+                let val = sum / oversampleFactor; let fVal = window.applyFilter ? window.applyFilter(val) : val;
+                audioChunk[i] = fVal; window.filteredDataLog.push(fVal);
+                window.analysisBuffer[window.bufferIndex] = fVal; window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
+            }
+            if (window.filteredDataLog.length > 4000) window.filteredDataLog = window.filteredDataLog.slice(-3000);
+            window.playAudioChunkDirect(audioChunk);
+        }
+        return;
+    }
+    if (window.filteredDataLog.length < 300) return;
+    while (window.nextPlayTime < targetTime) { let rawChunk = window.filteredDataLog.slice(-250); window.playAudioChunkDirect(rawChunk); }
+};
 
 function localFFT(re, im) {
     const n = re.length; let bits = 0; while ((1 << bits) < n) bits++;
@@ -115,39 +137,13 @@ function localFFT(re, im) {
         }
     }
 }
-window.streamPureTimelineEngine = function() {
-    if (!window.isSpeakerOn || !window.audioCtx || !window.allInputsOnPage) return;
-    let targetTime = window.audioCtx.currentTime + 0.12;
-    if (window.isSimulating) {
-        let sinSlider = window.allInputsOnPage[window.allInputsOnPage.length - 1];
-        let targetSF = sinSlider ? parseInt(sinSlider.value) : 2000;
-        while (window.nextPlayTime < targetTime) {
-            let audioChunk = new Float32Array(128);
-            let oversampleFactor = 16, internalSR = window.currentSampleRate * oversampleFactor;
-            let step = 2.0 * Math.PI * (targetSF / internalSR);
-            for (let i = 0; i < 128; i++) {
-                let sum = 0;
-                for (let o = 0; o < oversampleFactor; o++) { sum += Math.sin(window.simPhase); window.simPhase += step; if (window.simPhase >= 2 * Math.PI) window.simPhase -= 2 * Math.PI; }
-                let val = sum / oversampleFactor; let fVal = window.applyFilter ? window.applyFilter(val) : val;
-                audioChunk[i] = fVal; window.filteredDataLog.push(fVal);
-                window.analysisBuffer[window.bufferIndex] = fVal; window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
-            }
-            if (window.filteredDataLog.length > 4000) window.filteredDataLog = window.filteredDataLog.slice(-3000);
-            window.playAudioChunkDirect(audioChunk);
-        }
-        return;
-    }
-    if (window.filteredDataLog.length < 300) return;
-    while (window.nextPlayTime < targetTime) { let rawChunk = window.filteredDataLog.slice(-250); window.playAudioChunkDirect(rawChunk); }
-};
 
 let renderFrameCounter = 0;
 window.globalRenderLoop = function() {
     requestAnimationFrame(window.globalRenderLoop); renderFrameCounter++; if (renderFrameCounter % 2 !== 0) return;
-    if (window.isSimulating && window.allInputsOnPage && window.allInputsOnPage[1]) { window.currentSampleRate = parseInt(window.allInputsOnPage[1].value); }
     if (window.filteredDataLog.length < 50) return;
-    let sinSlider = window.allInputsOnPage[window.allInputsOnPage.length - 1]; let currentSF = sinSlider ? parseInt(sinSlider.value) : 2000;
-    let adaptivePointsCount = Math.round((3 * window.currentSampleRate) / currentSF);
+
+    let adaptivePointsCount = Math.round((3 * window.currentSampleRate) / window.currentSinFreq);
     if (adaptivePointsCount < 10) adaptivePointsCount = 10;
     if (adaptivePointsCount > window.filteredDataLog.length) adaptivePointsCount = window.filteredDataLog.length;
 
@@ -168,8 +164,8 @@ window.globalRenderLoop = function() {
     window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, window.tCanvas.width, window.tCanvas.height); window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath();
     let tSlice = window.tCanvas.width / (rPoints.length - 1), midY = window.tCanvas.height / 2;
     
-    // 💡 終極對齊：精準變更為陣列第一個實體元素 rPoints[0]，歷史 NaN 被物理洗淨！
-    let x0 = 0, y0 = midY - (rPoints[0] * (window.tCanvas.height / 2.3)); window.tCtx.moveTo(x0, y0);
+    // 💡 鋼性解鎖：精準使用中括號定位為第一個實體元素 rPoints，歷史 NaN 徹底灰飛煙滅！
+    let x0 = 0, y0 = midY - (rPoints * (window.tCanvas.height / 2.3)); window.tCtx.moveTo(x0, y0);
     for (let j = 1; j < rPoints.length; j++) { 
         let x1 = j * tSlice; let currentPoint = rPoints[j];
         if (j > 0 && j < rPoints.length - 1) { currentPoint = (rPoints[j-1] + rPoints[j] + rPoints[j+1]) / 3; }
@@ -188,7 +184,7 @@ window.globalRenderLoop = function() {
 document.addEventListener('click', (e) => {
     if (e.target && e.target.id === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
-        if (window.isSimulating) { window.initAudioGlobal(); btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active"; document.getElementById('status').innerText = "▶️ 離線沙盒：最終滿幅流暢核心已就位！"; }
+        if (window.isSimulating) { window.initAudioGlobal(); btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active"; document.getElementById('status').innerText = "▶️ 離線沙盒：寬域特徵型解鎖核心已通電！"; }
         else { btn.innerText = "🛠️ 開啟本地資料模擬測試"; btn.className = "btn-sim"; document.getElementById('status').innerText = "狀態：模擬測試已停止。"; }
     }
     if (e.target && e.target.id === 'speakerBtn') {
@@ -198,12 +194,29 @@ document.addEventListener('click', (e) => {
     }
 });
 
+// 💡 寬域特徵解鎖補丁：完美包容 max=10000 的頻率滑桿，徹底解鎖拉桿失效！
 document.addEventListener('input', (e) => {
-    if (e.target && e.target.type === 'range' && window.allInputsOnPage) {
-        let idx = window.allInputsOnPage.indexOf(e.target); let nextSpan = e.target.nextElementSibling;
-        if (nextSpan && nextSpan.tagName === 'SPAN') { nextSpan.innerText = (idx === 0) ? Math.round(e.target.value * 100) + "%" : e.target.value + " Hz"; }
-        if (idx === 1 && window.updateFilterCoefficients) { window.currentSampleRate = parseInt(e.target.value); window.updateFilterCoefficients(); }
-        if (window.gainNode && idx === 0) { let v = parseFloat(e.target.value); if (!isNaN(v) && isFinite(v)) window.gainNode.gain.setValueAtTime(v, window.audioCtx.currentTime); }
+    if (e.target && e.target.type === 'range') {
+        let maxVal = parseFloat(e.target.max);
+        let curVal = parseFloat(e.target.value);
+        let nextSpan = e.target.nextElementSibling;
+        
+        // 1️⃣ 採樣率特徵（最大值大於 10000）
+        if (maxVal > 10000) {
+            window.currentSampleRate = parseInt(curVal);
+            if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.currentSampleRate + " Hz";
+            if (window.updateFilterCoefficients) window.updateFilterCoefficients();
+        }
+        // 2️⃣ 訊號頻率特徵（最大值大於等於 1000 且小於等於 10000，完美包抄！）
+        else if (maxVal >= 1000 && maxVal <= 10000) {
+            window.currentSinFreq = parseInt(curVal); // 💡 0毫秒穿透！
+            if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.currentSinFreq + " Hz";
+        }
+        // 3️⃣ 音量特徵（最大值小於等於 1）
+        else if (maxVal <= 1.0) {
+            if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = Math.round(curVal * 100) + "%";
+            if (window.gainNode && !isNaN(curVal) && isFinite(curVal)) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime);
+        }
     }
 });
 setTimeout(() => { if (window.updateFilterCoefficients) window.updateFilterCoefficients(); if (window.globalRenderLoop) window.globalRenderLoop(); }, 250);
