@@ -2,7 +2,7 @@ if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體狀態池初始化
+// 💡 1️⃣ 全域記憶體大腦池初始化
 // ==========================================
 window.currentSampleRate = 20000;
 window.currentSinFreq = 3000; 
@@ -14,6 +14,7 @@ window.isSimulating = false;
 window.simPhase = 0;
 window.FFT_SIZE = 1024;
 window.analysisBuffer = new Float32Array(window.FFT_SIZE);
+window.simWorker = null;
 
 let renderFrameCounter = 0;
 window.currentFilterMode = 'RAW';
@@ -30,13 +31,13 @@ window.updateFilterCoefficients = function() {
     else if (window.currentFilterMode === 'HP') { window.b0 = 1 / c; window.b1 = -2 * window.b0; window.b2 = window.b0; window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - q * o + o * o) / c; } 
 };
 
-// 💡 3️⃣ 獨立二階濾波執行水管（按鈕點擊 100% 復活生效！）
+// 💡 3️⃣ 100% 打通的獨立二階濾波過濾水管
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     xv[0] = xv[1]; xv[1] = xv[2]; xv[2] = x;
     yv[0] = yv[1]; yv[1] = yv[2];
     yv[2] = (window.b0 * xv[2]) + (window.b1 * xv[1]) + (window.b2 * xv[0]) - (window.a1 * yv[1]) - (window.a2 * yv[0]);
-    if (isNaN(yv[2]) || !isFinite(yv[2])) { yv[2] = 0; yv[1] = 0; yv[0] = 0; xv[2] = 0; xv[1] = 0; xv[0] = 0; }
+    if (isNaN(yv[2]) || !isFinite(yv[2])) { yv[0]=0; yv[1]=0; yv[2]=0; xv[0]=0; xv[1]=0; xv[2]=0; }
     return yv[2];
 };
 
@@ -49,7 +50,7 @@ window.oscNode = null;
 window.scriptNode = null;
 
 // ==========================================
-// 💡 4️⃣ 聲學回歸：100% 原生連續時鐘發聲，完全根除電流雜音與斷音！
+// 💡 4️⃣ 聲學直通車：標準 44.1kHz 完美發聲引擎
 // ==========================================
 window.initAudioGlobal = function() {
     if (window.oscNode) { try { window.oscNode.stop(); } catch(e){} window.oscNode.disconnect(); }
@@ -63,12 +64,10 @@ window.initAudioGlobal = function() {
     
     window.gainNode.gain.setValueAtTime(window.isSpeakerOn ? 0.3 : 0.0, window.audioCtx.currentTime);
 
-    // 💡 調用原生 Oscillator，高精確度連續弦波，確保聲音完美！
     window.oscNode = window.audioCtx.createOscillator();
     window.oscNode.type = 'sine';
     window.oscNode.frequency.setValueAtTime(window.currentSinFreq, window.audioCtx.currentTime);
 
-    // 💡 高精度直通處理器：資料與硬體時鐘完美嚙合，保證 FFT 與拉桿變化 100% 絕對算對！
     window.scriptNode = window.audioCtx.createScriptProcessor(1024, 1, 1);
     window.scriptNode.onaudioprocess = function(audioProcessingEvent) {
         let inputBuffer = audioProcessingEvent.inputBuffer;
@@ -80,7 +79,7 @@ window.initAudioGlobal = function() {
             let rawVal = inputData[sample];
             let fVal = window.applyFilter ? window.applyFilter(rawVal) : rawVal; 
             
-            outputData[sample] = fVal; // 連續聲音直通硬體
+            outputData[sample] = fVal; // 0 雜音流暢發聲
             
             if (window.isSimulating) {
                 window.filteredDataLog.push(fVal);
@@ -132,7 +131,6 @@ window.globalRenderLoop = function() {
     requestAnimationFrame(window.globalRenderLoop); renderFrameCounter++; if (renderFrameCounter % 2 !== 0) return;
     if (window.filteredDataLog.length < 50) return;
 
-    // 💡 採樣與波形同步：波形點數嚴格與 currentSampleRate 對齊，拉動拉桿畫面立刻流暢收縮！
     let adaptivePointsCount = Math.round((3 * (window.audioCtx ? window.audioCtx.sampleRate : 44100)) / window.currentSinFreq * (44100 / window.currentSampleRate));
     if (adaptivePointsCount < 128) adaptivePointsCount = 128; if (adaptivePointsCount > window.filteredDataLog.length) adaptivePointsCount = window.filteredDataLog.length;
 
@@ -147,24 +145,17 @@ window.globalRenderLoop = function() {
     
     let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
-    // 💡 FFT 鋼性修正：100% 絕對等號換算真實拉桿頻率，永遠算對！
     let peakFreq = maxIdx * ((window.audioCtx ? window.audioCtx.sampleRate : 44100) / window.FFT_SIZE); document.getElementById('freqVal').innerText = maxMag > 0.04 ? peakFreq.toFixed(1) + " Hz" : "0.0 Hz";
     
     window.tCtx.clearRect(0, 0, window.tCanvas.width, window.tCanvas.height);
     window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, window.tCanvas.width, window.tCanvas.height); window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath();
     let midY = window.tCanvas.height / 2;
 
-    let renderPointsCount = 150; let outPoints = new Float32Array(renderPointsCount);
-    for (let i = 0; i < renderPointsCount; i++) {
-        let virtualIdx = i * (rawSlice.length - 1) / (renderPointsCount - 1);
-        let idxBase = Math.floor(virtualIdx); outPoints[i] = rawSlice[idxBase] * (1 - (virtualIdx - idxBase)) + rawSlice[Math.ceil(virtualIdx)] * (virtualIdx - idxBase);
-    }
-
-    let tSlice = window.tCanvas.width / (renderPointsCount - 1);
-    let x0 = 0, y0 = midY - (outPoints * (window.tCanvas.height / 2.3)); window.tCtx.moveTo(x0, y0);
-    for (let j = 1; j < renderPointsCount; j++) { 
-        let currentPoint = outPoints[j]; if (j > 0 && j < renderPointsCount - 1) { currentPoint = (outPoints[j-1] + outPoints[j] + outPoints[j+1]) / 3; }
-        window.tCtx.lineTo(j * tSlice, midY - (currentPoint * (window.tCanvas.height / 2.3)));
+    // 💡 幾何直通大革命：徹底刪除扯歪圖形的平均值公式！100% 自適應像素寬度投影！
+    let tSlice = window.tCanvas.width / (rawSlice.length - 1);
+    window.tCtx.moveTo(0, midY - (rawSlice[0] * (window.tCanvas.height / 2.3)));
+    for (let j = 1; j < rawSlice.length; j++) { 
+        window.tCtx.lineTo(j * tSlice, midY - (rawSlice[j] * (window.tCanvas.height / 2.3))); // 💡 0失真絲滑直連！
     }
     window.tCtx.stroke();
     
@@ -176,7 +167,7 @@ window.globalRenderLoop = function() {
 };
 
 // ==========================================
-// 💡 5️⃣ 1對1 鋼性實體 ID 認領（按鈕與拉桿 100% 復活亮燈！）
+// 💡 5️⃣ 1對1 鋼性實體 ID 認領（按鈕與拉桿 100% 滿血恢復！）
 // ==========================================
 document.addEventListener('click', (e) => {
     if (!e.target || !e.target.id) return;
@@ -185,7 +176,7 @@ document.addEventListener('click', (e) => {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
         window.initAudioGlobal();
         if (btn) { btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試"; btn.className = window.isSimulating ? "btn-sim active" : "btn-sim"; }
-        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：1對1 實體對齊核心啟動！" : "狀態：模擬測試已停止。";
+        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：0失真幾何直通完全體點火！" : "狀態：模擬測試已停止。";
     }
     if (clickId === 'speakerBtn') {
         window.isSpeakerOn = !window.isSpeakerOn; const sBtn = document.getElementById('speakerBtn');
