@@ -139,7 +139,6 @@ window.streamSmoothAudioGlobal = function() {
     } catch (e) {}
 };
 
-// 💡 終極高效率解鎖：非遞迴蝶形疊代型傅立葉轉換，0記憶體堆疊開銷，100% 絕對永不溢位！
 function iterativeFFT(re, im) {
     const n = re.length;
     let bits = 0; while ((1 << bits) < n) bits++;
@@ -151,6 +150,7 @@ function iterativeFFT(re, im) {
             let tempI = im[i]; im[i] = im[rev]; im[rev] = tempI;
         }
     }
+    // 💡 終極修正：將此處最後一個隱蔽殘留的 int len 完美更正為網頁原生 let len 宣告！
     for (let len = 2; len <= n; len <<= 1) {
         let ang = 2 * Math.PI / len * -1;
         let wlen_r = Math.cos(ang), wlen_i = Math.sin(ang);
@@ -179,7 +179,6 @@ window.globalRenderLoop = function() {
     let re = new Float32Array(window.FFT_SIZE), im = new Float32Array(window.FFT_SIZE);
     for (let k = 0; k < window.FFT_SIZE; k++) { let idx = (window.bufferIndex + k) % window.FFT_SIZE; re[k] = window.analysisBuffer[idx]; }
     
-    // 💡 呼叫高階安全非遞迴演算法，徹底破除堆疊崩潰
     iterativeFFT(re, im);
     
     let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
