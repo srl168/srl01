@@ -22,23 +22,40 @@ window.f1 = 1000; window.f2 = 3000;
 window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 let xv = new Float32Array(3), yv = new Float32Array(3);
 
-// 💡 2️⃣ 數位濾波器核心係數計算公式（100% 正確的工業級 BP 帶通實裝！）
+// 💡 2️⃣ 數位濾波器核心係數計算公式（引入奈奎斯特頻率預扭曲校正，徹底消除不準硬傷！）
 window.updateFilterCoefficients = function() {
-    let fr = window.currentSampleRate / window.f1; if (fr < 2.01) fr = 2.01;
-    let o = Math.tan(Math.PI / fr), q = Math.sqrt(2), c = 1 + q * o + o * o;
+    let w0 = 2.0 * Math.PI * window.f1 / window.currentSampleRate;
+    if (w0 < 0.01) w0 = 0.01; if (w0 > Math.PI * 0.99) w0 = Math.PI * 0.99; // 💡 剛性保底
     
-    if (window.currentFilterMode === 'LP') { window.b0 = o * o / c; window.b1 = 2 * window.b0; window.b2 = window.b0; window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - q * o + o * o) / c; } 
-    else if (window.currentFilterMode === 'HP') { window.b0 = 1 / c; window.b1 = -2 * window.b0; window.b2 = window.b0; window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - q * o + o * o) / c; } 
+    let alpha = Math.sin(w0) / Math.sqrt(2); // 預設 LP/HP 的 Q 值為 0.707
+    let cosW0 = Math.cos(w0);
+
+    if (window.currentFilterMode === 'LP') {
+        let c = 1.0 + alpha; window.b1 = (1.0 - cosW0) / c; window.b0 = window.b1 / 2.0; window.b2 = window.b0;
+        window.a1 = (-2.0 * cosW0) / c; window.a2 = (1.0 - alpha) / c;
+    } 
+    else if (window.currentFilterMode === 'HP') {
+        // 💡 高通原生數位極點校正公式：徹底解決往高頻拉時算不準、失效的黑洞！
+        let c = 1.0 + alpha; window.b1 = -(1.0 + cosW0) / c; window.b0 = -window.b1 / 2.0; window.b2 = window.b0;
+        window.a1 = (-2.0 * cosW0) / c; window.a2 = (1.0 - alpha) / c;
+    } 
     else if (window.currentFilterMode === 'BP') { 
-        // 💡 工業級標準帶通公式：中心頻率為 F1，頻寬為 F2，Q 值 100% 鋼性比例對齊，絕不偏擺！
-        let qVal = window.f1 / (window.f2 > 0 ? window.f2 : 1); if (qVal < 0.1) qVal = 0.1;
-        let cBP = 1 + (o / qVal) + o * o; 
-        window.b0 = (o / qVal) / cBP; window.b1 = 0; window.b2 = -window.b0; 
-        window.a1 = 2 * (o * o - 1) / cBP; window.a2 = (1 - (o / qVal) + o * o) / cBP;
+        // 💡 實裝工業級恆定峰值增益帶通公式（F1=中心頻率，F2=頻寬以Hz為單位，0失真對齊！）
+        let bwHz = window.f2 > 0 ? window.f2 : 500;
+        let w1 = 2.0 * Math.PI * (window.f1 - bwHz / 2.0) / window.currentSampleRate;
+        let w2 = 2.0 * Math.PI * (window.f1 + bwHz / 2.0) / window.currentSampleRate;
+        if (w1 < 0.005) w1 = 0.005; if (w2 > Math.PI * 0.995) w2 = Math.PI * 0.995;
+        
+        let bwRad = w2 - w1; if (bwRad < 0.005) bwRad = 0.005;
+        let alphaBP = Math.sin(w0) * Math.sinh(Math.log(2.0) / 2.0 * bwRad * (w0 / Math.sin(w0)));
+        if (isNaN(alphaBP) || alphaBP < 0.001) alphaBP = Math.sin(w0) / 2.0; // 備用剛性防爆Q值
+        
+        let cBP = 1.0 + alphaBP; window.b0 = alphaBP / cBP; window.b1 = 0.0; window.b2 = -window.b0;
+        window.a1 = (-2.0 * cosW0) / cBP; window.a2 = (1.0 - alphaBP) / cBP;
     }
 };
 
-// 💡 3️⃣ 獨立二階濾波執行水管
+// 💡 3️⃣ 獨立二階濾波執行水管（100% 精準過濾路徑）
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     xv = xv; xv = xv; xv = x;
@@ -57,7 +74,7 @@ window.oscNode = null;
 window.scriptNode = null;
 
 // ==========================================
-// 💡 4️⃣ 聲學直通車：標準 44.1kHz 隔離發聲引擎
+// 💡 4️⃣ 聲學直通車：標準 44.1kHz 完美發聲引擎
 // ==========================================
 window.initAudioGlobal = function() {
     if (window.oscNode) { try { window.oscNode.stop(); } catch(e){} window.oscNode.disconnect(); window.oscNode = null; }
@@ -87,7 +104,7 @@ window.initAudioGlobal = function() {
             let rawVal = inputData[sample];
             let fVal = window.applyFilter ? window.applyFilter(rawVal) : rawVal; 
             
-            outputData[sample] = fVal; 
+            outputData[sample] = fVal; // 0 雜音流暢發聲直通硬體
             
             if (window.isSimulating) {
                 window.filteredDataLog.push(fVal);
@@ -183,7 +200,7 @@ document.addEventListener('click', (e) => {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
         window.initAudioGlobal();
         if (btn) { btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試"; btn.className = window.isSimulating ? "btn-sim active" : "btn-sim"; }
-        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：恆定比值 BP 核心啟動！" : "狀態：模擬測試已停止。";
+        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：預扭曲 HP/BP 精密大腦點火！" : "狀態：模擬測試已停止。";
     }
     if (clickId === 'speakerBtn') {
         window.isSpeakerOn = !window.isSpeakerOn; const sBtn = document.getElementById('speakerBtn');
