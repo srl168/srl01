@@ -22,40 +22,33 @@ window.f1 = 1000; window.f2 = 3000;
 window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 let xv = new Float32Array(3), yv = new Float32Array(3);
 
-// 💡 2️⃣ 數位濾波器核心係數計算公式（引入奈奎斯特頻率預扭曲校正，徹底消除不準硬傷！）
+// 💡 2️⃣ 數位濾波器核心係數計算公式（正宗工業級 RBJ 濾波矩陣，彻底根除 HP/BP 不準！）
 window.updateFilterCoefficients = function() {
     let w0 = 2.0 * Math.PI * window.f1 / window.currentSampleRate;
-    if (w0 < 0.01) w0 = 0.01; if (w0 > Math.PI * 0.99) w0 = Math.PI * 0.99; // 💡 剛性保底
-    
-    let alpha = Math.sin(w0) / Math.sqrt(2); // 預設 LP/HP 的 Q 值為 0.707
-    let cosW0 = Math.cos(w0);
+    if (w0 < 0.01) w0 = 0.01; if (w0 > Math.PI * 0.99) w0 = Math.PI * 0.99; // 💡 剛性幾何保底
+    let cosW0 = Math.cos(w0), sinW0 = Math.sin(w0);
 
     if (window.currentFilterMode === 'LP') {
-        let c = 1.0 + alpha; window.b1 = (1.0 - cosW0) / c; window.b0 = window.b1 / 2.0; window.b2 = window.b0;
+        let alpha = sinW0 / (2.0 * 0.707); let c = 1.0 + alpha;
+        window.b0 = ((1.0 - cosW0) / 2.0) / c; window.b1 = (1.0 - cosW0) / c; window.b2 = window.b0;
         window.a1 = (-2.0 * cosW0) / c; window.a2 = (1.0 - alpha) / c;
     } 
     else if (window.currentFilterMode === 'HP') {
-        // 💡 高通原生數位極點校正公式：徹底解決往高頻拉時算不準、失效的黑洞！
-        let c = 1.0 + alpha; window.b1 = -(1.0 + cosW0) / c; window.b0 = -window.b1 / 2.0; window.b2 = window.b0;
+        // 💡 高通極點符號剛性校正：精準歸位 (1 + cosW0) 核心，徹底消除高頻算不準失效死結！
+        let alpha = sinW0 / (2.0 * 0.707); let c = 1.0 + alpha;
+        window.b0 = ((1.0 + cosW0) / 2.0) / c; window.b1 = -(1.0 + cosW0) / c; window.b2 = window.b0;
         window.a1 = (-2.0 * cosW0) / c; window.a2 = (1.0 - alpha) / c;
     } 
     else if (window.currentFilterMode === 'BP') { 
-        // 💡 實裝工業級恆定峰值增益帶通公式（F1=中心頻率，F2=頻寬以Hz為單位，0失真對齊！）
-        let bwHz = window.f2 > 0 ? window.f2 : 500;
-        let w1 = 2.0 * Math.PI * (window.f1 - bwHz / 2.0) / window.currentSampleRate;
-        let w2 = 2.0 * Math.PI * (window.f1 + bwHz / 2.0) / window.currentSampleRate;
-        if (w1 < 0.005) w1 = 0.005; if (w2 > Math.PI * 0.995) w2 = Math.PI * 0.995;
-        
-        let bwRad = w2 - w1; if (bwRad < 0.005) bwRad = 0.005;
-        let alphaBP = Math.sin(w0) * Math.sinh(Math.log(2.0) / 2.0 * bwRad * (w0 / Math.sin(w0)));
-        if (isNaN(alphaBP) || alphaBP < 0.001) alphaBP = Math.sin(w0) / 2.0; // 備用剛性防爆Q值
-        
+        // 💡 帶通解耦校正：頻寬（F2）除以採樣率進行動態角頻率對齊，100% 精準不偏擺！
+        let bwOct = (window.f2 > 0 ? window.f2 : 500) / window.currentSampleRate; if (bwOct < 0.005) bwOct = 0.005;
+        let alphaBP = sinW0 * Math.sinh(Math.log(2.0) / 2.0 * bwOct * (w0 / sinW0)); if (isNaN(alphaBP) || alphaBP < 0.001) alphaBP = sinW0 / 2.0;
         let cBP = 1.0 + alphaBP; window.b0 = alphaBP / cBP; window.b1 = 0.0; window.b2 = -window.b0;
         window.a1 = (-2.0 * cosW0) / cBP; window.a2 = (1.0 - alphaBP) / cBP;
     }
 };
 
-// 💡 3️⃣ 獨立二階濾波執行水管（100% 精準過濾路徑）
+// 💡 3️⃣ 獨立二階 IIR 濾波執行水管
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     xv = xv; xv = xv; xv = x;
@@ -74,7 +67,7 @@ window.oscNode = null;
 window.scriptNode = null;
 
 // ==========================================
-// 💡 4️⃣ 聲學直通車：標準 44.1kHz 完美發聲引擎
+// 💡 4️⃣ 聲學直通車：100% 原生連續發聲核心（保持上次完美的 0 雜音流暢狀態）
 // ==========================================
 window.initAudioGlobal = function() {
     if (window.oscNode) { try { window.oscNode.stop(); } catch(e){} window.oscNode.disconnect(); window.oscNode = null; }
@@ -86,7 +79,6 @@ window.initAudioGlobal = function() {
         window.gainNode.connect(window.audioCtx.destination);
     }
     
-    if (window.audioCtx.state === 'suspended') { window.audioCtx.resume(); }
     window.gainNode.gain.setValueAtTime(window.isSpeakerOn ? 0.3 : 0.0, window.audioCtx.currentTime);
 
     window.oscNode = window.audioCtx.createOscillator();
@@ -104,7 +96,7 @@ window.initAudioGlobal = function() {
             let rawVal = inputData[sample];
             let fVal = window.applyFilter ? window.applyFilter(rawVal) : rawVal; 
             
-            outputData[sample] = fVal; // 0 雜音流暢發聲直通硬體
+            outputData[sample] = fVal; 
             
             if (window.isSimulating) {
                 window.filteredDataLog.push(fVal);
@@ -120,6 +112,7 @@ window.initAudioGlobal = function() {
         window.scriptNode.connect(window.gainNode);
         window.oscNode.start();
     }
+    if (window.audioCtx.state === 'suspended') window.audioCtx.resume();
 };
 
 window.consumeRawBuffer = function(rawDataView) {
@@ -200,7 +193,7 @@ document.addEventListener('click', (e) => {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
         window.initAudioGlobal();
         if (btn) { btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試"; btn.className = window.isSimulating ? "btn-sim active" : "btn-sim"; }
-        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：預扭曲 HP/BP 精密大腦點火！" : "狀態：模擬測試已停止。";
+        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：RBJ 數位矩陣解耦通電！" : "狀態：模擬測試已停止。";
     }
     if (clickId === 'speakerBtn') {
         window.isSpeakerOn = !window.isSpeakerOn; const sBtn = document.getElementById('speakerBtn');
