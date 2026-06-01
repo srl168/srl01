@@ -47,12 +47,12 @@
         <div class="control-row" style="background: #1c2128;">
             <div class="slider-group">
                 <label style="color: #ffad00;">⚡ 採樣率 (currentSampleRate):</label>
-                <input type="range" id="boardSampleSlider" min="1000" max="24000" step="500" value="20000">
+                <input type="range" id="sampleRateSlider" min="1000" max="24000" step="500" value="20000">
                 <span id="boardSampleVal">20000 Hz</span>
             </div>
             <div class="slider-group">
                 <label style="color: #00ff66;">🎵 訊號頻率 (currentSinFreq):</label>
-                <input type="range" id="boardSinSlider" min="50" max="4000" step="50" value="2000">
+                <input type="range" id="sinFreqSlider" min="50" max="4000" step="50" value="2000">
                 <span id="boardSinVal">2000 Hz</span>
             </div>
         </div>
@@ -69,12 +69,12 @@
         <div class="control-row">
             <div class="slider-group">
                 <label>截止 F1:</label>
-                <input type="range" id="freq1Slider" min="20" max="8000" step="10" value="1000">
+                <input type="range" id="f1Slider" min="20" max="8000" step="10" value="1000">
                 <span id="freq1Val">1000 Hz</span>
             </div>
             <div class="slider-group" id="f2Container" style="display: none;">
                 <label>截止 F2:</label>
-                <input type="range" id="freq2Slider" min="100" max="9500" step="10" value="3000">
+                <input type="range" id="f2Slider" min="100" max="9500" step="10" value="3000">
                 <span id="freq2Val">3000 Hz</span>
             </div>
         </div>

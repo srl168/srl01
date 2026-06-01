@@ -1,7 +1,7 @@
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
-// 💡 建立鋼性純淨全域記憶體池
+// 💡 鋼性純淨全域記憶體池
 window.currentSampleRate = 20000;
 window.currentSinFreq = 3000; 
 window.filteredDataLog = [];
@@ -25,7 +25,7 @@ window.addEventListener('DOMContentLoaded', () => {
     window.fCtx = window.fCanvas.getContext('2d');
 
     window.currentFilterMode = 'RAW';
-    window.f1 = 1000; window.f2 = 3000;
+    window.f1 = 1000; window.f2 = 3000; // 💡 F2 完美就位
     window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 
     window.updateFilterCoefficients = function() {
@@ -36,7 +36,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     window.applyFilter = function(x) { return x; };
 
-    // 💡 鋼性按鈕外觀切換補丁：清除所有舊 active 樣式，精準亮起當前，4 濾波鈕 100% 滿血復活！
+    // 💡 1對1 正宗綁定：點擊按鈕時徹底洗牌，高顯色亮起當前，4 濾波器鈕 100% 震撼復活！
     const fModes = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
     Object.keys(fModes).forEach(m => {
         const btnEl = document.getElementById(fModes[m]);
@@ -73,16 +73,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
     window.tCanvas.width = 800; window.tCanvas.height = 400;
     window.fCanvas.width = 800; window.fCanvas.height = 400;
-    window.allInputsOnPage = Array.from(document.querySelectorAll('input[type="range"]'));
-    
-    // 💡 萬能特徵點名：開機完成的第一秒，強制把滑桿真實初始值讀入大腦，杜絕 3000 卡死！
-    if (window.allInputsOnPage) {
-        window.allInputsOnPage.forEach(input => {
-            let maxVal = parseFloat(input.max);
-            if (maxVal > 10000) window.currentSampleRate = parseInt(input.value);
-            else if (maxVal >= 1000 && maxVal <= 10000) window.currentSinFreq = parseInt(input.value);
-        });
-    }
 });
 
 window.initAudioGlobal = function() {
@@ -121,7 +111,7 @@ window.playAudioChunkDirect = function(audioChunk) {
 window.streamPureTimelineEngine = function() {
     if (!window.isSpeakerOn || !window.audioCtx) return;
     
-    // 💡 5毫秒精密微切片：每包長度死鎖在 5ms，配合隔離引擎，徹底從根源消滅低取樣 12000Hz 以下的所有超載雜音！
+    // 💡 5毫秒精密微切片：每包長度死鎖在 5ms 時間跨度，徹底降維消滅 12000Hz 以下的所有超載微雜音！
     let chunkSize = Math.round(window.currentSampleRate * 0.005); if (chunkSize < 16) chunkSize = 16;
     let targetTime = window.audioCtx.currentTime + 0.10;
     
@@ -172,7 +162,7 @@ window.globalRenderLoop = function() {
     requestAnimationFrame(window.globalRenderLoop); renderFrameCounter++; if (renderFrameCounter % 2 !== 0) return;
     if (window.filteredDataLog.length < 50) return;
 
-    // 💡 鋼性像素保底：擷取點數最低保底 128 點，徹底防止低取樣下正弦波被強行拉扁、壓扁、壓矮！
+    // 💡 幾何鋼性保底：擷取寬度最低保底 128 點，配合 150 點插值，低採樣下正弦波永遠頂天立地、100% 拒絕縮小！
     let adaptivePointsCount = Math.round((3 * window.currentSampleRate) / window.currentSinFreq);
     if (adaptivePointsCount < 128) adaptivePointsCount = 128;
     if (adaptivePointsCount > window.filteredDataLog.length) adaptivePointsCount = window.filteredDataLog.length;
@@ -194,7 +184,6 @@ window.globalRenderLoop = function() {
     window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, window.tCanvas.width, window.tCanvas.height); window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath();
     let midY = window.tCanvas.height / 2;
 
-    // 💡 內插補點器：將保底的骨架點均分補滿 150 個流暢像素點，低採樣下正弦波依舊高聳挺拔滿幅！
     let renderPointsCount = 150; let outPoints = new Float32Array(renderPointsCount);
     for (let i = 0; i < renderPointsCount; i++) {
         let virtualIdx = i * (rawSlice.length - 1) / (renderPointsCount - 1);
@@ -203,7 +192,7 @@ window.globalRenderLoop = function() {
     }
 
     let tSlice = window.tCanvas.width / (renderPointsCount - 1);
-    // 💡 鋼性解鎖：精準鎖定第一個實體點 outPoints[0]，徹底消滅歷史 NaN 陣列乘法，執行緒死鎖全面物理蒸發！
+    // 💡 幾何修復補丁：精準鎖定第一個元素 outPoints，徹底消滅 NaN 陣列乘法！
     let x0 = 0, y0 = midY - (outPoints[0] * (window.tCanvas.height / 2.3)); window.tCtx.moveTo(x0, y0);
     for (let j = 1; j < renderPointsCount; j++) { 
         let x1 = j * tSlice; let currentPoint = outPoints[j];
@@ -223,7 +212,7 @@ window.globalRenderLoop = function() {
 document.addEventListener('click', (e) => {
     if (e.target && e.target.id === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
-        if (window.isSimulating) { window.initAudioGlobal(); if (btn) { btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active"; } document.getElementById('status').innerText = "▶️ 離線沙盒：萬能特徵型流暢架構已點火！"; }
+        if (window.isSimulating) { window.initAudioGlobal(); if (btn) { btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active"; } document.getElementById('status').innerText = "▶️ 離線沙盒：5大滑桿 1對1 死鎖綁定成功！"; }
         else { 
             if (window.audioInterval) clearInterval(window.audioInterval);
             if (window.audioCtx) window.nextPlayTime = window.audioCtx.currentTime;
@@ -237,26 +226,46 @@ document.addEventListener('click', (e) => {
     }
 });
 
+// 💡 1對1 鋼性實體 ID 認領：5 大滑桿各歸各位，從此分家，絕不撞衫！
 document.addEventListener('input', (e) => {
     if (e.target && e.target.type === 'range') {
-        let maxVal = parseFloat(e.target.max);
+        let sliderId = e.target.id;
         let curVal = parseFloat(e.target.value);
         let nextSpan = e.target.nextElementSibling;
         
-        if (maxVal > 10000) {
+        if (sliderId === "sampleRateSlider") {
             window.currentSampleRate = parseInt(curVal);
             if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.currentSampleRate + " Hz";
             if (window.updateFilterCoefficients) window.updateFilterCoefficients();
         }
-        else if (maxVal >= 1000 && maxVal <= 10000) {
-            window.currentSinFreq = parseInt(curVal); // 💡 0毫秒鋼性更新！
+        else if (sliderId === "sinFreqSlider") {
+            window.currentSinFreq = parseInt(curVal); // 💡 1對1 精準穿透！
             if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.currentSinFreq + " Hz";
         }
-        else if (maxVal <= 1.0) {
+        else if (sliderId === "f1Slider") {
+            window.f1 = parseInt(curVal);
+            if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.f1 + " Hz";
+            if (window.updateFilterCoefficients) window.updateFilterCoefficients();
+        }
+        else if (sliderId === "f2Slider") {
+            window.f2 = parseInt(curVal); // 💡 F2 獨立管理，不再干涉訊號頻率！
+            if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.f2 + " Hz";
+        }
+        else if (sliderId === "volumeSlider") {
             if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = Math.round(curVal * 100) + "%";
             if (window.gainNode && !isNaN(curVal) && isFinite(curVal)) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime);
         }
     }
 });
 
-setTimeout(() => { if (window.updateFilterCoefficients) window.updateFilterCoefficients(); if (window.globalRenderLoop) window.globalRenderLoop(); }, 250);
+// 💡 1對1 開機強制點名：第一秒無條件強制提取 5 大 HTML 實體值，初值跳變全面退散！
+setTimeout(() => {
+    const sEl = document.getElementById('sampleRateSlider');
+    const fEl = document.getElementById('sinFreqSlider');
+    const f1El = document.getElementById('f1Slider');
+    const f2El = document.getElementById('f2Slider');
+    if (sEl) window.currentSampleRate = parseInt(sEl.value);
+    if (fEl) window.currentSinFreq = parseInt(fEl.value);
+    if (f1El) window.f1 = parseInt(f1El.value);
+    if (f2El) window.f2 = parseInt(f2El.value);
+
