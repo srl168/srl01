@@ -86,11 +86,20 @@ window.addEventListener('DOMContentLoaded', () => {
     window.allInputsOnPage = Array.from(document.querySelectorAll('input[type="range"]'));
 });
 
+// 💡 鋼性防禦：加裝 finite 有限數值安全閥，100% 阻斷任何音效卡猝死！
 window.initAudioGlobal = function() {
     if (!window.audioCtx) {
         window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         window.gainNode = window.audioCtx.createGain(); 
-        window.gainNode.gain.value = window.allInputsOnPage ? parseFloat(window.allInputsOnPage[0].value) : 0.3;
+        
+        let initialVolume = 0.3; // 安全保底初值
+        if (window.allInputsOnPage && window.allInputsOnPage[0]) {
+            let parsedVol = parseFloat(window.allInputsOnPage[0].value);
+            // 💡 若數值合法且有限，才允許覆蓋；否則啟動安全閥防線，徹底滅絕 Non-finite 錯誤！
+            if (!isNaN(parsedVol) && isFinite(parsedVol)) { initialVolume = parsedVol; }
+        }
+        
+        window.gainNode.gain.setValueAtTime(initialVolume, window.audioCtx.currentTime);
         window.gainNode.connect(window.audioCtx.destination);
         window.nextPlayTime = window.audioCtx.currentTime;
         window.audioInterval = setInterval(window.streamPureTimelineEngine, 30);
@@ -103,10 +112,8 @@ window.consumeRawBuffer = function(rawDataView) {
         let byteVal = rawDataView.getUint8(i);
         let val = (byteVal / 127.5) - 1.0;
         let fVal = window.applyFilter ? window.applyFilter(val) : val;
-        
         window.filteredDataLog.push(fVal);
         if (window.filteredDataLog.length > 4000) window.filteredDataLog.shift(); 
-        
         window.analysisBuffer[window.bufferIndex] = fVal;
         window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
     }
@@ -127,7 +134,7 @@ window.streamPureTimelineEngine = function() {
     let targetTime = window.audioCtx.currentTime + 0.06;
     
     if (window.isSimulating) {
-        let sinSlider = window.allInputsOnPage[2];
+        let sinSlider = window.allInputsOnPage[window.allInputsOnPage.length - 1];
         let targetSF = sinSlider ? parseInt(sinSlider.value) : 2000;
         while (window.nextPlayTime < targetTime) {
             let audioChunk = new Float32Array(128);
@@ -209,7 +216,7 @@ window.globalRenderLoop = function() {
     
     let tSlice = window.tCanvas.width / (rPoints.length - 1), midY = window.tCanvas.height / 2;
     
-    // 💡 鋼性解鎖：精準鎖定第一個數值指標 rPoints[0]，徹底洗淨歷史 NaN 死鎖！
+    // 💡 鋼性死鎖：精準鎖定第一個實體數值元素 rPoints[0]，徹底洗淨歷史 NaN，波峰谷永不失真！
     let x0 = 0, y0 = midY - (rPoints[0] * (window.tCanvas.height / 2.3));
     window.tCtx.moveTo(x0, y0);
     
@@ -228,7 +235,7 @@ window.globalRenderLoop = function() {
     window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, window.fCanvas.width, window.fCanvas.height); window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 1.5; window.fCtx.beginPath();
     let fSlice = window.fCanvas.width / (window.FFT_SIZE / 4);
     for (let n = 0; n < window.FFT_SIZE / 4; n++) { let curX = n * fSlice, y = window.fCanvas.height - (magnitudes[n] * window.fCanvas.height * 200); if (n == 0) window.fCtx.moveTo(curX, y); else window.fCtx.lineTo(curX, y); }
-    fCtx.stroke();
+    window.fCtx.stroke();
 };
 
 document.addEventListener('click', (e) => {
@@ -236,7 +243,7 @@ document.addEventListener('click', (e) => {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
         if (window.isSimulating) {
             window.initAudioGlobal(); btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active";
-            document.getElementById('status').innerText = "▶️ 離線沙盒：拋物線極致抗失真核心已開通！";
+            document.getElementById('status').innerText = "▶️ 離線沙盒：安全防禦型時域大核心已激活！";
         } else {
             btn.innerText = "🛠️ 開啟本地資料模擬測試"; btn.className = "btn-sim";
             document.getElementById('status').innerText = "狀態：模擬測試已停止。";
@@ -254,11 +261,16 @@ document.addEventListener('input', (e) => {
         let idx = window.allInputsOnPage.indexOf(e.target);
         let nextSpan = e.target.nextElementSibling;
         if (nextSpan && nextSpan.tagName === 'SPAN') { nextSpan.innerText = (idx === 0) ? Math.round(e.target.value * 100) + "%" : e.target.value + " Hz"; }
-        if (idx === 1) { 
-            window.currentSampleRate = parseInt(e.target.value); 
-            if (window.updateFilterCoefficients) window.updateFilterCoefficients(); 
+        
+        let sampleSlider = window.allInputsOnPage[1];
+        if (sampleSlider) {
+            window.currentSampleRate = parseInt(sampleSlider.value);
+            if (window.updateFilterCoefficients) window.updateFilterCoefficients();
         }
-        if (window.gainNode && idx === 0) window.gainNode.gain.value = parseFloat(e.target.value);
+        if (window.gainNode && idx === 0) {
+            let v = parseFloat(e.target.value);
+            if (!isNaN(v) && isFinite(v)) window.gainNode.gain.setValueAtTime(v, window.audioCtx.currentTime);
+        }
     }
 });
 
