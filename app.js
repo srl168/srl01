@@ -1,7 +1,7 @@
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
-// 💡 鋼性純淨全域記憶體池
+// 💡 建立鋼性純淨全域記憶體池
 window.currentSampleRate = 20000;
 window.currentSinFreq = 3000; 
 window.filteredDataLog = [];
@@ -36,7 +36,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     window.applyFilter = function(x) { return x; };
 
-    // 💡 成功架構回歸：點擊按鈕時徹底洗牌，高顯色點亮當前，4 個濾波鈕 100% 清晰好辨識！
+    // 💡 鋼性按鈕外觀切換補丁：清除所有舊 active 樣式，精準亮起當前，4 濾波鈕 100% 滿血復活！
     const fModes = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
     Object.keys(fModes).forEach(m => {
         const btnEl = document.getElementById(fModes[m]);
@@ -75,7 +75,7 @@ window.addEventListener('DOMContentLoaded', () => {
     window.fCanvas.width = 800; window.fCanvas.height = 400;
     window.allInputsOnPage = Array.from(document.querySelectorAll('input[type="range"]'));
     
-    // 💡 成功優化：開機完成的第一秒，自動執行萬能特徵點名，強制把滑桿真實初始值讀入大腦，杜絕 3000 卡死！
+    // 💡 萬能特徵點名：開機完成的第一秒，強制把滑桿真實初始值讀入大腦，杜絕 3000 卡死！
     if (window.allInputsOnPage) {
         window.allInputsOnPage.forEach(input => {
             let maxVal = parseFloat(input.max);
@@ -121,7 +121,7 @@ window.playAudioChunkDirect = function(audioChunk) {
 window.streamPureTimelineEngine = function() {
     if (!window.isSpeakerOn || !window.audioCtx) return;
     
-    // 💡 5毫秒微切片技術：隨取樣率動態伸縮，每包資料跨度死鎖在 5ms，徹底洗淨低取樣 12000Hz 以下的任何微雜音！
+    // 💡 5毫秒精密微切片：每包長度死鎖在 5ms，配合隔離引擎，徹底從根源消滅低取樣 12000Hz 以下的所有超載雜音！
     let chunkSize = Math.round(window.currentSampleRate * 0.005); if (chunkSize < 16) chunkSize = 16;
     let targetTime = window.audioCtx.currentTime + 0.10;
     
@@ -172,7 +172,7 @@ window.globalRenderLoop = function() {
     requestAnimationFrame(window.globalRenderLoop); renderFrameCounter++; if (renderFrameCounter % 2 !== 0) return;
     if (window.filteredDataLog.length < 50) return;
 
-    // 💡 鋼性像素保底：擷取點數無條件「最低保底 128 點」，徹底防止低取樣下波形被無情拉扁、拉直、壓矮！
+    // 💡 鋼性像素保底：擷取點數最低保底 128 點，徹底防止低取樣下正弦波被強行拉扁、壓扁、壓矮！
     let adaptivePointsCount = Math.round((3 * window.currentSampleRate) / window.currentSinFreq);
     if (adaptivePointsCount < 128) adaptivePointsCount = 128;
     if (adaptivePointsCount > window.filteredDataLog.length) adaptivePointsCount = window.filteredDataLog.length;
@@ -194,7 +194,7 @@ window.globalRenderLoop = function() {
     window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, window.tCanvas.width, window.tCanvas.height); window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath();
     let midY = window.tCanvas.height / 2;
 
-    // 💡 內插補點器：將保底的骨架點無縫補滿 150 個流暢像素點，低採樣下正弦波依舊高聳挺拔！
+    // 💡 內插補點器：將保底的骨架點均分補滿 150 個流暢像素點，低採樣下正弦波依舊高聳挺拔滿幅！
     let renderPointsCount = 150; let outPoints = new Float32Array(renderPointsCount);
     for (let i = 0; i < renderPointsCount; i++) {
         let virtualIdx = i * (rawSlice.length - 1) / (renderPointsCount - 1);
@@ -203,7 +203,8 @@ window.globalRenderLoop = function() {
     }
 
     let tSlice = window.tCanvas.width / (renderPointsCount - 1);
-    let x0 = 0, y0 = midY - (outPoints * (window.tCanvas.height / 2.3)); window.tCtx.moveTo(x0, y0);
+    // 💡 鋼性解鎖：精準鎖定第一個實體點 outPoints[0]，徹底消滅歷史 NaN 陣列乘法，執行緒死鎖全面物理蒸發！
+    let x0 = 0, y0 = midY - (outPoints[0] * (window.tCanvas.height / 2.3)); window.tCtx.moveTo(x0, y0);
     for (let j = 1; j < renderPointsCount; j++) { 
         let x1 = j * tSlice; let currentPoint = outPoints[j];
         if (j > 0 && j < renderPointsCount - 1) { currentPoint = (outPoints[j-1] + outPoints[j] + outPoints[j+1]) / 3; }
@@ -215,7 +216,7 @@ window.globalRenderLoop = function() {
     window.fCtx.clearRect(0, 0, window.fCanvas.width, window.fCanvas.height);
     window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, window.fCanvas.width, window.fCanvas.height); window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 1.5; window.fCtx.beginPath();
     let fSlice = window.fCanvas.width / (window.FFT_SIZE / 4);
-    for (let n = 0; n < window.FFT_SIZE / 4; n++) { curX = n * fSlice, y = window.fCanvas.height - (magnitudes[n] * window.fCanvas.height * 200); if (n == 0) window.fCtx.moveTo(curX, y); else window.fCtx.lineTo(curX, y); }
+    for (let n = 0; n < window.FFT_SIZE / 4; n++) { let curX = n * fSlice, y = window.fCanvas.height - (magnitudes[n] * window.fCanvas.height * 200); if (n == 0) window.fCtx.moveTo(curX, y); else window.fCtx.lineTo(curX, y); }
     window.fCtx.stroke();
 };
 
@@ -236,7 +237,6 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// 💡 萬能特徵型滑桿監聽器：100% 聽話、絕不噴任何 ReferenceError 錯字！4 顆按鈕滿血復活！
 document.addEventListener('input', (e) => {
     if (e.target && e.target.type === 'range') {
         let maxVal = parseFloat(e.target.max);
