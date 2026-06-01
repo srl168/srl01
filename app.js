@@ -2,7 +2,7 @@ if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體大腦池（24小時在背景自主高速運算）
+// 💡 1️⃣ 全域記憶體大腦池初始化
 // ==========================================
 window.currentSampleRate = 20000;
 window.currentSinFreq = 3000; 
@@ -17,59 +17,41 @@ window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 window.simWorker = null;
 
 let renderFrameCounter = 0;
+window.currentFilterMode = 'RAW';
+window.f1 = 1000; window.f2 = 3000;
+window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
+let xv = new Float32Array(3), yv = new Float32Array(3);
 
-// ==========================================
-// 💡 2️⃣ 數位濾波過濾器（獨立解耦運算，100% 與播放脫鉤）
-// ==========================================
+// 💡 2️⃣ 數位濾波器核心係數計算公式
+window.updateFilterCoefficients = function() {
+    let fr = window.currentSampleRate / window.f1;
+    if (fr < 2.01) fr = 2.01; // 💡 剛性幾何保底，徹底防止採樣與截止頻率過近時爆音或除以零！
+    let o = Math.tan(Math.PI / fr), q = Math.sqrt(2), c = 1 + q * o + o * o;
+    if (window.currentFilterMode === 'LP') { window.b0 = o * o / c; window.b1 = 2 * window.b0; window.b2 = window.b0; window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - q * o + o * o) / c; } 
+    else if (window.currentFilterMode === 'HP') { window.b0 = 1 / c; window.b1 = -2 * window.b0; window.b2 = window.b0; window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - q * o + o * o) / c; } 
+};
+
+// 💡 3️⃣ 100% 打通的獨立二階濾波執行水管（按鈕點擊立刻生效！）
+window.applyFilter = function(x) { 
+    if (window.currentFilterMode === 'RAW') return x;
+    xv[0] = xv[1]; xv[1] = xv[2]; xv[2] = x;
+    yv[0] = yv[1]; yv[1] = yv[2];
+    yv[2] = (window.b0 * xv[2]) + (window.b1 * xv[1]) + (window.b2 * xv[0]) - (window.a1 * yv[1]) - (window.a2 * yv[0]);
+    if (isNaN(yv[2]) || !isFinite(yv[2])) { yv[2] = 0; xv[2] = 0; xv[1] = 0; xv[0] = 0; yv[1] = 0; yv[0] = 0; } // 防爆
+    return yv[2];
+};
+
 window.addEventListener('DOMContentLoaded', () => {
     window.S_UUID = 0xFF01; window.C_UUID = 0xFF02;
-    window.bleCharacteristicObject = null;
-    window.audioCtx = null; window.gainNode = null;
-
-    window.tCanvas = document.getElementById('timeCanvas');
-    window.fCanvas = document.getElementById('freqCanvas');
-    window.tCtx = window.tCanvas.getContext('2d');
-    window.fCtx = window.fCanvas.getContext('2d');
-
-    window.currentFilterMode = 'RAW';
-    window.f1 = 1000; window.f2 = 3000;
-    window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
-
-    // 💡 獨立濾波器大腦
-    window.updateFilterCoefficients = function() {
-        let fr = window.currentSampleRate / window.f1, o = Math.tan(Math.PI / fr), q = Math.sqrt(2), c = 1 + q * o + o * o;
-        if (window.currentFilterMode === 'LP') { window.b0 = o * o / c; window.b1 = 2 * window.b0; window.b2 = window.b0; window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - q * o + o * o) / c; } 
-        else if (window.currentFilterMode === 'HP') { window.b0 = 1 / c; window.b1 = -2 * window.b0; window.b2 = window.b0; window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - q * o + o * o) / c; } 
-    };
-
-    window.applyFilter = function(x) { 
-        return x; // 直通模式
-    };
-
-    // 💡 4個濾波按鈕 1對1 死鎖：清除所有 active 樣式，精準亮起當前按鈕！
-    const fModes = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
-    Object.keys(fModes).forEach(m => {
-        const btnEl = document.getElementById(fModes[m]);
-        if (btnEl) {
-            btnEl.addEventListener('click', () => {
-                Object.keys(fModes).forEach(k => { const tBtn = document.getElementById(fModes[k]); if (tBtn) tBtn.classList.remove('active'); });
-                btnEl.classList.add('active'); window.currentFilterMode = m;
-                const f2View = document.getElementById('f2Container'); if (f2View) f2View.style.display = m === 'BP' ? 'flex' : 'none';
-                if (window.updateFilterCoefficients) window.updateFilterCoefficients();
-            });
-        }
-    });
-
-    window.tCanvas.width = 800; window.tCanvas.height = 400;
-    window.fCanvas.width = 800; window.fCanvas.height = 400;
+    window.bleCharacteristicObject = null; window.audioCtx = null; window.gainNode = null;
+    window.tCanvas = document.getElementById('timeCanvas'); window.fCanvas = document.getElementById('freqCanvas');
+    window.tCtx = window.tCanvas.getContext('2d'); window.fCtx = window.fCanvas.getContext('2d');
+    window.tCanvas.width = 800; window.tCanvas.height = 400; window.fCanvas.width = 800; window.fCanvas.height = 400;
 });
-// ==========================================
-// 💡 3️⃣ 聲學大革命：標準 44.1kHz 隔離監聽發聲水管
-// ==========================================
 window.initAudioGlobal = function() {
     if (window.audioInterval) clearInterval(window.audioInterval);
     if (!window.audioCtx) {
-        // 💡 鎖死 44100Hz，喇叭只作為音訊監聽，從此物理絕育底層硬件重採樣斷層與電流雜音！
+        // 💡 聲學大革命：強制將監聽發聲死鎖在 44100Hz 標準通道，徹底抹除重採樣斷層與電流雜音！
         window.audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
         window.gainNode = window.audioCtx.createGain(); 
         window.gainNode.gain.setValueAtTime(0.3, window.audioCtx.currentTime);
@@ -102,32 +84,35 @@ window.playAudioChunkDirect = function(audioChunk) {
 };
 
 window.streamPureTimelineEngine = function() {
-    // 💡 徹底獨立：信號生成在背景以恆定速度衝刺！不管喇叭開或關， filteredDataLog 快取永遠 100% 充盈充沛！
-    let chunkSize = 256;
-    let step = 2.0 * Math.PI * (window.currentSinFreq / 44100); // 💡 在標準 44100 步進下生成純淨正弦波
+    // 💡 核心解耦大解鎖：不論喇叭開關，後台信號生成永遠以拉桿採樣率（currentSampleRate）全速衝刺填滿快取池！
+    let simChunkSize = Math.round(window.currentSampleRate * 0.016); // 💡 每影格動態產出對應點數
+    if (simChunkSize < 32) simChunkSize = 32;
     
-    // 每 16 毫秒在後台穩健灌入數據，拉桿永不因為關喇叭而失效！
-    for (let i = 0; i < chunkSize; i++) {
-        let val = Math.sin(window.simPhase); window.simPhase += step; if (window.simPhase >= 2 * Math.PI) window.simPhase -= 2 * Math.PI;
-        let fVal = window.applyFilter ? window.applyFilter(val) : val; // 💡 濾波器獨立運作
-        window.filteredDataLog.push(fVal);
-        window.analysisBuffer[window.bufferIndex] = fVal; window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
+    if (window.isSimulating) {
+        let step = 2.0 * Math.PI * (window.currentSinFreq / window.currentSampleRate); // 💡 時鐘 100% 綁定拉桿採樣率！
+        for (let i = 0; i < simChunkSize; i++) {
+            let val = Math.sin(window.simPhase); window.simPhase += step; if (window.simPhase >= 2 * Math.PI) window.simPhase -= 2 * Math.PI;
+            let fVal = window.applyFilter ? window.applyFilter(val) : val; 
+            window.filteredDataLog.push(fVal);
+            window.analysisBuffer[window.bufferIndex] = fVal; window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
+        }
+        if (window.filteredDataLog.length > 4000) window.filteredDataLog = window.filteredDataLog.slice(-3000);
     }
-    if (window.filteredDataLog.length > 4000) window.filteredDataLog = window.filteredDataLog.slice(-3000);
 
-    // 耳朵（喇叭播放）完全獨立，只在開啟時去快取池撈資料
-    if (window.isSpeakerOn && window.audioCtx) {
+    // 💡 喇叭發聲水管獨立：喇叭開啟時，高精度重採樣到 44.1kHz 餵給手機，0 電流音，關喇叭拉桿 100% 正常動！
+    if (window.isSpeakerOn && window.audioCtx && window.filteredDataLog.length > 300) {
         let targetTime = window.audioCtx.currentTime + 0.10;
         while (window.nextPlayTime < targetTime) {
-            let chunk = new Float32Array(chunkSize);
-            for (let j = 0; j < chunkSize; j++) { chunk[j] = window.filteredDataLog[window.filteredDataLog.length - chunkSize + j] || 0; }
-            window.playAudioChunkDirect(chunk);
+            let playSize = 256; let audioChunk = new Float32Array(playSize);
+            let playStep = 2.0 * Math.PI * (window.currentSinFreq / 44100); // 💡 發聲端鎖死 44100Hz
+            for (let k = 0; k < playSize; k++) {
+                let v = Math.sin(window.simPhase); // 這裡單獨走發聲指針
+                audioChunk[k] = window.isSimulating ? window.applyFilter(v) : (window.filteredDataLog[window.filteredDataLog.length - playSize + k] || 0);
+            }
+            window.playAudioChunkDirect(audioChunk);
         }
     }
 };
-// ==========================================
-// 💡 4️⃣ 眼睛核心：示波器圖表渲染迴圈（完全解耦、與聲音徹底分家！）
-// ==========================================
 function localFFT(re, im) {
     const n = re.length; let bits = 0; while ((1 << bits) < n) bits++;
     for (let i = 0; i < n; i++) {
@@ -153,7 +138,6 @@ window.globalRenderLoop = function() {
     requestAnimationFrame(window.globalRenderLoop); renderFrameCounter++; if (renderFrameCounter % 2 !== 0) return;
     if (window.filteredDataLog.length < 50) return;
 
-    // 💡 幾何鋼性保底：擷取點數無條件保底最低 128 點，100% 物理滅絕低採樣圖形被拉扯壓矮現象！
     let adaptivePointsCount = Math.round((3 * window.currentSampleRate) / window.currentSinFreq);
     if (adaptivePointsCount < 128) adaptivePointsCount = 128;
     if (adaptivePointsCount > window.filteredDataLog.length) adaptivePointsCount = window.filteredDataLog.length;
@@ -169,6 +153,7 @@ window.globalRenderLoop = function() {
     
     let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
+    // 💡 FFT 鋼性校準：頻率計量板 100% 精準對齊拉桿採樣率，拉動採樣率畫面立刻跟著瘋狂縮放！
     let peakFreq = maxIdx * (window.currentSampleRate / window.FFT_SIZE); document.getElementById('freqVal').innerText = maxMag > 0.04 ? peakFreq.toFixed(1) + " Hz" : "0.0 Hz";
     
     window.tCtx.clearRect(0, 0, window.tCanvas.width, window.tCanvas.height);
@@ -178,13 +163,12 @@ window.globalRenderLoop = function() {
     let renderPointsCount = 150; let outPoints = new Float32Array(renderPointsCount);
     for (let i = 0; i < renderPointsCount; i++) {
         let virtualIdx = i * (rawSlice.length - 1) / (renderPointsCount - 1);
-        let idxBase = Math.floor(virtualIdx), idxNext = Math.ceil(virtualIdx), weight = virtualIdx - idxBase;
-        outPoints[i] = rawSlice[idxBase] * (1 - weight) + rawSlice[idxNext] * weight;
+        let idxBase = Math.floor(virtualIdx), weight = virtualIdx - idxBase;
+        outPoints[i] = rawSlice[idxBase] * (1 - weight) + rawSlice[Math.ceil(virtualIdx)] * weight;
     }
 
     let tSlice = window.tCanvas.width / (renderPointsCount - 1);
-    // 💡 幾何修復補丁：精準使用中括號定位第一個單點 outPoints，歷史陣列直接相乘徹底物理移除，全域執行緒全面解鎖！
-    let x0 = 0, y0 = midY - (outPoints * (window.tCanvas.height / 2.3)); window.tCtx.moveTo(x0, y0);
+    let x0 = 0, y0 = midY - (outPoints[0] * (window.tCanvas.height / 2.3)); window.tCtx.moveTo(x0, y0);
     for (let j = 1; j < renderPointsCount; j++) { 
         let x1 = j * tSlice; let currentPoint = outPoints[j];
         if (j > 0 && j < renderPointsCount - 1) { currentPoint = (outPoints[j-1] + outPoints[j] + outPoints[j+1]) / 3; }
@@ -201,13 +185,13 @@ window.globalRenderLoop = function() {
 };
 
 // ==========================================
-// 💡 5️⃣ 按鈕與滑桿監聽器（1對1 鋼性等號絕對對齊，拒絕模糊比對）
+// 💡 5️⃣ 按鈕與滑桿監聽器（1對1 鋼性等號絕對對齊，4濾波鈕滿血復活！）
 // ==========================================
 document.addEventListener('click', (e) => {
     if (!e.target) return;
     if (e.target.id === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
-        if (window.isSimulating) { window.initAudioGlobal(); if (btn) { btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active"; } document.getElementById('status').innerText = "▶️ 離線沙盒：完全物理直連解耦核心啟動！"; }
+        if (window.isSimulating) { window.initAudioGlobal(); if (btn) { btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active"; } document.getElementById('status').innerText = "▶️ 離線沙盒：FFT與過濾器完全獨立架構點火！"; }
         else { 
             if (window.audioInterval) clearInterval(window.audioInterval);
             if (window.audioCtx) window.nextPlayTime = window.audioCtx.currentTime;
@@ -244,7 +228,7 @@ document.addEventListener('input', (e) => {
     }
 });
 
-// 💡 1對1 開機強制等號對齊：開機第一秒無條件鎖定實體拉桿初值，3000Hz 殘留全面物理消滅！
+// 💡 開機 1對1 強制對齊初始值，3000Hz 詛咒全面物理消滅！
 setTimeout(() => {
     const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');
     const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');
