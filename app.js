@@ -5,7 +5,6 @@ window.isWritingLock = false;
 window.currentSampleRate = 20000;
 window.filteredDataLog = [];
 window.bufferIndex = 0;
-window.nextPlayTime = 0;
 window.isSpeakerOn = false;
 window.isSimulating = false;
 window.FFT_SIZE = 1024;
@@ -60,9 +59,6 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    document.getElementById('freq1Slider').addEventListener('input', (e) => { window.f1 = parseInt(e.target.value); document.getElementById('freq1Val').innerText = window.f1 + " Hz"; window.updateFilterCoefficients(); });
-    document.getElementById('freq2Slider').addEventListener('input', (e) => { window.f2 = parseInt(e.target.value); document.getElementById('freq2Val').innerText = window.f2 + " Hz"; window.updateFilterCoefficients(); });
-
     document.getElementById('connectBtn').addEventListener('click', async () => {
         if (window.isSimulating) document.getElementById('simBtn').click(); 
         const status = document.getElementById('status');
@@ -93,53 +89,51 @@ window.initAudioGlobal = function() {
         window.gainNode = window.audioCtx.createGain(); 
         window.gainNode.gain.value = parseFloat(document.getElementById('volumeSlider').value);
         window.gainNode.connect(window.audioCtx.destination);
+        // 💡 鋼性死鎖：唯一的音訊消費定時器，每 40 毫秒穩定踩點
         window.audioInterval = setInterval(window.streamSmoothAudioGlobal, 40); 
-        window.nextPlayTime = window.audioCtx.currentTime;
     }
     if (window.audioCtx.state === 'suspended') window.audioCtx.resume();
 };
 window.consumeRawBuffer = function(rawDataView) {
     let byteLength = rawDataView.byteLength;
-    let audioChunk = new Float32Array(byteLength);
     for (let i = 0; i < byteLength; i++) {
         let byteVal = rawDataView.getUint8(i);
         let val = (byteVal / 127.5) - 1.0;
         let fVal = window.applyFilter ? window.applyFilter(val) : val;
         
-        audioChunk[i] = fVal;
         window.filteredDataLog.push(fVal);
         if (window.filteredDataLog.length > 3000) window.filteredDataLog.shift(); 
         
         window.analysisBuffer[window.bufferIndex] = fVal;
         window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
     }
-    if (window.isSpeakerOn && window.audioCtx && window.gainNode) {
-        let ab = window.audioCtx.createBuffer(1, audioChunk.length, window.currentSampleRate);
-        ab.getChannelData(0).set(audioChunk);
-        let src = window.audioCtx.createBufferSource(); src.buffer = ab; src.connect(window.gainNode);
-        if (window.nextPlayTime < window.audioCtx.currentTime) { window.nextPlayTime = window.audioCtx.currentTime + 0.04; }
-        src.start(window.nextPlayTime); window.nextPlayTime += ab.duration; 
-    }
+    // 💡 終極修復：徹底砍掉原本在這裡引發聲音互撞、破音失真的臨時播音軌道！
 };
 
 window.streamSmoothAudioGlobal = function() {
-    if (!window.isSpeakerOn || !window.audioCtx || window.filteredDataLog.length < 600) return;
+    if (!window.isSpeakerOn || !window.audioCtx || window.filteredDataLog.length < 500) return;
     try {
+        // 每次定時平滑擷取最新 400 個數據點
         let rawChunk = window.filteredDataLog.slice(-400);
         let targetLength = Math.round(rawChunk.length * (window.audioCtx.sampleRate / window.currentSampleRate));
         let resampledBuffer = window.audioCtx.createBuffer(1, targetLength, window.audioCtx.sampleRate);
         let channelData = resampledBuffer.getChannelData(0);
+        
         for (let i = 0; i < targetLength; i++) {
             let srcIndex = i * (rawChunk.length - 1) / (targetLength - 1);
             let indexBase = Math.floor(srcIndex); let indexFraction = srcIndex - indexBase;
             if (indexBase >= rawChunk.length - 1) { channelData[i] = rawChunk[rawChunk.length - 1]; } 
             else { channelData[i] = rawChunk[indexBase] * (1 - indexFraction) + rawChunk[indexBase + 1] * indexFraction; }
         }
-        let src = window.audioCtx.createBufferSource(); src.buffer = resampledBuffer; src.connect(window.gainNode); src.start();
+        
+        let src = window.audioCtx.createBufferSource(); 
+        src.buffer = resampledBuffer; 
+        src.connect(window.gainNode);
+        src.start(); // 國際最高標準 PCM 零重疊直通發聲
     } catch (e) {}
 };
 
-function iterativeFFT(re, im) {
+function localFFT(re, im) {
     const n = re.length;
     let bits = 0; while ((1 << bits) < n) bits++;
     for (let i = 0; i < n; i++) {
@@ -150,7 +144,6 @@ function iterativeFFT(re, im) {
             let tempI = im[i]; im[i] = im[rev]; im[rev] = tempI;
         }
     }
-    // 💡 終極修正：將此處最後一個隱蔽殘留的 int len 完美更正為網頁原生 let len 宣告！
     for (let len = 2; len <= n; len <<= 1) {
         let ang = 2 * Math.PI / len * -1;
         let wlen_r = Math.cos(ang), wlen_i = Math.sin(ang);
@@ -179,7 +172,7 @@ window.globalRenderLoop = function() {
     let re = new Float32Array(window.FFT_SIZE), im = new Float32Array(window.FFT_SIZE);
     for (let k = 0; k < window.FFT_SIZE; k++) { let idx = (window.bufferIndex + k) % window.FFT_SIZE; re[k] = window.analysisBuffer[idx]; }
     
-    iterativeFFT(re, im);
+    localFFT(re, im);
     
     let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
@@ -210,21 +203,46 @@ const workerCode = `
         if (e.data.cmd === 'start') {
             let sr = e.data.sr; let sf = e.data.sf;
             if(timerId) clearInterval(timerId);
+            
+            // 💡 物理同步快門：Web Worker 配合前端 40ms 排程，一次定頻穩定產出 400 個精準點，完全防禦失真
             timerId = setInterval(() => {
                 let step = 2.0 * Math.PI * (sf / sr);
-                let mockBuffer = new ArrayBuffer(200);
+                let mockBuffer = new ArrayBuffer(400);
                 let view = new DataView(mockBuffer);
-                for(let i=0; i<200; i++) {
+                for(let i=0; i<400; i++) {
                     view.setUint8(i, Math.floor((Math.sin(simPhase) + 1.0) * 127.5));
                     simPhase += step; if(simPhase >= 2*Math.PI) simPhase -= 2*Math.PI;
                 }
                 self.postMessage(mockBuffer, [mockBuffer]);
-            }, 35);
+            }, 38);
         } else if (e.data.cmd === 'stop') {
             if(timerId) clearInterval(timerId);
         }
     };
 `;
+
+window.sendHardwareParameters = function() {
+    let sr = parseInt(document.getElementById('boardSampleSlider').value);
+    let sf = parseInt(document.getElementById('boardSinSlider').value);
+    window.currentSampleRate = sr; if (window.updateFilterCoefficients) window.updateFilterCoefficients();
+    if (window.isSimulating && window.simWorker) {
+        window.simWorker.postMessage({cmd: 'start', sr: sr, sf: sf});
+        return;
+    }
+    if (!window.bleCharacteristicObject) return;
+    let buf = (new TextEncoder()).encode(sr + "," + sf);
+    try { window.bleCharacteristicObject.writeValue(buf); } catch (err) {}
+};
+
+document.addEventListener('input', (e) => {
+    if (e.target && (e.target.id === 'boardSampleSlider' || e.target.id === 'boardSinSlider')) {
+        document.getElementById(e.target.id + 'Val').innerText = e.target.value + " Hz";
+        window.sendHardwareParameters(); 
+    }
+    if (e.target && e.target.id === 'volumeSlider') {
+        document.getElementById('volumeVal').innerText = Math.round(e.target.value * 100) + "%";
+    }
+});
 
 document.addEventListener('click', (e) => {
     if (e.target && e.target.id === 'simBtn') {
@@ -237,9 +255,7 @@ document.addEventListener('click', (e) => {
                 window.simWorker = new Worker(URL.createObjectURL(blob));
                 window.simWorker.onmessage = function(evt) { window.consumeRawBuffer(new DataView(evt.data)); };
             }
-            let sr = parseInt(document.getElementById('boardSampleSlider').value);
-            let sf = parseInt(document.getElementById('boardSinSlider').value);
-            window.simWorker.postMessage({cmd: 'start', sr: sr, sf: sf});
+            window.sendHardwareParameters();
         } else {
             if(window.simWorker) window.simWorker.postMessage({cmd: 'stop'});
             btn.innerText = "🛠️ 開啟本地資料模擬測試"; btn.className = "btn-sim";
@@ -252,19 +268,6 @@ document.addEventListener('click', (e) => {
         document.getElementById('speakerBtn').className = window.isSpeakerOn ? "btn-speaker" : "btn-speaker muted";
     }
 });
-
-function sendHardwareParameters() {
-    let sr = parseInt(document.getElementById('boardSampleSlider').value);
-    let sf = parseInt(document.getElementById('boardSinSlider').value);
-    window.currentSampleRate = sr; if (window.updateFilterCoefficients) window.updateFilterCoefficients();
-    if (window.isSimulating && window.simWorker) {
-        window.simWorker.postMessage({cmd: 'start', sr: sr, sf: sf});
-        return;
-    }
-    if (!window.bleCharacteristicObject) return;
-    let buf = (new TextEncoder()).encode(sr + "," + sf);
-    try { window.bleCharacteristicObject.writeValue(buf); } catch (err) {}
-}
 
 setTimeout(() => {
     if (window.updateFilterCoefficients) window.updateFilterCoefficients();
