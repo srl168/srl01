@@ -1,9 +1,9 @@
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
-// 💡 建立鋼性純淨全域記憶體池
+// 💡 鋼性全域記憶體池
 window.currentSampleRate = 20000;
-window.currentSinFreq = 3000; 
+window.currentSinFreq = 1000; // 保底初值，開機後會被 HTML 拉桿秒速強行覆蓋
 window.filteredDataLog = [];
 window.bufferIndex = 0;
 window.nextPlayTime = 0;
@@ -38,26 +38,37 @@ window.addEventListener('DOMContentLoaded', () => {
 
     const fModes = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
     Object.keys(fModes).forEach(m => {
-        document.getElementById(fModes[m]).addEventListener('click', () => {
-            Object.keys(fModes).forEach(k => document.getElementById(fModes[k]).classList.remove('active'));
-            document.getElementById(fModes[m]).classList.add('active'); window.currentFilterMode = m;
-            document.getElementById('f2Container').style.display = m === 'BP' ? 'flex' : 'none'; window.updateFilterCoefficients();
+        const btnEl = document.getElementById(fModes[m]);
+        if (btnEl) {
+            btnEl.addEventListener('click', () => {
+                Object.keys(fModes).forEach(k => {
+                    const targetBtn = document.getElementById(fModes[k]);
+                    if (targetBtn) targetBtn.classList.remove('active');
+                });
+                btnEl.classList.add('active'); window.currentFilterMode = m;
+                const f2View = document.getElementById('f2Container');
+                if (f2View) f2View.style.display = m === 'BP' ? 'flex' : 'none';
+                if (window.updateFilterCoefficients) window.updateFilterCoefficients();
+            });
+        }
+    });
+    const connectBtnEl = document.getElementById('connectBtn');
+    if (connectBtnEl) {
+        connectBtnEl.addEventListener('click', async () => {
+            if (window.isSimulating) { const sBtn = document.getElementById('simBtn'); if (sBtn) sBtn.click(); }
+            const status = document.getElementById('status');
+            try {
+                status.innerText = "正在搜尋藍牙裝置...";
+                const device = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: 'ESP32' }], optionalServices: [window.S_UUID] });
+                const server = await device.gatt.connect(); const service = await server.getPrimaryService(window.S_UUID);
+                window.bleCharacteristicObject = await service.getCharacteristic(window.C_UUID);
+                window.bleCharacteristicObject.removeEventListener('characteristicvaluechanged', window.currentBleHandler);
+                window.currentBleHandler = (e) => { window.consumeRawBuffer(e.target.value); };
+                window.bleCharacteristicObject.addEventListener('characteristicvaluechanged', window.currentBleHandler);
+                await window.bleCharacteristicObject.startNotifications(); status.innerText = "▶️ 實體藍牙大水管對接成功！";
+            } catch (err) { status.innerText = "底層連線失敗: " + err.message; }
         });
-    });
-    document.getElementById('connectBtn').addEventListener('click', async () => {
-        if (window.isSimulating) document.getElementById('simBtn').click(); 
-        const status = document.getElementById('status');
-        try {
-            status.innerText = "正在搜尋藍牙裝置...";
-            const device = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: 'ESP32' }], optionalServices: [window.S_UUID] });
-            const server = await device.gatt.connect(); const service = await server.getPrimaryService(window.S_UUID);
-            window.bleCharacteristicObject = await service.getCharacteristic(window.C_UUID);
-            window.bleCharacteristicObject.removeEventListener('characteristicvaluechanged', window.currentBleHandler);
-            window.currentBleHandler = (e) => { window.consumeRawBuffer(e.target.value); };
-            window.bleCharacteristicObject.addEventListener('characteristicvaluechanged', window.currentBleHandler);
-            await window.bleCharacteristicObject.startNotifications(); status.innerText = "▶️ 實體藍牙大水管對接成功！";
-        } catch (err) { status.innerText = "底層連線失敗: " + err.message; }
-    });
+    }
 
     window.tCanvas.width = 800; window.tCanvas.height = 400;
     window.fCanvas.width = 800; window.fCanvas.height = 400;
@@ -74,7 +85,6 @@ window.initAudioGlobal = function() {
     }
     window.gainNode.gain.setValueAtTime(0.0, window.audioCtx.currentTime);
     window.gainNode.gain.linearRampToValueAtTime(0.3, window.audioCtx.currentTime + 0.01);
-    
     window.nextPlayTime = window.audioCtx.currentTime + 0.02;
     window.audioInterval = setInterval(window.streamPureTimelineEngine, 16);
     if (window.audioCtx.state === 'suspended') window.audioCtx.resume();
@@ -100,12 +110,8 @@ window.playAudioChunkDirect = function(audioChunk) {
 };
 window.streamPureTimelineEngine = function() {
     if (!window.isSpeakerOn || !window.audioCtx) return;
-    
-    // 💡 5毫秒精密微切片技術：隨取樣率動態計算點數，每包長度死鎖在 5ms，徹底根除硬體溢位微雜音！
-    let chunkSize = Math.round(window.currentSampleRate * 0.005);
-    if (chunkSize < 16) chunkSize = 16;
+    let chunkSize = Math.round(window.currentSampleRate * 0.005); if (chunkSize < 16) chunkSize = 16;
     let targetTime = window.audioCtx.currentTime + 0.10;
-    
     if (window.isSimulating) {
         while (window.nextPlayTime < targetTime) {
             let audioChunk = new Float32Array(chunkSize);
@@ -174,8 +180,7 @@ window.globalRenderLoop = function() {
     window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, window.tCanvas.width, window.tCanvas.height); window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath();
     let midY = window.tCanvas.height / 2;
 
-    let renderPointsCount = 150;
-    let outPoints = new Float32Array(renderPointsCount);
+    let renderPointsCount = 150; let outPoints = new Float32Array(renderPointsCount);
     for (let i = 0; i < renderPointsCount; i++) {
         let virtualIdx = i * (rawSlice.length - 1) / (renderPointsCount - 1);
         let idxBase = Math.floor(virtualIdx), idxNext = Math.ceil(virtualIdx), weight = virtualIdx - idxBase;
@@ -183,7 +188,6 @@ window.globalRenderLoop = function() {
     }
 
     let tSlice = window.tCanvas.width / (renderPointsCount - 1);
-    // 💡 幾何修復：對齊第一個實體點 outPoints，洗淨歷史 NaN 錯字，波峰谷永遠 100% 圓潤絲滑！
     let x0 = 0, y0 = midY - (outPoints * (window.tCanvas.height / 2.3)); window.tCtx.moveTo(x0, y0);
     for (let j = 1; j < renderPointsCount; j++) { 
         let x1 = j * tSlice; let currentPoint = outPoints[j];
@@ -203,55 +207,39 @@ window.globalRenderLoop = function() {
 document.addEventListener('click', (e) => {
     if (e.target && e.target.id === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
-        if (window.isSimulating) { window.initAudioGlobal(); btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active"; document.getElementById('status').innerText = "▶️ 離線沙盒：5ms 微切片引擎已啟動！"; }
+        if (window.isSimulating) { window.initAudioGlobal(); if (btn) { btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active"; } document.getElementById('status').innerText = "▶️ 離線沙盒：初始值實體物對齊解鎖點火！"; }
         else { 
             if (window.audioInterval) clearInterval(window.audioInterval);
             if (window.audioCtx) window.nextPlayTime = window.audioCtx.currentTime;
-            window.filteredDataLog = [];
-            btn.innerText = "🛠️ 開啟本地資料模擬測試"; btn.className = "btn-sim"; document.getElementById('status').innerText = "狀態：模擬測試已停止。"; 
+            window.filteredDataLog = []; if (btn) { btn.innerText = "🛠️ 開啟本地資料模擬測試"; btn.className = "btn-sim"; }
+            document.getElementById('status').innerText = "狀態：模擬測試已停止。"; 
         }
     }
     if (e.target && e.target.id === 'speakerBtn') {
-        window.initAudioGlobal(); window.isSpeakerOn = !window.isSpeakerOn;
-        document.getElementById('speakerBtn').innerText = window.isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉";
-        document.getElementById('speakerBtn').className = window.isSpeakerOn ? "btn-speaker" : "btn-speaker muted";
+        window.initAudioGlobal(); window.isSpeakerOn = !window.isSpeakerOn; const sBtn = document.getElementById('speakerBtn');
+        if (sBtn) { sBtn.innerText = window.isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉"; sBtn.className = window.isSpeakerOn ? "btn-speaker" : "btn-speaker muted"; }
     }
 });
 
-// 💡 鋼性實體 ID 模糊包含匹配監聽器
 document.addEventListener('input', (e) => {
     if (e.target && e.target.type === 'range') {
-        let sliderId = (e.target.id || "").toLowerCase();
-        let curVal = parseFloat(e.target.value);
-        let nextSpan = e.target.nextElementSibling;
-        
-        if (sliderId.includes("sample")) {
-            window.currentSampleRate = parseInt(curVal);
-            if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.currentSampleRate + " Hz";
-            if (window.updateFilterCoefficients) window.updateFilterCoefficients();
-        }
-        else if (sliderId.includes("sin") || sliderId.includes("freq")) {
-            window.currentSinFreq = parseInt(curVal); 
-            if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.currentSinFreq + " Hz";
-        }
-        else if (sliderId.includes("vol")) {
-            if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = Math.round(curVal * 100) + "%";
-            if (window.gainNode && !isNaN(curVal) && isFinite(curVal)) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime);
-        }
+        let sliderId = (e.target.id || "").toLowerCase(); let curVal = parseFloat(e.target.value); let nextSpan = e.target.nextElementSibling;
+        if (sliderId.includes("sample")) { window.currentSampleRate = parseInt(curVal); if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.currentSampleRate + " Hz"; if (window.updateFilterCoefficients) window.updateFilterCoefficients(); }
+        else if ((sliderId.includes("sin") || sliderId.includes("freq")) && !sliderId.includes("f1") && !sliderId.includes("cutoff")) { window.currentSinFreq = parseInt(curVal); if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.currentSinFreq + " Hz"; }
+        else if (sliderId.includes("vol")) { if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && !isNaN(curVal) && isFinite(curVal)) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); }
     }
 });
 
-// 💡 終極對齊防線：改用 window.onload！強迫瀏覽器在所有 HTML 標籤渲染完畢的第 0 毫秒，絕對無條件強制同步初始值！
+// 💡 終極 onload 鎖定補丁：使用最硬核的 HTML 屬性選取器直接揪出實體拉桿！100% 覆蓋程式碼開頭的 3000Hz！
 window.onload = function() {
-    let allInputs = Array.from(document.querySelectorAll('input[type="range"]'));
-    if (allInputs && allInputs.length > 0) {
-        allInputs.forEach(input => {
-            let sliderId = (input.id || "").toLowerCase();
-            let curVal = parseFloat(input.value);
-            if (sliderId.includes("sample")) window.currentSampleRate = parseInt(curVal);
-            else if (sliderId.includes("sin") || sliderId.includes("freq")) window.currentSinFreq = parseInt(curVal);
-        });
+    const fSlider = document.querySelector('input[id*="sin" i], input[id*="freq" i]');
+    const sSlider = document.querySelector('input[id*="sample" i]');
+    if (fSlider) {
+        let fId = (fSlider.id || "").toLowerCase();
+        if (!fId.includes("f1") && !fId.includes("cutoff")) window.currentSinFreq = parseInt(fSlider.value);
     }
-    if (window.updateFilterCoefficients) window.updateFilterCoefficients();
+    if (sSlider) window.currentSampleRate = parseInt(sSlider.value);
+
+    if (window.updateFilterCoefficients) window.updateFilterCoefficients(); 
     if (window.globalRenderLoop) window.globalRenderLoop();
 };
