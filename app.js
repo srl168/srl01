@@ -1,9 +1,9 @@
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
-// 💡 建立鋼性純淨全域記憶體池
+// 💡 鋼性全域記憶體池
 window.currentSampleRate = 20000;
-window.currentSinFreq = 3000; 
+window.currentSinFreq = 3000; // 💡 完美對齊初始標準音
 window.filteredDataLog = [];
 window.bufferIndex = 0;
 window.nextPlayTime = 0;
@@ -72,7 +72,7 @@ window.initAudioGlobal = function() {
         window.gainNode.gain.setValueAtTime(0.3, window.audioCtx.currentTime);
         window.gainNode.connect(window.audioCtx.destination);
     }
-    // 💡 軟著陸淡入補丁：點火瞬間在 0.01 秒內滑入，物理熨平時鐘遲到斷層！
+    // 💡 軟著陸淡入：點火瞬間在 0.01 秒內滑入，完美熨平時鐘遲到斷層！
     window.gainNode.gain.setValueAtTime(0.0, window.audioCtx.currentTime);
     window.gainNode.gain.linearRampToValueAtTime(0.3, window.audioCtx.currentTime + 0.01);
     
@@ -99,7 +99,7 @@ window.playAudioChunkDirect = function(audioChunk) {
         src.start(window.nextPlayTime); window.nextPlayTime += ab.duration; 
     }
 };
-// 💡 物理死鎖與 16 倍超採樣分流核心：由手機硬體音效卡絕對時鐘控制速度，彻底杜絕低取樣萎縮與斷音！
+// 💡 架構大解鎖：正弦波生成完全移到此處！與繪圖迴圈 100% 徹底分家，水管永遠充盈，低取樣絕不卡死！
 window.streamPureTimelineEngine = function() {
     if (!window.isSpeakerOn || !window.audioCtx) return;
     let targetTime = window.audioCtx.currentTime + 0.12;
@@ -107,7 +107,6 @@ window.streamPureTimelineEngine = function() {
     if (window.isSimulating) {
         while (window.nextPlayTime < targetTime) {
             let audioChunk = new Float32Array(128);
-            // 💡 16倍硬體級超採樣：在內部以超高頻 (320,000Hz) 算滿弧度步伐，物理熨平所有低採樣稀釋
             let oversampleFactor = 16, internalSR = window.currentSampleRate * oversampleFactor;
             let step = 2.0 * Math.PI * (window.currentSinFreq / internalSR);
             for (let i = 0; i < 128; i++) {
@@ -152,14 +151,14 @@ window.globalRenderLoop = function() {
     requestAnimationFrame(window.globalRenderLoop); renderFrameCounter++; if (renderFrameCounter % 2 !== 0) return;
     if (window.filteredDataLog.length < 50) return;
 
-    // 💡 自適應快門：100% 統一死死咬定全域變數 window.currentSinFreq，徹底割除畫布與 DOM 物件的盲目接觸！
+    // 💡 鋼性幾何保底：無條件保底「最少保留 128 個點」，徹底防止低取樣被強行拉扯扯平！
     let adaptivePointsCount = Math.round((3 * window.currentSampleRate) / window.currentSinFreq);
-    if (adaptivePointsCount < 10) adaptivePointsCount = 10;
+    if (adaptivePointsCount < 128) adaptivePointsCount = 128;
     if (adaptivePointsCount > window.filteredDataLog.length) adaptivePointsCount = window.filteredDataLog.length;
 
-    let rPoints = window.filteredDataLog.slice(-adaptivePointsCount);
-    let max = Math.max(...rPoints), min = Math.min(...rPoints), vpp = max - min, sq = 0;
-    rPoints.forEach(v => sq += v * v); let rms = Math.sqrt(sq / rPoints.length);
+    let rawSlice = window.filteredDataLog.slice(-adaptivePointsCount);
+    let max = Math.max(...rawSlice), min = Math.min(...rawSlice), vpp = max - min, sq = 0;
+    rawSlice.forEach(v => sq += v * v); let rms = Math.sqrt(sq / rawSlice.length);
     document.getElementById('vppVal').innerText = vpp.toFixed(2) + " V"; document.getElementById('rmsVal').innerText = rms.toFixed(2) + " V";
     
     let re = new Float32Array(window.FFT_SIZE), im = new Float32Array(window.FFT_SIZE);
@@ -172,13 +171,23 @@ window.globalRenderLoop = function() {
     
     window.tCtx.clearRect(0, 0, window.tCanvas.width, window.tCanvas.height);
     window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, window.tCanvas.width, window.tCanvas.height); window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath();
-    let tSlice = window.tCanvas.width / (rPoints.length - 1), midY = window.tCanvas.height / 2;
-    
-    // 💡 鋼性解鎖：精準鎖定第一個實體點元素 rPoints[0]，歷史 NaN 乘法錯誤徹底洗淨！波峰谷完美圓潤滿幅！
-    let x0 = 0, y0 = midY - (rPoints[0] * (window.tCanvas.height / 2.3)); window.tCtx.moveTo(x0, y0);
-    for (let j = 1; j < rPoints.length; j++) { 
-        let x1 = j * tSlice; let currentPoint = rPoints[j];
-        if (j > 0 && j < rPoints.length - 1) { currentPoint = (rPoints[j-1] + rPoints[j] + rPoints[j+1]) / 3; }
+    let midY = window.tCanvas.height / 2;
+
+    // 💡 幾何內插器：將稀疏點在 Canvas 上虛擬還原成 150 個流暢像素點，低取樣下振幅 100% 挺拔圓潤！
+    let renderPointsCount = 150;
+    let outPoints = new Float32Array(renderPointsCount);
+    for (let i = 0; i < renderPointsCount; i++) {
+        let virtualIdx = i * (rawSlice.length - 1) / (renderPointsCount - 1);
+        let idxBase = Math.floor(virtualIdx), idxNext = Math.ceil(virtualIdx), weight = virtualIdx - idxBase;
+        outPoints[i] = rawSlice[idxBase] * (1 - weight) + rawSlice[idxNext] * weight;
+    }
+
+    let tSlice = window.tCanvas.width / (renderPointsCount - 1);
+    // 💡 鋼性解鎖：精準使用中括號定位 outPoints，歷史 NaN 乘法徹底灰飛煙滅！
+    let x0 = 0, y0 = midY - (outPoints[0] * (window.tCanvas.height / 2.3)); window.tCtx.moveTo(x0, y0);
+    for (let j = 1; j < renderPointsCount; j++) { 
+        let x1 = j * tSlice; let currentPoint = outPoints[j];
+        if (j > 0 && j < renderPointsCount - 1) { currentPoint = (outPoints[j-1] + outPoints[j] + outPoints[j+1]) / 3; }
         let y1 = midY - (currentPoint * (window.tCanvas.height / 2.3)); let xc = (x0 + x1) / 2; let yc = (y0 + y1) / 2;
         window.tCtx.quadraticCurveTo(x0, y0, xc, yc); x0 = x1; y0 = y1;
     }
@@ -191,17 +200,11 @@ window.globalRenderLoop = function() {
     window.fCtx.stroke();
 };
 
-document.addEventListener('click', async (e) => {
+document.addEventListener('click', (e) => {
     if (e.target && e.target.id === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
-        if (window.isSimulating) { window.initAudioGlobal(); btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active"; document.getElementById('status').innerText = "▶️ 離線沙盒：時鐘死鎖超採樣引擎點火！"; }
+        if (window.isSimulating) { window.initAudioGlobal(); btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active"; document.getElementById('status').innerText = "▶️ 離線沙盒：獨立訊號生成架構已解鎖！"; }
         else { 
-            // 💡 軟著陸安全煞車：按停止瞬間在 0.01 秒內音量強制貼地！徹底摧毀任何切換斷音！
-            if (window.gainNode && window.audioCtx) {
-                window.gainNode.gain.setValueAtTime(window.gainNode.gain.value, window.audioCtx.currentTime);
-                window.gainNode.gain.linearRampToValueAtTime(0.0, window.audioCtx.currentTime + 0.01);
-            }
-            await new Promise(r => setTimeout(r, 15));
             if (window.audioInterval) clearInterval(window.audioInterval);
             if (window.audioCtx) window.nextPlayTime = window.audioCtx.currentTime;
             window.filteredDataLog = [];
@@ -210,12 +213,12 @@ document.addEventListener('click', async (e) => {
     }
     if (e.target && e.target.id === 'speakerBtn') {
         window.initAudioGlobal(); window.isSpeakerOn = !window.isSpeakerOn;
-        document.getElementById('speakerBtn').innerText = window.isSpeakerOn ? "🔊 喇盤發聲：開啟" : "🔇 喇叭發聲：關閉";
+        document.getElementById('speakerBtn').innerText = window.isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉";
         document.getElementById('speakerBtn').className = window.isSpeakerOn ? "btn-speaker" : "btn-speaker muted";
     }
 });
 
-// 💡 鋼性解鎖：100% 依賴實體 ID 包含特徵進行精準攔截，徹底摧毀更新盲點！
+// 💡 鋼性實體 ID 字串特徵包含監聽器，滑桿 100% 恢復彈性控制
 document.addEventListener('input', (e) => {
     if (e.target && e.target.type === 'range') {
         let sliderId = (e.target.id || "").toLowerCase();
@@ -228,7 +231,7 @@ document.addEventListener('input', (e) => {
             if (window.updateFilterCoefficients) window.updateFilterCoefficients();
         }
         else if (sliderId.includes("sin") || sliderId.includes("freq")) {
-            window.currentSinFreq = parseInt(curVal); // 💡 0毫秒鋼性穿透！
+            window.currentSinFreq = parseInt(curVal); // 💡 0毫秒鋼性更新！
             if (nextSpan && nextSpan.tagName === 'SPAN') nextSpan.innerText = window.currentSinFreq + " Hz";
         }
         else if (sliderId.includes("vol")) {
