@@ -10,8 +10,6 @@ window.isSpeakerOn = false;
 window.isSimulating = false;
 window.FFT_SIZE = 1024;
 window.analysisBuffer = new Float32Array(window.FFT_SIZE);
-
-// 💡 宣告全域 Worker 射頻指針，防止重複宣告卡死
 window.simWorker = null;
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -144,9 +142,10 @@ window.streamSmoothAudioGlobal = function() {
 function localFFT(re, im) {
     const n = re.length; if (n <= 1) return;
     const reE = new Float32Array(n / 2), imE = new Float32Array(n/2), reO = new Float32Array(n / 2), imO = new Float32Array(n / 2);
-    for (int i = 0; i < n / 2; i++) { reE[i] = re[2 * i]; imE[i] = im[2 * i]; reO[i] = re[2 * i + 1]; imO[i] = im[2 * i + 1]; }
+    // 💡 終極修正：將舊版殘留的 C 語言關鍵字 int 完美校正回網頁標準 let 宣告！
+    for (let i = 0; i < n / 2; i++) { reE[i] = re[2 * i]; imE[i] = im[2 * i]; reO[i] = re[2 * i + 1]; imO[i] = im[2 * i + 1]; }
     localFFT(reE, imE); localFFT(reO, imO);
-    for (int i = 0; i < n / 2; i++) {
+    for (let i = 0; i < n / 2; i++) {
         const tr = Math.cos(-2 * Math.PI * i / n) * reO[i] - Math.sin(-2 * Math.PI * i / n) * imO[i];
         const tj = Math.sin(-2 * Math.PI * i / n) * reO[i] + Math.cos(-2 * Math.PI * i / n) * imO[i];
         re[i] = reE[i] + tr; im[i] = imE[i] + tj; re[i + n / 2] = reE[i] - tr; im[i + n / 2] = imE[i] - tj;
@@ -214,7 +213,7 @@ document.addEventListener('click', (e) => {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
         if (window.isSimulating) {
             window.initAudioGlobal(); btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active";
-            document.getElementById('status').innerText = "▶️ Web Worker 獨立背景核心已通電發射！";
+            document.getElementById('status').innerText = "▶ " + "Web Worker 獨立背景核心已通電發射！";
             if(!window.simWorker) {
                 let blob = new Blob([workerCode], {type: 'application/javascript'});
                 window.simWorker = new Worker(URL.createObjectURL(blob));
@@ -225,7 +224,7 @@ document.addEventListener('click', (e) => {
             window.simWorker.postMessage({cmd: 'start', sr: sr, sf: sf});
         } else {
             if(window.simWorker) window.simWorker.postMessage({cmd: 'stop'});
-            btn.innerText = "🛠️ 開氣本地資料模擬測試"; btn.className = "btn-sim";
+            btn.innerText = "🛠️ 開啟本地資料模擬測試"; btn.className = "btn-sim";
             document.getElementById('status').innerText = "狀態：模擬測試已停止。";
         }
     }
