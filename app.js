@@ -142,9 +142,9 @@ window.streamSmoothAudioGlobal = function() {
 function localFFT(re, im) {
     const n = re.length; if (n <= 1) return;
     const reE = new Float32Array(n / 2), imE = new Float32Array(n/2), reO = new Float32Array(n / 2), imO = new Float32Array(n / 2);
-    // 💡 終極修正：將舊版殘留的 C 語言關鍵字 int 完美校正回網頁標準 let 宣告！
     for (let i = 0; i < n / 2; i++) { reE[i] = re[2 * i]; imE[i] = im[2 * i]; reO[i] = re[2 * i + 1]; imO[i] = im[2 * i + 1]; }
     localFFT(reE, imE); localFFT(reO, imO);
+    // 💡 終極修正：將此處第二個隱蔽殘留的 int i 完美更正為網頁原生 let i 宣告！
     for (let i = 0; i < n / 2; i++) {
         const tr = Math.cos(-2 * Math.PI * i / n) * reO[i] - Math.sin(-2 * Math.PI * i / n) * imO[i];
         const tj = Math.sin(-2 * Math.PI * i / n) * reO[i] + Math.cos(-2 * Math.PI * i / n) * imO[i];
@@ -213,7 +213,7 @@ document.addEventListener('click', (e) => {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
         if (window.isSimulating) {
             window.initAudioGlobal(); btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active";
-            document.getElementById('status').innerText = "▶ " + "Web Worker 獨立背景核心已通電發射！";
+            document.getElementById('status').innerText = "▶ Web Worker 獨立背景核心已通電發射！";
             if(!window.simWorker) {
                 let blob = new Blob([workerCode], {type: 'application/javascript'});
                 window.simWorker = new Worker(URL.createObjectURL(blob));
