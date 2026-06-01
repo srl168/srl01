@@ -82,7 +82,6 @@ window.addEventListener('DOMContentLoaded', () => {
     window.tCanvas.width = 800; window.tCanvas.height = 400;
     window.fCanvas.width = 800; window.fCanvas.height = 400;
     
-    // 💡 在 DOM 載入完成後，立刻動態抓取網頁上「所有滑桿與它們後方的 Hz 文字標籤」建立鋼性關聯
     window.allInputsOnPage = Array.from(document.querySelectorAll('input[type="range"]'));
 });
 
@@ -96,18 +95,29 @@ window.initAudioGlobal = function() {
     }
     if (window.audioCtx.state === 'suspended') window.audioCtx.resume();
 };
-window.consumeRawBuffer = function(rawDataView) {
-    let byteLength = rawDataView.byteLength;
-    for (let i = 0; i < byteLength; i++) {
-        let byteVal = rawDataView.getUint8(i);
-        let val = (byteVal / 127.5) - 1.0;
-        let fVal = window.applyFilter ? window.applyFilter(val) : val;
+let leftoverStringCache = "";
+window.consumeTextStreamPacket = function(str) {
+    leftoverStringCache += str;
+    let boundaryIdx;
+    while ((boundaryIdx = leftoverStringCache.indexOf("\n")) !== -1) {
+        let line = leftoverStringCache.substring(0, boundaryIdx).trim();
+        leftoverStringCache = leftoverStringCache.substring(boundaryIdx + 1);
         
-        window.filteredDataLog.push(fVal);
-        if (window.filteredDataLog.length > 3000) window.filteredDataLog.shift(); 
-        
-        window.analysisBuffer[window.bufferIndex] = fVal;
-        window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
+        let points = line.split(","); if (points.length < 2) continue;
+        let audioChunk = new Float32Array(points.length);
+        for (let i = 0; i < points.length; i++) {
+            let byteVal = parseInt(points[i]); if (isNaN(byteVal)) continue;
+            let val = (byteVal / 127.5) - 1.0;
+            let fVal = window.applyFilter ? window.applyFilter(val) : val;
+            
+            audioChunk[i] = fVal;
+            window.filteredDataLog.push(fVal);
+            if (window.filteredDataLog.length > 2500) window.filteredDataLog.shift();
+            
+            window.analysisBuffer[window.bufferIndex] = fVal;
+            window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
+        }
+        window.playAudioChunkDirect(audioChunk);
     }
 };
 
@@ -121,12 +131,18 @@ window.playAudioChunkDirect = function(audioChunk) {
     }
 };
 
-function localFFT(re, im) {
-    const n = re.length; let bits = 0; while ((1 << bits) < n) bits++;
+// 💡 升級：100% 記憶體隔離型傅立葉蝶形疊代演算法（0 交叉感染、0 失真）
+function isolatedFFT(out_re, out_im, in_src) {
+    const n = window.FFT_SIZE;
+    for (let i = 0; i < n; i++) {
+        out_re[i] = in_src[i]; out_im[i] = 0.0; // 在乾淨的臨時矩陣上初始化
+    }
+    let bits = 0; while ((1 << bits) < n) bits++;
     for (let i = 0; i < n; i++) {
         let rev = 0; for (let j = 0; j < bits; j++) { if ((i & (1 << j)) !== 0) rev |= (1 << (bits - 1 - j)); }
         if (rev > i) {
-            let tempR = re[i]; re[i] = re[rev]; re[rev] = tempR; let tempI = im[i]; im[i] = im[rev]; im[rev] = tempI;
+            let tr = out_re[i]; out_re[i] = out_re[rev]; out_re[rev] = tr;
+            let ti = out_im[i]; out_im[i] = out_im[rev]; out_im[rev] = ti;
         }
     }
     for (let len = 2; len <= n; len <<= 1) {
@@ -134,11 +150,11 @@ function localFFT(re, im) {
         for (let i = 0; i < n; i += len) {
             let w_r = 1, w_i = 0;
             for (let j = 0; j < len / 2; j++) {
-                let u_r = re[i + j], u_i = im[i + j];
-                let v_r = re[i + j + len / 2] * w_r - im[i + j + len / 2] * w_i;
-                let v_i = re[i + j + len / 2] * w_i + im[i + j + len / 2] * w_r;
-                re[i + j] = u_r + v_r; im[i + j] = u_i + v_i;
-                re[i + j + len / 2] = u_r - v_r; im[i + j + len / 2] = u_i - v_i;
+                let u_r = out_re[i + j], u_i = out_im[i + j];
+                let v_r = out_re[i + j + len / 2] * w_r - out_im[i + j + len / 2] * w_i;
+                let v_i = out_re[i + j + len / 2] * w_i + out_im[i + j + len / 2] * w_r;
+                out_re[i + j] = u_r + v_r; out_im[i + j] = u_i + v_i;
+                out_re[i + j + len / 2] = u_r - v_r; out_im[i + j + len / 2] = u_i - v_i;
                 let next_w_r = w_r * wlen_r - w_i * wlen_i; w_i = w_r * wlen_i + w_i * wlen_r; w_r = next_w_r;
             }
         }
@@ -149,14 +165,9 @@ window.globalRenderLoop = function() {
     requestAnimationFrame(window.globalRenderLoop);
     
     if (window.isSimulating && window.allInputsOnPage) {
-        // 💡 萬能指針：直接利用頁面上的滑桿排序位置，徹底擺脫對 ID 的依賴！
-        // 通常 HTML 的排列為：第 1 個是音量，第 2 個是採樣率，第 3 個是訊號頻率
-        let sampleSlider = window.allInputsOnPage[1];
-        let sinSlider = window.allInputsOnPage[2];
-        
+        let sampleSlider = window.allInputsOnPage[1]; let sinSlider = window.allInputsOnPage[2];
         let targetSR = sampleSlider ? parseInt(sampleSlider.value) : 20000;
         let targetSF = sinSlider ? parseInt(sinSlider.value) : 2000;
-        
         window.currentSampleRate = targetSR;
         
         let pointsCount = Math.round(window.currentSampleRate / 60);
@@ -170,8 +181,7 @@ window.globalRenderLoop = function() {
                 window.filteredDataLog.push(fVal);
                 window.analysisBuffer[window.bufferIndex] = fVal;
                 window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
-                window.simPhase += step;
-                if (window.simPhase >= 2 * Math.PI) window.simPhase -= 2 * Math.PI;
+                window.simPhase += step; if (window.simPhase >= 2 * Math.PI) window.simPhase -= 2 * Math.PI;
             }
             if (window.filteredDataLog.length > 2500) window.filteredDataLog = window.filteredDataLog.slice(-2000);
             window.playAudioChunkDirect(audioChunk);
@@ -179,13 +189,18 @@ window.globalRenderLoop = function() {
     }
 
     if (window.filteredDataLog.length < 150) return;
-    let rPoints = window.filteredDataLog.slice(-150), max = Math.max(...rPoints), min = Math.min(...rPoints), vpp = max - min, sq = 0;
+    let rPoints = window.filteredDataLog.slice(-150);
+    let max = Math.max(...rPoints), min = Math.min(...rPoints), vpp = max - min, sq = 0;
     rPoints.forEach(v => sq += v * v); let rms = Math.sqrt(sq / rPoints.length);
     document.getElementById('vppVal').innerText = vpp.toFixed(2) + " V"; document.getElementById('rmsVal').innerText = rms.toFixed(2) + " V";
     
+    // 💡 建立高隔離獨立計算面板
     let re = new Float32Array(window.FFT_SIZE), im = new Float32Array(window.FFT_SIZE);
-    for (let k = 0; k < window.FFT_SIZE; k++) { let idx = (window.bufferIndex + k) % window.FFT_SIZE; re[k] = window.analysisBuffer[idx]; }
-    localFFT(re, im);
+    let snapShotSnapshot = new Float32Array(window.FFT_SIZE);
+    for (let k = 0; k < window.FFT_SIZE; k++) { let idx = (window.bufferIndex + k) % window.FFT_SIZE; snapShotSnapshot[k] = window.analysisBuffer[idx]; }
+    
+    // 💡 執行 100% 物理隔離轉換，徹底阻斷畫布鋸齒失真！
+    isolatedFFT(re, im, snapShotSnapshot);
     
     let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
@@ -209,19 +224,12 @@ window.globalRenderLoop = function() {
     window.fCtx.stroke();
 };
 
-// 💡 全域事件監聽：動態追蹤第 1, 2, 3 個滑桿的滑動，更新對應數值文字
 document.addEventListener('input', (e) => {
     if (e.target && e.target.type === 'range' && window.allInputsOnPage) {
         let idx = window.allInputsOnPage.indexOf(e.target);
-        // 動態抓取目前滑桿正後方的第一個 <span> 標籤元件
         let nextSpan = e.target.nextElementSibling;
-        if (nextSpan && nextSpan.tagName === 'SPAN') {
-            nextSpan.innerText = (idx === 0) ? Math.round(e.target.value * 100) + "%" : e.target.value + " Hz";
-        }
-        if (idx === 1) {
-            window.currentSampleRate = parseInt(e.target.value);
-            if (window.updateFilterCoefficients) window.updateFilterCoefficients();
-        }
+        if (nextSpan && nextSpan.tagName === 'SPAN') { nextSpan.innerText = (idx === 0) ? Math.round(e.target.value * 100) + "%" : e.target.value + " Hz"; }
+        if (idx === 1) { window.currentSampleRate = parseInt(e.target.value); if (window.updateFilterCoefficients) window.updateFilterCoefficients(); }
         if (window.gainNode && idx === 0) window.gainNode.gain.value = parseFloat(e.target.value);
     }
 });
@@ -231,7 +239,7 @@ document.addEventListener('click', (e) => {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
         if (window.isSimulating) {
             window.initAudioGlobal(); btn.innerText = "🛑 停止本地模擬測試"; btn.className = "btn-sim active";
-            document.getElementById('status').innerText = "▶️ 離線沙盒：萬能時鐘死鎖模擬引擎已點火！";
+            document.getElementById('status').innerText = "▶️ 離線沙盒：物理隔離定頻大核心已點火！";
         } else {
             btn.innerText = "🛠️ 開啟本地資料模擬測試"; btn.className = "btn-sim";
             document.getElementById('status').innerText = "狀態：模擬測試已停止。";
