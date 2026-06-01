@@ -22,12 +22,12 @@ window.oscNode = null; window.hardwareFilter = null; window.hardwareAnalyser = n
 let renderFrameCounter = 0;
 
 // ==========================================
-// 💡 2️⃣ 數位濾波器硬體晶片平滑同步閘門（100% 消除 F1、F2 互相卡死不反應黑洞！）
+// 💡 2️⃣ 數位濾波器硬體晶片平滑同步大腦（實裝 LP / HP 的 F2 Q值動態調試！）
 // ==========================================
 window.updateFilterCoefficients = function() {
     if (!window.hardwareFilter || !window.audioCtx) return;
     try {
-        let t = window.audioCtx.currentTime + 0.005; // 💡 給予硬體晶片 5 毫秒的平滑緩衝通道
+        let t = window.audioCtx.currentTime + 0.005; // 5毫秒硬體平滑緩衝
         
         if (window.currentFilterMode === 'RAW') { 
             window.hardwareFilter.type = 'allpass'; 
@@ -35,16 +35,21 @@ window.updateFilterCoefficients = function() {
         else if (window.currentFilterMode === 'LP') { 
             window.hardwareFilter.type = 'lowpass'; 
             window.hardwareFilter.frequency.linearRampToValueAtTime(window.f1, t); 
+            // 💡 降維打擊：將 F2 的實體數值等比例動態映射為 0.1 ~ 10.0 的精密 Q 值！拉動立刻變陡峭！
+            let dynamicQ = 0.1 + (window.f2 / 5000.0) * 9.9; if (dynamicQ < 0.1) dynamicQ = 0.1; if (dynamicQ > 10.0) dynamicQ = 10.0;
+            window.hardwareFilter.Q.linearRampToValueAtTime(dynamicQ, t);
         }
         else if (window.currentFilterMode === 'HP') { 
             window.hardwareFilter.type = 'highpass'; 
             window.hardwareFilter.frequency.linearRampToValueAtTime(window.f1, t); 
+            // 💡 同步解耦：高通下 F2 同樣秒變 Q 值調試桿！
+            let dynamicQ = 0.1 + (window.f2 / 5000.0) * 9.9; if (dynamicQ < 0.1) dynamicQ = 0.1; if (dynamicQ > 10.0) dynamicQ = 10.0;
+            window.hardwareFilter.Q.linearRampToValueAtTime(dynamicQ, t);
         }
         else if (window.currentFilterMode === 'BP') { 
             window.hardwareFilter.type = 'bandpass'; 
-            // 💡 鋼性解鎖：改用硬體平滑緩降通道，單單拉任何一根拉桿都能 0 階梯獨立完美響應！
             window.hardwareFilter.frequency.linearRampToValueAtTime(window.f1, t); 
-            
+            // 💡 帶通模式下自動歸位：F2 還原為標準的 Hz 頻寬比值計算
             let qVal = window.f1 / (window.f2 > 0 ? window.f2 : 1.0); if (qVal < 0.1) qVal = 0.1;
             window.hardwareFilter.Q.linearRampToValueAtTime(qVal, t);
         }
@@ -59,10 +64,8 @@ window.addEventListener('DOMContentLoaded', () => {
     window.tCtx = window.tCanvas.getContext('2d'); window.fCtx = window.fCanvas.getContext('2d');
     window.tCanvas.width = 800; window.tCanvas.height = 400; window.fCanvas.width = 800; window.fCanvas.height = 400;
 });
+
 //
-// ==========================================
-// 💡 3️⃣ 聲學大革命：純網頁音訊硬體圖學直連（控制台 100% 乾淨雪白）
-// ==========================================
 window.initAudioGlobal = function() {
     if (window.oscNode) { try { window.oscNode.stop(); } catch(e){} window.oscNode.disconnect(); window.oscNode = null; }
     
@@ -100,6 +103,7 @@ window.consumeRawBuffer = function(rawDataView) {
         window.analysisBuffer[window.bufferIndex] = val; window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
     }
 };
+
 //
 window.globalRenderLoop = function() {
     requestAnimationFrame(window.globalRenderLoop); if (!window.hardwareAnalyser) return;
@@ -144,8 +148,8 @@ window.globalRenderLoop = function() {
     
     window.fCtx.clearRect(0, 0, window.fCanvas.width, window.fCanvas.height);
     window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, window.fCanvas.width, window.fCanvas.height); window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 1.5; window.fCtx.beginPath();
-    let fSlice = window.fCanvas.width / (freqData.length / 2);
-    for (let n = 0; n < freqData.length / 2; n++) { let y = window.fCanvas.height - ((freqData[n] + 140) * (window.fCanvas.height / 140)); if (n == 0) window.fCtx.moveTo(0, y); else window.fCtx.lineTo(n * fSlice, y); }
+    let fSlice = window.fCanvas.width / (window.FFT_SIZE / 4);
+    for (let n = 0; n < window.FFT_SIZE / 4; n++) { let y = window.fCanvas.height - ((freqData[n] + 140) * (window.fCanvas.height / 140)); if (n == 0) window.fCtx.moveTo(0, y); else window.fCtx.lineTo(n * fSlice, y); }
     window.fCtx.stroke();
 };
 
@@ -155,7 +159,7 @@ document.addEventListener('click', (e) => {
     if (clickId === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn'); window.initAudioGlobal();
         if (btn) { btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試"; btn.className = window.isSimulating ? "btn-sim active" : "btn-sim"; }
-        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：硬體平滑緩降通道點火！" : "狀態：模擬測試已停止。";
+        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：Q值動態調試面板點火！" : "狀態：模擬測試已停止。";
     }
     if (clickId === 'speakerBtn') {
         window.isSpeakerOn = !window.isSpeakerOn; const sBtn = document.getElementById('speakerBtn');
@@ -166,8 +170,12 @@ document.addEventListener('click', (e) => {
     if (fModes[clickId]) {
         Object.keys(fModes).forEach(k => { const tBtn = document.getElementById(k); if (tBtn) tBtn.classList.remove('active'); });
         e.target.classList.add('active'); window.currentFilterMode = fModes[clickId];
-        const f2View = document.getElementById('f2Container'); if (f2View) f2View.style.display = window.currentFilterMode === 'BP' ? 'flex' : 'none';
-        window.updateFilterCoefficients();
+        
+        // 💡 視覺解鎖：當切換到 LP、HP、BP 時，無條件強制讓 F2 容器統統顯示出來供您調試 Q 值！
+        const f2View = document.getElementById('f2Container'); 
+        if (f2View) f2View.style.display = (clickId === 'filterLP' || clickId === 'filterHP' || clickId === 'filterBP') ? 'flex' : 'none';
+        
+        if (window.updateFilterCoefficients) window.updateFilterCoefficients();
     }
     if (clickId === 'connectBtn') {
         if (window.isSimulating) { const sBtn = document.getElementById('simBtn'); if (sBtn) sBtn.click(); }
@@ -188,7 +196,19 @@ document.addEventListener('input', (e) => {
         if (sliderId === "sampleRateSlider") { window.currentSampleRate = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.currentSampleRate + " Hz"; window.updateFilterCoefficients(); }
         if (sliderId === "sinFreqSlider") { window.currentSinFreq = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.currentSinFreq + " Hz"; if (window.oscNode && window.audioCtx) window.oscNode.frequency.setValueAtTime(window.currentSinFreq, window.audioCtx.currentTime); }
         if (sliderId === "f1Slider") { window.f1 = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.f1 + " Hz"; window.updateFilterCoefficients(); }
-        if (sliderId === "f2Slider") { window.f2 = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.f2 + " Hz"; window.updateFilterCoefficients(); }
+        
+        // 💡 監聽門閥解鎖：拉動 F2 時，如果當前是 LP 或 HP，自動動態將右側文字改成當前精密 Q 值！
+        if (sliderId === "f2Slider") { 
+            window.f2 = parseInt(curVal); 
+            if (nextSpan) {
+                if (window.currentFilterMode === 'LP' || window.currentFilterMode === 'HP') {
+                    let dQ = 0.1 + (window.f2 / 5000.0) * 9.9; nextSpan.innerText = "Q: " + dQ.toFixed(2);
+                } else {
+                    nextSpan.innerText = window.f2 + " Hz";
+                }
+            }
+            window.updateFilterCoefficients(); 
+        }
         if (sliderId === "volumeSlider") { if (nextSpan) nextSpan.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && window.audioCtx) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); }
     }
 });
