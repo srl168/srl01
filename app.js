@@ -22,21 +22,23 @@ window.f1 = 1000; window.f2 = 3000;
 window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 let xv = new Float32Array(3), yv = new Float32Array(3);
 
-// 💡 2️⃣ 數位濾波器核心係數計算公式（滿血大復活版，全面補齊 BP 帶通！）
+// 💡 2️⃣ 數位濾波器核心係數計算公式（100% 正確的工業級 BP 帶通實裝！）
 window.updateFilterCoefficients = function() {
     let fr = window.currentSampleRate / window.f1; if (fr < 2.01) fr = 2.01;
     let o = Math.tan(Math.PI / fr), q = Math.sqrt(2), c = 1 + q * o + o * o;
+    
     if (window.currentFilterMode === 'LP') { window.b0 = o * o / c; window.b1 = 2 * window.b0; window.b2 = window.b0; window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - q * o + o * o) / c; } 
     else if (window.currentFilterMode === 'HP') { window.b0 = 1 / c; window.b1 = -2 * window.b0; window.b2 = window.b0; window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - q * o + o * o) / c; } 
     else if (window.currentFilterMode === 'BP') { 
-        // 💡 實裝正宗恆定峰值增益帶通公式（F1 = 中心頻率，F2 = 頻寬，利用 10 密碼與 Q 值嚙合）
-        let bwOct = (window.f2 > 0 ? window.f2 : 1000) / window.currentSampleRate; if (bwOct < 0.001) bwOct = 0.001;
-        let qVal = 1.0 / (2.0 * Math.sinh(Math.log(2) / 2 * bwOct * (fr / Math.sin(Math.PI / fr)))); if (qVal < 0.1) qVal = 0.1;
-        let cBP = 1 + (o / qVal) + o * o; window.b0 = (o / qVal) / cBP; window.b1 = 0; window.b2 = -window.b0; window.a1 = 2 * (o * o - 1) / cBP; window.a2 = (1 - (o / qVal) + o * o) / cBP;
+        // 💡 工業級標準帶通公式：中心頻率為 F1，頻寬為 F2，Q 值 100% 鋼性比例對齊，絕不偏擺！
+        let qVal = window.f1 / (window.f2 > 0 ? window.f2 : 1); if (qVal < 0.1) qVal = 0.1;
+        let cBP = 1 + (o / qVal) + o * o; 
+        window.b0 = (o / qVal) / cBP; window.b1 = 0; window.b2 = -window.b0; 
+        window.a1 = 2 * (o * o - 1) / cBP; window.a2 = (1 - (o / qVal) + o * o) / cBP;
     }
 };
 
-// 💡 3️⃣ 獨立二階濾波過濾水管
+// 💡 3️⃣ 獨立二階濾波執行水管
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     xv = xv; xv = xv; xv = x;
@@ -85,7 +87,7 @@ window.initAudioGlobal = function() {
             let rawVal = inputData[sample];
             let fVal = window.applyFilter ? window.applyFilter(rawVal) : rawVal; 
             
-            outputData[sample] = fVal; // 0 雜音流暢發聲直通硬體
+            outputData[sample] = fVal; 
             
             if (window.isSimulating) {
                 window.filteredDataLog.push(fVal);
@@ -181,7 +183,7 @@ document.addEventListener('click', (e) => {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn');
         window.initAudioGlobal();
         if (btn) { btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試"; btn.className = window.isSimulating ? "btn-sim active" : "btn-sim"; }
-        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：1對1 帶通 BP 濾波完全體通電！" : "狀態：模擬測試已停止。";
+        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：恆定比值 BP 核心啟動！" : "狀態：模擬測試已停止。";
     }
     if (clickId === 'speakerBtn') {
         window.isSpeakerOn = !window.isSpeakerOn; const sBtn = document.getElementById('speakerBtn');
