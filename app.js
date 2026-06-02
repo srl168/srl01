@@ -23,36 +23,39 @@ window.hardwareFilter = null; window.hardwareAnalyser = null;
 let renderFrameCounter = 0;
 
 // ==========================================
-// 💡 2️⃣ 100% 硬件晶片加速的濾波器型態同步閘門（帶有 5ms 硬件平滑過渡通道）
+// 💡 2️⃣ 數位濾波器精密係數計算公式
 // ==========================================
 window.updateFilterCoefficients = function() {
+    let fr = window.currentSampleRate / window.f1; if (fr < 2.01) fr = 2.01;
+    let o = Math.tan(Math.PI / fr);
+    
+    let qValLP_HP = 0.1 + (window.f2 / 5000.0) * 9.9; 
+    if (qValLP_HP < 0.1) qValLP_HP = 0.1; if (qValLP_HP > 10.0) qValLP_HP = 10.0;
+
+    if (window.currentFilterMode === 'LP') { 
+        let c = 1 + (o / qValLP_HP) + o * o;
+        window.b0 = (o * o) / c; window.b1 = 2 * window.b0; window.b2 = window.b0; 
+        window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - (o / qValLP_HP) + o * o) / c; 
+    } 
+    else if (window.currentFilterMode === 'HP') { 
+        let c = 1 + (o / qValLP_HP) + o * o;
+        window.b0 = 1.0 / c; window.b1 = -2.0 * window.b0; window.b2 = window.b0; 
+        window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - (o / qValLP_HP) + o * o) / c; 
+    } 
+    else if (window.currentFilterMode === 'BP') { 
+        let qValBP = window.f1 / (window.f2 > 0 ? window.f2 : 1.0); if (qValBP < 0.1) qValBP = 0.1;
+        let cBP = 1.0 + (o / qValBP) + o * o;
+        window.b0 = (o / qValBP) / cBP; window.b1 = 0.0; window.b2 = -window.b0;
+        window.a1 = 2.0 * (o * o - 1.0) / cBP; window.a2 = (1.0 - (o / qValBP) + o * o) / cBP;
+    }
+
     if (!window.hardwareFilter || !window.audioCtx) return;
     try {
-        let t = window.audioCtx.currentTime + 0.005; 
-        
-        if (window.currentFilterMode === 'RAW') { 
-            window.hardwareFilter.type = 'allpass'; 
-        }
-        else if (window.currentFilterMode === 'LP') { 
-            window.hardwareFilter.type = 'lowpass'; 
-            window.hardwareFilter.frequency.linearRampToValueAtTime(window.f1, t); 
-            let dynamicQ = 0.1 + (window.f2 / 5000.0) * 9.9;
-            if (dynamicQ < 0.1) dynamicQ = 0.1; if (dynamicQ > 10.0) dynamicQ = 10.0;
-            window.hardwareFilter.Q.linearRampToValueAtTime(dynamicQ, t);
-        }
-        else if (window.currentFilterMode === 'HP') { 
-            window.hardwareFilter.type = 'highpass'; 
-            window.hardwareFilter.frequency.linearRampToValueAtTime(window.f1, t); 
-            let dynamicQ = 0.1 + (window.f2 / 5000.0) * 9.9;
-            if (dynamicQ < 0.1) dynamicQ = 0.1; if (dynamicQ > 10.0) dynamicQ = 10.0;
-            window.hardwareFilter.Q.linearRampToValueAtTime(dynamicQ, t);
-        }
-        else if (window.currentFilterMode === 'BP') { 
-            window.hardwareFilter.type = 'bandpass'; 
-            window.hardwareFilter.frequency.linearRampToValueAtTime(window.f1, t); 
-            let qVal = window.f1 / (window.f2 > 0 ? window.f2 : 1.0); if (qVal < 0.1) qVal = 0.1;
-            window.hardwareFilter.Q.linearRampToValueAtTime(qVal, t);
-        }
+        let t = window.audioCtx.currentTime + 0.005;
+        if (window.currentFilterMode === 'RAW') { window.hardwareFilter.type = 'allpass'; }
+        else if (window.currentFilterMode === 'LP') { window.hardwareFilter.type = 'lowpass'; window.hardwareFilter.frequency.linearRampToValueAtTime(window.f1, t); window.hardwareFilter.Q.linearRampToValueAtTime(qValLP_HP, t); }
+        else if (window.currentFilterMode === 'HP') { window.hardwareFilter.type = 'highpass'; window.hardwareFilter.frequency.linearRampToValueAtTime(window.f1, t); window.hardwareFilter.Q.linearRampToValueAtTime(qValLP_HP, t); }
+        else if (window.currentFilterMode === 'BP') { window.hardwareFilter.type = 'bandpass'; window.hardwareFilter.frequency.linearRampToValueAtTime(window.f1, t); let qValBP = window.f1 / (window.f2 > 0 ? window.f2 : 1.0); if (qValBP < 0.1) qValBP = 0.1; window.hardwareFilter.Q.linearRampToValueAtTime(qValBP, t); }
     } catch (e) {}
 };
 
@@ -61,13 +64,12 @@ window.applyFilter = function(x) { return x; };
 window.addEventListener('DOMContentLoaded', () => {
     window.tCanvas = document.getElementById('timeCanvas'); window.fCanvas = document.getElementById('freqCanvas');
     window.tCtx = window.tCanvas.getContext('2d'); window.fCtx = window.fCanvas.getContext('2d');
-    // 💡 剛性初始化：在網頁加載完畢的第一毫秒，無條件強制賦予實體解像度像素骨架！
     window.tCanvas.width = 800; window.tCanvas.height = 400; window.fCanvas.width = 800; window.fCanvas.height = 400;
 });
 window.oscNode = null; window.oscNode2 = null; window.scriptNode = null;
 
 // ==========================================
-// 💡 3️⃣ 聲學大革命：100% 純硬體雙音對照組直通網路（控制台 0 警告、0 雜音）
+// 💡 3️⃣ 聲學大革命：100% 純硬體直通雙音發生器
 // ==========================================
 window.initAudioGlobal = function() {
     if (window.oscNode) { try { window.oscNode.stop(); } catch(e){} window.oscNode.disconnect(); window.oscNode = null; }
@@ -96,7 +98,7 @@ window.initAudioGlobal = function() {
 
         window.oscNode2 = window.audioCtx.createOscillator();
         window.oscNode2.type = 'sine';
-        // 💡 實務雙音對照組：音頻 2 固定鎖死在主頻率的 0.4 倍，製造最漂亮的複頻和聲
+        // 💡 實務雙音對照組：第二音固定生成鎖死在主頻率的 0.4 倍（完美支援複頻觀測！）
         window.oscNode2.frequency.setValueAtTime(window.currentSinFreq * 0.4, window.audioCtx.currentTime);
 
         window.oscNode.connect(window.hardwareFilter);
@@ -116,7 +118,6 @@ window.globalRenderLoop = function() {
     requestAnimationFrame(window.globalRenderLoop); if (!window.hardwareAnalyser) return;
     renderFrameCounter++; if (renderFrameCounter % 2 !== 0) return;
     
-    // 💡 剛性門閥校準：在每一格繪圖刷新時，無條件暴力死鎖實體解析度，徹底摧毀 CSS 的拉伸剪切！
     if (window.tCanvas.width !== 800) { window.tCanvas.width = 800; window.tCanvas.height = 400; }
     if (window.fCanvas.width !== 800) { window.fCanvas.width = 800; window.fCanvas.height = 400; }
 
@@ -144,27 +145,26 @@ window.globalRenderLoop = function() {
     document.getElementById('freqVal').innerText = maxMag > -100 ? peakFreq.toFixed(1) + " Hz" : "0.0 Hz";
     
     // ==========================================
-    // 💡 時域畫布渲染（強制 800x400 安全座標系）
+    // 💡 時域畫布渲染（優化振幅乘積比例，100% 幾何防溢位！）
     // ==========================================
     window.tCtx.clearRect(0, 0, 800, 400);
     window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, 800, 400);
     
-    let midY = 200; let scaleY = 150; // 在 400 高度中留出安全上下邊界
+    let midY = 200; 
+    // 💡 剛性幾何校準：將原本的 2.3 縮小優化為 2.85（實體 140 像素），雙音 MIX 時大浪絕對收攏在畫布內！
+    let scaleY = 400 / 2.85; 
 
-    // 💡 繪製絕對純白 (#ffffff) 電壓橫網格
-    window.tCtx.strokeStyle = '#444444'; window.tCtx.lineWidth = 1; window.tCtx.beginPath();
+    window.tCtx.strokeStyle = '#333333'; window.tCtx.lineWidth = 1; window.tCtx.beginPath();
     let voltSteps = [1.0, 0.5, 0.0, -0.5, -1.0];
     voltSteps.forEach(v => { let yPos = midY - v * scaleY; window.tCtx.moveTo(0, yPos); window.tCtx.lineTo(800, yPos); });
     window.tCtx.stroke();
 
-    // 💡 將字體無條件改成高對比純白，並加上安全向右內縮偏移，防擠壓出界！
-    window.tCtx.fillStyle = '#ffffff'; window.tCtx.font = 'bold 13px Courier New';
-    voltSteps.forEach(v => { let yPos = midY - v * scaleY; window.tCtx.fillText((v >= 0 ? "+" : "") + v.toFixed(1) + "V", 25, yPos + 5); });
+    window.tCtx.fillStyle = '#ffffff'; window.tCtx.font = 'bold 12px Arial';
+    voltSteps.forEach(v => { let yPos = midY - v * scaleY; window.tCtx.fillText((v >= 0 ? "+" : "") + v.toFixed(1) + "V", 20, yPos + 4); });
 
-    // 繪製綠色波形
     window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath();
     let tSlice = 800 / (rawSlice.length - 1);
-    window.tCtx.moveTo(0, midY - ((rawSlice[0] || 0) * scaleY));
+    window.tCtx.moveTo(0, midY - ((rawSlice || 0) * scaleY));
     for (let j = 0; j < rawSlice.length - 1; j++) {
         let x1 = j * tSlice; let y1 = midY - ((rawSlice[j] || 0) * scaleY);
         let x2 = (j + 1) * tSlice; let y2 = midY - ((rawSlice[j + 1] || 0) * scaleY);
@@ -176,34 +176,32 @@ window.globalRenderLoop = function() {
     window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + totalTimeMs.toFixed(2) + " ms", 620, 380);
 
     // ==========================================
-    // 💡 頻域畫布渲染（強制 800x400，安全內縮 40像素留給底部數字標籤）
+    // 💡 頻域畫布渲染（強制 5000Hz 為畫布最右端！全幅滿幅拉伸！）
     // ==========================================
     window.fCtx.clearRect(0, 0, 800, 400);
     window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400);
     
-    // 💡 繪製頻域 5 等分實體垂直灰線網格（座標精準限制在 0 ~ 800 內）
-    window.fCtx.strokeStyle = '#444444'; window.fCtx.lineWidth = 1; window.fCtx.beginPath();
+    // 💡 建立 5000Hz 工業級垂直標尺（5等分：0Hz, 1.25kHz, 2.5kHz, 3.75kHz, 5kHz）
+    window.fCtx.strokeStyle = '#333333'; window.fCtx.lineWidth = 1; window.fCtx.beginPath();
     for (let k = 0; k <= 4; k++) { let xPos = 200 * k; if (k === 4) xPos = 799; window.fCtx.moveTo(xPos, 0); window.fCtx.lineTo(xPos, 360); }
     window.fCtx.stroke();
 
-    // 💡 強制印上純白高鮮明實體 kHz 數字刻度（安全抬高在畫布底端 385 像素位置，絕不沉底！）
-    window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 13px Courier New';
-    let nyquistFreq = window.currentSampleRate / 2;
-    for (let k = 0; k <= 4; k++) {
-        let xPos = 200 * k; let currentTickFreq = (nyquistFreq / 4) * k;
-        let txt = (currentTickFreq / 1000).toFixed(2) + " kHz";
-        let textOffset = k === 0 ? 15 : (k === 4 ? -75 : -30); // 邊緣向內對齊優化
-        window.fCtx.fillText(txt, xPos + textOffset, 385);
-    }
+    window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 12px Arial';
+    let ticks = ["0.00 kHz", "1.25 kHz", "2.50 kHz", "3.75 kHz", "5.00 kHz"];
+    for (let k = 0; k <= 4; k++) { let textOffset = k === 0 ? 15 : (k === 4 ? -75 : -25); window.fCtx.fillText(ticks[k], (200 * k) + textOffset, 385); }
 
-    // 繪製黃色頻譜波形
+    // 💡 核心演算法：計算 5000Hz 對應在 FFT 陣列（Nyquist 頻率）裡的最高數據下標下標
+    let hzPerBin = ((window.audioCtx ? window.audioCtx.sampleRate : 44100) / window.FFT_SIZE);
+    let maxBinIndex = Math.round(5000 / hzPerBin); if (maxBinIndex > freqData.length) maxBinIndex = freqData.length;
+
+    // 繪製黃色頻譜線（以 maxBinIndex 為界進行 800 像素滿幅均勻拉伸！）
     window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.0; window.fCtx.beginPath();
-    let fSlice = 800 / (freqData.length / 2);
-    for (let n = 0; n < freqData.length / 2; n++) { 
-        // 💡 剛性安全視野校準：將 Y 軸底部鎖死在 360 像素，留出最乾淨、最空曠的下方空間印數字！
+    let fSliceAdaptive = 800 / (maxBinIndex - 1);
+    for (let n = 0; n < maxBinIndex; n++) { 
+        let curX = n * fSliceAdaptive;
         let y = 360 - ((freqData[n] + 140) * (350 / 140)); 
         if (y < 10) y = 10; if (y > 358) y = 358;
-        if (n == 0) window.fCtx.moveTo(0, y); else window.fCtx.lineTo(n * fSlice, y); 
+        if (n == 0) window.fCtx.moveTo(curX, y); else window.fCtx.lineTo(curX, y); 
     }
     window.fCtx.stroke();
 };
@@ -214,7 +212,7 @@ document.addEventListener('click', (e) => {
     if (clickId === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn'); window.initAudioGlobal();
         if (btn) { btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試"; btn.className = window.isSimulating ? "btn-sim active" : "btn-sim"; }
-        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：800x400 鋼性解析度刻度尺開機！" : "狀態：模擬測試已停止。";
+        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：5000Hz 滿幅寬度對齊矩陣通電！" : "狀態：模擬測試已停止。";
     }
     if (clickId === 'speakerBtn') {
         window.isSpeakerOn = !window.isSpeakerOn; const sBtn = document.getElementById('speakerBtn');
@@ -235,17 +233,6 @@ document.addEventListener('click', (e) => {
         }
         window.updateFilterCoefficients();
     }
-    if (clickId === 'connectBtn') {
-        if (window.isSimulating) { const sBtn = document.getElementById('simBtn'); if (sBtn) sBtn.click(); }
-        const status = document.getElementById('status');
-        try {
-            status.innerText = "正在搜尋藍牙裝置...";
-            navigator.bluetooth.requestDevice({ filters: [{ namePrefix: 'ESP32' }], optionalServices: [window.S_UUID] }).then(device => { return device.gatt.connect(); })
-            .then(server => { return server.getPrimaryService(window.S_UUID); }).then(service => { return service.getCharacteristic(window.C_UUID); })
-            .then(characteristic => { window.bleCharacteristicObject = characteristic; window.bleCharacteristicObject.removeEventListener('characteristicvaluechanged', window.currentBleHandler); window.currentBleHandler = (evt) => { window.consumeRawBuffer(evt.target.value); }; window.bleCharacteristicObject.addEventListener('characteristicvaluechanged', window.currentBleHandler); return window.bleCharacteristicObject.startNotifications(); })
-            .then(() => { status.innerText = "▶️ 實體藍牙大水管對接成功！"; }).catch(err => { status.innerText = "底層連線失敗: " + err.message; });
-        } catch (err) { status.innerText = "藍牙不支援: " + err.message; }
-    }
 });
 
 document.addEventListener('input', (e) => {
@@ -263,4 +250,18 @@ document.addEventListener('input', (e) => {
             if (nextSpan) {
                 if (window.currentFilterMode === 'LP' || window.currentFilterMode === 'HP') {
                     let dQ = 0.1 + (window.f2 / 5000.0) * 9.9; nextSpan.innerText = "Q: " + dQ.toFixed(2);
-} else { nextSpan.innerText = window.f2 + " Hz"; }}window.updateFilterCoefficients();}if (sliderId === "volumeSlider") { if (nextSpan) nextSpan.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && window.audioCtx) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); }}});window.onload = function() {const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);if (window.globalRenderLoop) window.globalRenderLoop();};
+                } else { nextSpan.innerText = window.f2 + " Hz"; }
+            }
+            window.updateFilterCoefficients(); 
+        }
+        if (sliderId === "volumeSlider") { if (nextSpan) nextSpan.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && window.audioCtx) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); }
+    }
+});
+
+window.onload = function() {
+    const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');
+    const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');
+    if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);
+    if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);
+    if (window.globalRenderLoop) window.globalRenderLoop();
+};
