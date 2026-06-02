@@ -2,7 +2,7 @@ if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體大腦池初始化
+// 💡 1️⃣ 全域記憶體大腦池初始化（徹底修復變數未定義ReferenceError大坑！）
 // ==========================================
 window.currentSampleRate = 20000;
 window.currentSinFreq = 3000; 
@@ -13,6 +13,8 @@ window.simPhase = 0;
 window.simPhase2 = 0;             
 window.FFT_SIZE = 1024; 
 window.analysisBuffer = new Float32Array(window.FFT_SIZE);
+window.simWorker = null;
+window.renderFrameCounter = 0; // 💡 剛性宣告全域時鐘變數，徹底消滅當機報錯！
 
 window.currentFilterMode = 'RAW';
 window.f1 = 1000; window.f2 = 3000;
@@ -52,11 +54,10 @@ window.updateFilterCoefficients = function() {
 
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
-    xv[0] = xv[1]; xv[1] = xv[2]; xv[2] = x;
-    yv[0] = yv[1]; yv[1] = yv[2];
-    yv[2] = (window.b0 * xv[2]) + (window.b1 * xv[1]) + (window.b2 * xv[0]) - (window.a1 * yv[1]) - (window.a2 * yv[0]);
-    if (isNaN(yv[2]) || !isFinite(yv[2])) { yv[0]=0; yv[1]=0; yv[2]=0; xv[0]=0; xv[1]=0; xv[2]=0; }
-    return yv[2];
+    xv = xv; xv = xv; xv = x; yv = yv; yv = yv;
+    yv = (window.b0 * xv) + (window.b1 * xv) + (window.b2 * xv) - (window.a1 * yv) - (window.a2 * yv);
+    if (isNaN(yv) || !isFinite(yv)) { yv=0; yv=0; yv=0; xv=0; xv=0; xv=0; }
+    return yv;
 };
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -64,18 +65,18 @@ window.addEventListener('DOMContentLoaded', () => {
     window.tCtx = window.tCanvas.getContext('2d'); window.fCtx = window.fCanvas.getContext('2d');
     window.tCanvas.width = 800; window.tCanvas.height = 400; window.fCanvas.width = 800; window.fCanvas.height = 400;
 });
+window.oscNode = null; window.oscNode2 = null; window.scriptNode = null;
+
 // ==========================================
-// 💡 3️⃣ 聲學直通車：發聲與時域/頻域分析快取池完全解耦！徹底消滅過時警告與短斷音！
+// 💡 3️⃣ 聲學直通車：離線信號泵全面解耦發聲（控制台一片雪白乾淨，0 官方棄用警告！）
 // ==========================================
 window.initAudioGlobal = function() {
-    // 💡 宣告大革命：為了 100% 物理煙滅 ScriptProcessor 的 Deprecated 官方報錯警告
-    // 我們將本地模擬測試的資料流完全由高精度定時器託管，0 調用舊音訊接口，控制台一片雪白乾淨！
     if (window.audioInterval) clearInterval(window.audioInterval);
     
     if (window.isSimulating) {
         window.updateFilterCoefficients();
         
-        // 建立一個 16ms 滿格刷新的高精度離線信號泵
+        // 建立一個 16ms 滿格刷新的高精度離線信號泵，完全隔離 ScriptProcessorNode
         window.audioInterval = setInterval(() => {
             // 每格分配投遞 128 個雙音調變採樣點
             for (let i = 0; i < 128; i++) {
@@ -106,28 +107,8 @@ window.consumeRawBuffer = function(rawDataView) {
         window.analysisBuffer[window.bufferIndex] = fVal; window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
     }
 };
-function localFFT(re, im) {
-    const n = re.length; let bits = 0; while ((1 << bits) < n) bits++;
-    for (let i = 0; i < n; i++) {
-        let rev = 0; for (let j = 0; j < bits; j++) { if ((i & (1 << j)) !== 0) rev |= (1 << (bits - 1 - j)); }
-        if (rev > i) { let tr = re[i]; re[i] = re[rev]; re[rev] = tr; let ti = im[i]; im[i] = im[rev]; im[rev] = ti; }
-    }
-    for (let len = 2; len <= n; len <<= 1) {
-        let ang = 2 * Math.PI / len * -1, wlen_r = Math.cos(ang), wlen_i = Math.sin(ang);
-        for (let i = 0; i < n; i += len) {
-            let w_r = 1, w_i = 0;
-            for (let j = 0; j < len / 2; j++) {
-                let u_r = re[i + j], u_i = im[i + j]; let v_r = re[i + j + len / 2] * w_r - im[i + j + len / 2] * w_i;
-                let v_i = re[i + j + len / 2] * w_i + im[i + j + len / 2] * w_r;
-                re[i + j] = u_r + v_r; im[i + j] = u_i + v_i; re[i + j + len / 2] = u_r - v_r; im[i + j + len / 2] = u_i - v_i;
-                let next_w_r = w_r * wlen_r - w_i * wlen_i; w_i = w_r * wlen_i + w_i * wlen_r; w_r = next_w_r;
-            }
-        }
-    }
-}
-
 window.globalRenderLoop = function() {
-    requestAnimationFrame(window.globalRenderLoop); renderFrameCounter++; if (renderFrameCounter % 2 !== 0) return;
+    requestAnimationFrame(window.globalRenderLoop); window.renderFrameCounter++; if (window.renderFrameCounter % 2 !== 0) return;
     if (window.filteredDataLog.length < 50) return;
 
     let minFreq = window.currentSinFreq * 0.4;
@@ -164,7 +145,7 @@ window.globalRenderLoop = function() {
     window.tCtx.stroke();
     let totalTimeMs = (rawSlice.length / window.currentSampleRate) * 1000; window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + totalTimeMs.toFixed(2) + " ms", 620, 380);
 
-    // 頻域畫布渲染：正宗分貝標尺
+    // 頻域畫布渲染：正宗分貝標尺（0dB ~ -60dB 剛性視野）
     window.fCtx.clearRect(0, 0, 800, 400); window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400);
     window.fCtx.strokeStyle = '#333333'; window.fCtx.lineWidth = 1; window.fCtx.beginPath();
     for (let k = 0; k <= 4; k++) { let xPos = 200 * k; if (k === 4) xPos = 799; window.fCtx.moveTo(xPos, 0); window.fCtx.lineTo(xPos, 360); } window.fCtx.stroke();
@@ -204,7 +185,7 @@ document.addEventListener('click', (e) => {
     if (clickId === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn'); window.initAudioGlobal();
         if (btn) btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試";
-        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：增益補償 Biquad 核心啟動！" : "狀態：模擬測試已停止。";
+        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：增益補償 Biquad 核心大復活！" : "狀態：模擬測試已停止。";
     }
     const fModes = { filterRaw: 'RAW', filterLP: 'LP', filterHP: 'HP', filterBP: 'BP' };
     if (fModes[clickId]) {
