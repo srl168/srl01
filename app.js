@@ -1,4 +1,4 @@
-//103
+//104
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -14,7 +14,7 @@ window.isSpeakerOn = false;
 window.isSimulating = false;
 window.simPhase = 0;
 window.simPhase2 = 0;             
-window.FFT_SIZE = 1024; 
+window.FFT_SIZE = 1024; // 1024 點標準示波器黃金拓撲骨架
 window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 window.simWorker = null;
 window.renderFrameCounter = 0; 
@@ -25,7 +25,7 @@ window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 let xv = new Float32Array(3), yv = new Float32Array(3);
 
 // ==========================================
-// 💡 2️⃣ 數位濾波器精密係數計算公式
+// 💡 2️⃣ 數位濾波器精密係數計算公式（100% 嚙合當前採樣率拉桿！）
 // ==========================================
 window.updateFilterCoefficients = function() {
     let fr = window.currentSampleRate / window.f1; if (fr < 2.01) fr = 2.01;
@@ -78,6 +78,7 @@ window.initAudioGlobal = function() {
         window.gainNode.connect(window.audioCtx.destination);
     }
     
+    // 💡 喇叭發聲連動：開啟時切換到舒適音量，關閉時降為 0
     window.gainNode.gain.setValueAtTime(window.isSpeakerOn ? 0.3 : 0.0, window.audioCtx.currentTime);
 
     window.oscNode = window.audioCtx.createOscillator(); window.oscNode.type = 'sine';
@@ -86,6 +87,7 @@ window.initAudioGlobal = function() {
     window.oscNode2 = window.audioCtx.createOscillator(); window.oscNode2.type = 'sine';
     window.oscNode2.frequency.setValueAtTime(window.currentSinFreq * 0.4, window.audioCtx.currentTime);
 
+    // 💡 迎回最穩定、滑順、0 破碎的原生硬體加速音訊處理環節
     window.scriptNode = window.audioCtx.createScriptProcessor(1024, 1, 1);
     window.scriptNode.onaudioprocess = function(audioProcessingEvent) {
         let inputBuffer = audioProcessingEvent.inputBuffer; let outputBuffer = audioProcessingEvent.outputBuffer;
@@ -153,7 +155,7 @@ window.globalRenderLoop = function() {
 
     let rawSlice = window.filteredDataLog.slice(-adaptivePointsCount);
     
-    // 時域最大絕對值自適應盲抓防溢位
+    // 時域最大絕對值即時自適應換檔，100% 防出框！
     let currentFrameMaxPeak = Math.max(...rawSlice.map(Math.abs)); if (currentFrameMaxPeak < 0.1) currentFrameMaxPeak = 0.1;
     let scaleY = 145 / currentFrameMaxPeak; 
 
@@ -184,54 +186,32 @@ window.globalRenderLoop = function() {
     let totalTimeMs = (rawSlice.length / window.currentSampleRate) * 1000; window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + totalTimeMs.toFixed(2) + " ms", 620, 380);
 
     // ==========================================
-    // 💡 1️⃣ 功能一：加入「自適應性」寬度觀測視野（X 軸幾何動態拉伸放大成窄波峰！）
+    // 💡 💡 💡 5000Hz 固定全幅觀測視野死鎖
     // ==========================================
     window.fCtx.clearRect(0, 0, 800, 400); window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400);
     
-    let maxDisplayFreq = window.f1 * 2.2; 
-    if (maxDisplayFreq < 1200) maxDisplayFreq = 1200; 
-    if (maxDisplayFreq > 5000) maxDisplayFreq = 5000; // 安全極限不超過 5kHz 上限
-
-    // 繪製垂直自適應 5 等分網格線
     window.fCtx.strokeStyle = '#333333'; window.fCtx.lineWidth = 1; window.fCtx.beginPath();
     for (let k = 0; k <= 4; k++) { let xPos = 200 * k; if (k === 4) xPos = 799; window.fCtx.moveTo(xPos, 0); window.fCtx.lineTo(xPos, 360); }
     window.fCtx.stroke();
 
-    // 底部 kHz 純白標籤隨視野伸縮動態更新
     window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 12px Arial';
-    for (let k = 0; k <= 4; k++) {
-        let textOffset = k === 0 ? 15 : (k === 4 ? -75 : -25);
-        let currentTickFreq = (maxDisplayFreq / 4) * k;
-        window.fCtx.fillText((currentTickFreq / 1000).toFixed(2) + " kHz", (200 * k) + textOffset, 385);
-    }
+    let ticks = ["0.00 kHz", "1.25 kHz", "2.50 kHz", "3.75 kHz", "5.00 kHz"];
+    for (let k = 0; k <= 4; k++) { let textOffset = k === 0 ? 15 : (k === 4 ? -75 : -25); window.fCtx.fillText(ticks[k], (200 * k) + textOffset, 385); }
 
-    // ==========================================
-    // 💡 2️⃣ 功能二：在左側加入 4 等分「對數分貝（dB）水平格線標尺網格」
-    // ==========================================
     window.fCtx.strokeStyle = '#222222'; window.fCtx.beginPath();
-    let dbSteps = [0, -12, -30, -50];
-    dbSteps.forEach(db => {
-        let yPos = 30 + ((db / -60) * 310); // 將 0 到 -60dB 均勻等分刻在 Y 軸畫布
-        window.fCtx.moveTo(0, yPos); window.fCtx.lineTo(800, yPos);
-    });
+    let dbPositions = [0.4, 0.2, 0.08, 0.02]; dbPositions.forEach(p => { window.fCtx.moveTo(0, 360 - p*350); window.fCtx.lineTo(800, 360 - p*350); });
     window.fCtx.stroke();
-    
-    window.fCtx.fillStyle = '#aaaaaa'; window.fCtx.font = 'bold 11px Arial';
-    dbSteps.forEach(db => { let yPos = 30 + ((db / -60) * 310); window.fCtx.fillText(db + " dB", 20, yPos + 4); });
 
-    // 3️⃣ 1:1 絕對頻率橫軸直通映射與原汁原味線性幅值波形繪製
+    // 💡 絕對物理頻率直通車投影（4kHz 永遠精準死鎖在第 640 像素！）
     let hzPerBinHW = (44100 / window.FFT_SIZE);
     window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.0; window.fCtx.beginPath();
     
     let isFirstPoint = true;
     for (let n = 0; n < magnitudes.length; n++) { 
         let currentPointRealHz = n * hzPerBinHW;
-        if (currentPointRealHz > maxDisplayFreq) break; // 超過自適應視野上限則截斷
+        if (currentPointRealHz > 5000) break; 
         
-        // 幾何橫向等幅拉伸對齊
-        let curX = (currentPointRealHz / maxDisplayFreq) * 800;
-        
-        // 💡 保持原汁原味穩定的線性幾何乘積（絕不改動這行！不破壞按鈕原始行為！）
+        let curX = (currentPointRealHz / 5000) * 800;
         let y = 360 - (magnitudes[n] * 350 * 5); 
         if (y < 10) y = 10; if (y > 358) y = 358;
         
@@ -244,14 +224,14 @@ window.globalRenderLoop = function() {
 document.getElementById('simBtn')?.addEventListener('click', () => {
     window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn'); window.initAudioGlobal();
     if (btn) btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試";
-    document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：自適應窄波峰 ＋ 分貝網格標尺完美追加！" : "狀態：模擬測試已停止。";
+    document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：4kHz 絕對幾何坐標軸對齊正常版復活！" : "狀態：模擬測試已停止。";
 });
 
 document.addEventListener('click', (e) => {
     if (!e.target || !e.target.id) return;
     const clickId = e.target.id;
     
-    // 💡 聲音鈕啟動功能完美加入：點擊時改變全域狀態並靈敏重開
+    // 💡 聲音鈕連動開關：只控制音量，絕不干擾訊號差分管線，發聲 100% 滑順乾淨
     if (clickId === 'speakerBtn') {
         window.isSpeakerOn = !window.isSpeakerOn; const sBtn = document.getElementById('speakerBtn');
         if (sBtn) { sBtn.innerText = window.isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉"; sBtn.className = window.isSpeakerOn ? "btn-speaker" : "btn-speaker muted"; }
@@ -291,4 +271,6 @@ window.onload = function() {
     const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');
     const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');
     if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);
-if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);if (window.updateFilterCoefficients) window.updateFilterCoefficients(); if (window.globalRenderLoop) window.globalRenderLoop();};
+    if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);
+    if (window.updateFilterCoefficients) window.updateFilterCoefficients(); if (window.globalRenderLoop) window.globalRenderLoop();
+};
