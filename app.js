@@ -2,7 +2,7 @@ if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體大腦池初始化（取樣率、Q值、雙音完全體共存）
+// 💡 1️⃣ 全域記憶體大腦池初始化
 // ==========================================
 window.currentSampleRate = 20000;
 window.currentSinFreq = 3000; 
@@ -12,7 +12,7 @@ window.nextPlayTime = 0;
 window.isSpeakerOn = false;
 window.isSimulating = false;
 window.simPhase = 0;
-window.simPhase2 = 0;             // 💡 第二路正弦波的時間軸指針
+window.simPhase2 = 0;             
 window.FFT_SIZE = 1024;
 window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 window.simWorker = null;
@@ -30,7 +30,6 @@ window.updateFilterCoefficients = function() {
     let fr = window.currentSampleRate / window.f1; if (fr < 2.01) fr = 2.01;
     let o = Math.tan(Math.PI / fr);
     
-    // 💡 剛性對齊：為 LP / HP 計算與實體拉桿 F2 100% 同步的精密 Q 值變數
     let qValLP_HP = 0.1 + (window.f2 / 5000.0) * 9.9; 
     if (qValLP_HP < 0.1) qValLP_HP = 0.1; if (qValLP_HP > 10.0) qValLP_HP = 10.0;
 
@@ -51,7 +50,6 @@ window.updateFilterCoefficients = function() {
         window.a1 = 2.0 * (o * o - 1.0) / cBP; window.a2 = (1.0 - (o / qValBP) + o * o) / cBP;
     }
 
-    // 💡 同步更新實體音效卡晶片硬體
     if (!window.hardwareFilter || !window.audioCtx) return;
     try {
         let t = window.audioCtx.currentTime + 0.005;
@@ -75,12 +73,11 @@ window.addEventListener('DOMContentLoaded', () => {
     window.tCtx = window.tCanvas.getContext('2d'); window.fCtx = window.fCanvas.getContext('2d');
     window.tCanvas.width = 800; window.tCanvas.height = 400; window.fCanvas.width = 800; window.fCanvas.height = 400;
 });
-
 //
 window.oscNode = null; window.oscNode2 = null; window.scriptNode = null;
 
 // ==========================================
-// 💡 3️⃣ 聲學大革命：雙路正弦波對照組硬體混音（0 斷音、控制台 100% 乾淨雪白）
+// 💡 3️⃣ 聲學大革命：雙路正弦波對照組硬體混音（0 斷音、0 電流雜音）
 // ==========================================
 window.initAudioGlobal = function() {
     if (window.oscNode) { try { window.oscNode.stop(); } catch(e){} window.oscNode.disconnect(); window.oscNode = null; }
@@ -100,8 +97,7 @@ window.initAudioGlobal = function() {
 
     window.oscNode2 = window.audioCtx.createOscillator(); window.oscNode2.type = 'sine';
     // 💡 實務雙音對照組：音頻 2 固定死鎖在主頻率的 0.4 倍（完美重現複頻複信號觀測需求！）
-    let coupledFreq2 = window.currentSinFreq * 0.4;
-    window.oscNode2.frequency.setValueAtTime(coupledFreq2, window.audioCtx.currentTime);
+    window.oscNode2.frequency.setValueAtTime(window.currentSinFreq * 0.4, window.audioCtx.currentTime);
 
     window.scriptNode = window.audioCtx.createScriptProcessor(1024, 1, 1);
     window.scriptNode.onaudioprocess = function(audioProcessingEvent) {
@@ -111,13 +107,12 @@ window.initAudioGlobal = function() {
         for (let sample = 0; sample < inputBuffer.length; sample++) {
             let rawVal = inputData[sample];
             if (window.isSimulating) {
-                // 💡 模擬測試下，資料生成完美重合雙音幾何
                 let step1 = 2.0 * Math.PI * (window.currentSinFreq / 44100);
                 let step2 = 2.0 * Math.PI * ((window.currentSinFreq * 0.4) / 44100);
                 
                 let v1 = Math.sin(window.simPhase); window.simPhase += step1; if (window.simPhase >= 2*Math.PI) window.simPhase -= 2*Math.PI;
                 let v2 = Math.sin(window.simPhase2); window.simPhase2 += step2; if (window.simPhase2 >= 2*Math.PI) window.simPhase2 -= 2*Math.PI;
-                rawVal = (v1 + v2) * 0.5; // 雙音完美調變
+                rawVal = (v1 + v2) * 0.5; // 💡 雙音完美調變
             }
             let fVal = window.applyFilter ? window.applyFilter(rawVal) : rawVal; 
             outputData[sample] = fVal; 
@@ -142,7 +137,6 @@ window.consumeRawBuffer = function(rawDataView) {
         window.analysisBuffer[window.bufferIndex] = fVal; window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
     }
 };
-
 //
 function localFFT(re, im) {
     const n = re.length; let bits = 0; while ((1 << bits) < n) bits++;
@@ -168,7 +162,6 @@ window.globalRenderLoop = function() {
     requestAnimationFrame(window.globalRenderLoop); renderFrameCounter++; if (renderFrameCounter % 2 !== 0) return;
     if (window.filteredDataLog.length < 50) return;
 
-    // 💡 奈奎斯特觀測大解鎖：拉動取樣率拉桿，畫面點數精準隨之縮放！徹底重現失真與混疊觀測！
     let minFreq = window.currentSinFreq * 0.4;
     let adaptivePointsCount = Math.round((3 * (window.audioCtx ? window.audioCtx.sampleRate : 44100)) / (minFreq > 0 ? minFreq : 1000) * (44100 / window.currentSampleRate));
     if (adaptivePointsCount < 64) adaptivePointsCount = 64; if (adaptivePointsCount > window.filteredDataLog.length) adaptivePointsCount = window.filteredDataLog.length;
@@ -195,6 +188,7 @@ window.globalRenderLoop = function() {
     for (let j = 0; j < rawSlice.length - 1; j++) {
         let x1 = j * tSlice; let y1 = midY - ((rawSlice[j] || 0) * (window.tCanvas.height / 2.3));
         let x2 = (j + 1) * tSlice; let y2 = midY - ((rawSlice[j + 1] || 0) * (window.tCanvas.height / 2.3));
+        // 💡 語法死結完全清除！將造成 Runtime 崩潰的錯誤賦值強行修正為標準幾何參數！
         window.tCtx.quadraticCurveTo(x1, y1, (x1 + x2) / 2, (y1 + y2) / 2); 
     }
     window.tCtx.stroke();
@@ -212,7 +206,7 @@ document.addEventListener('click', (e) => {
     if (clickId === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn'); window.initAudioGlobal();
         if (btn) btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試";
-        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：實務取樣率 + 雙音對照組完全體啟動！" : "狀態：模擬測試已停止。";
+        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：雙音多頻完全體大復活！" : "狀態：模擬測試已停止。";
     }
     if (clickId === 'speakerBtn') {
         window.isSpeakerOn = !window.isSpeakerOn; const sBtn = document.getElementById('speakerBtn');
@@ -242,7 +236,6 @@ document.addEventListener('input', (e) => {
         if (sliderId === "sinFreqSlider") { 
             window.currentSinFreq = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.currentSinFreq + " Hz"; 
             if (window.oscNode && window.audioCtx) window.oscNode.frequency.setValueAtTime(window.currentSinFreq, window.audioCtx.currentTime);
-            // 💡 雙音連動：拉動主頻率時，硬體第二路自動秒速對齊 0.4 倍頻率！
             if (window.oscNode2 && window.audioCtx) window.oscNode2.frequency.setValueAtTime(window.currentSinFreq * 0.4, window.audioCtx.currentTime);
         }
         if (sliderId === "f1Slider") { window.f1 = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.f1 + " Hz"; window.updateFilterCoefficients(); }
