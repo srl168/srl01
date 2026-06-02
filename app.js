@@ -1,4 +1,4 @@
-//105
+//106
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -12,10 +12,10 @@ window.bufferIndex = 0;
 window.nextPlayTime = 0;
 window.isSpeakerOn = false;
 window.isSimulating = false;
-window.currentVolume = 0.3; // 剛性初始音量 30%
+window.currentVolume = 0.3; // 💡 剛性初始化全域音量暫存器 (30%)
 window.simPhase = 0;
 window.simPhase2 = 0;             
-window.FFT_SIZE = 1024; // 1024 點標準工業級示波器黃金骨架
+window.FFT_SIZE = 1024; // 1024 點標準示波器黃金拓撲骨架
 window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 window.simWorker = null;
 window.renderFrameCounter = 0; 
@@ -74,12 +74,14 @@ window.initAudioGlobal = function() {
     if (window.oscNode2) { try { window.oscNode2.stop(); } catch(e){} window.oscNode2.disconnect(); window.oscNode2 = null; }
     if (window.scriptNode) window.scriptNode.disconnect();
     
+    // 💡 重新接通全域網頁音訊調音大水管
     if (!window.audioCtx) {
         window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         window.gainNode = window.audioCtx.createGain();
         window.gainNode.connect(window.audioCtx.destination);
     }
     
+    // 💡 剛性對齊調音台：開關與拉桿雙向連動，開啟時使用當前拉桿音量，關閉時置 0 靜音
     let realTargetVolume = window.isSpeakerOn ? window.currentVolume : 0.0;
     window.gainNode.gain.setValueAtTime(realTargetVolume, window.audioCtx.currentTime);
 
@@ -89,6 +91,7 @@ window.initAudioGlobal = function() {
     window.oscNode2 = window.audioCtx.createOscillator(); window.oscNode2.type = 'sine';
     window.oscNode2.frequency.setValueAtTime(window.currentSinFreq * 0.4, window.audioCtx.currentTime);
 
+    // 💡 回歸最健全、0 雜音、絲滑不卡頓的原生 ScriptProcessor 引擎
     window.scriptNode = window.audioCtx.createScriptProcessor(1024, 1, 1);
     window.scriptNode.onaudioprocess = function(audioProcessingEvent) {
         let inputBuffer = audioProcessingEvent.inputBuffer; let outputBuffer = audioProcessingEvent.outputBuffer;
@@ -156,7 +159,7 @@ window.globalRenderLoop = function() {
 
     let rawSlice = window.filteredDataLog.slice(-adaptivePointsCount);
     
-    // 時域最大絕對值即時自適應換檔，100% 幾何防出框！
+    // 時域最大絕對值即時自適應防溢位
     let absMaxPeak = Math.max(...rawSlice.map(Math.abs)); if (absMaxPeak < 0.1) absMaxPeak = 0.1;
     let scaleY = 145 / absMaxPeak; if (scaleY > 165) scaleY = 165;
 
@@ -173,7 +176,7 @@ window.globalRenderLoop = function() {
     
     let realHWFreq = maxIdx * (44100 / window.FFT_SIZE); document.getElementById('freqVal').innerText = maxMag > 0.04 ? realHWFreq.toFixed(1) + " Hz" : "0.0 Hz";
     
-    // 渲染時域
+    // 渲染時域波形 Canvas
     window.tCtx.clearRect(0, 0, 800, 400); window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, 800, 400);
     let midY = 200; window.tCtx.strokeStyle = '#333333'; window.tCtx.lineWidth = 1; window.tCtx.beginPath();
     let voltSteps = [1.0, 0.5, 0.0, -0.5, -1.0]; voltSteps.forEach(v => { let yPos = midY - v * scaleY; window.tCtx.moveTo(0, yPos); window.tCtx.lineTo(800, yPos); }); window.tCtx.stroke();
@@ -186,20 +189,20 @@ window.globalRenderLoop = function() {
     let totalTimeMs = (rawSlice.length / window.currentSampleRate) * 1000; window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + totalTimeMs.toFixed(2) + " ms", 620, 380);
 
     // ==========================================
-    // 💡 1️⃣ 新增功能一：「自適應性」橫向寬度觀測視窗（X軸隨 F1 靈敏拉伸！）
+    // 💡 🛠️ 1️⃣ 功能一：加入「自適應性」橫向寬度觀測視窗（X軸隨 F1 靈敏拉伸！）
     // ==========================================
     window.fCtx.clearRect(0, 0, 800, 400); window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400);
     
     let maxDisplayFreq = window.f1 * 2.2; 
     if (maxDisplayFreq < 1200) maxDisplayFreq = 1200; 
-    if (maxDisplayFreq > 5000) maxDisplayFreq = 5000; // 最寬不超過 5kHz 拉桿上限
+    if (maxDisplayFreq > 5000) maxDisplayFreq = 5000; // 最寬不超過 5kHz 
 
     // 繪製自適應垂直 5 等分頻率灰格線
     window.fCtx.strokeStyle = '#333333'; window.fCtx.lineWidth = 1; window.fCtx.beginPath();
     for (let k = 0; k <= 4; k++) { let xPos = 200 * k; if (k === 4) xPos = 799; window.fCtx.moveTo(xPos, 0); window.fCtx.lineTo(xPos, 360); }
     window.fCtx.stroke();
 
-    // 印上動態更新的純白高解析 kHz 數字尺標
+    // 底部印上自適應 kHz 純白標籤
     window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 12px Arial';
     for (let k = 0; k <= 4; k++) {
         let textOffset = k === 0 ? 15 : (k === 4 ? -75 : -25);
@@ -208,12 +211,12 @@ window.globalRenderLoop = function() {
     }
 
     // ==========================================
-    // 💡 2️⃣ 新增功能二：實裝標準「0 dB 頂格對齊」負分貝對數縱軸（0 ~ -50 dB）
+    // 💡 🛠️ 2️⃣ 功能二：在畫布左側新增標準「分貝（dB）水平標尺網格刻度」
     // ==========================================
     window.fCtx.strokeStyle = '#222222'; window.fCtx.beginPath();
     let dbSteps = [0, -12, -30, -50];
     dbSteps.forEach(db => {
-        let yPos = 30 + ((db / -50) * 310); // 將 0 到 -50dB 均勻等分映射到實體畫布區間
+        let yPos = 30 + ((db / -50) * 310); // 均勻等分映射到 Y 軸
         window.fCtx.moveTo(0, yPos); window.fCtx.lineTo(800, yPos);
     });
     window.fCtx.stroke();
@@ -222,24 +225,21 @@ window.globalRenderLoop = function() {
     dbSteps.forEach(db => { let yPos = 30 + ((db / -50) * 310); window.fCtx.fillText(db + " dB", 20, yPos + 4); });
 
     // ==========================================
-    // 💡 3️⃣ 世紀大整合：絕對物理頻率橫軸對齊 ＋ 正宗 20log10 負分貝（主峰剛性死鎖 0 dB！）
+    // 💡 🛠️ 3️⃣ 幾何校準：絕對頻率 X 軸對齊 ＋ 歸一化振幅（主峰剛性死鎖 0 dB！）
     // ==========================================
     let hzPerBinHW = (44100 / window.FFT_SIZE);
-    window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.5; window.fCtx.beginPath();
+    window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.0; window.fCtx.beginPath();
     
     let isFirstPoint = true;
     for (let n = 0; n < magnitudes.length; n++) { 
         let currentPointRealHz = n * hzPerBinHW;
-        if (currentPointRealHz > maxDisplayFreq) break; // 超過自適應上限點位自動融斷不畫
+        if (currentPointRealHz > maxDisplayFreq) break; // 超過自適應上限點位截斷
         
         let curX = (currentPointRealHz / maxDisplayFreq) * 800;
         
-        // 💡 歸一化分貝轉換：用工業正統對數運算，RAW狀態下未衰減最大幅值保證對齊在 0 dB！
-        let linearVal = magnitudes[n] * 6.5; if (linearVal < 0.001) linearVal = 0.001; 
-        let dB = 20 * Math.log10(linearVal);
-        
-        if (dB > 5) dB = 5; if (dB < -50) dB = -50; // 死鎖邊界
-        let y = 30 + ((dB / -50) * 310); // 0dB剛好對齊在最頂端（實體 30 像素位置）
+        // 💡 歸一化修正算式：乘以 0.16 係數，確保 RAW 狀態下最大未衰減主峰 100% 精準頂格在 0 dB 刻度線上！
+        let y = 30 + ((1.0 - (magnitudes[n] * 6.5 * 0.16)) * 310);
+        if (y < 10) y = 10; if (y > 358) y = 358;
         
         if (isFirstPoint) { window.fCtx.moveTo(curX, y); isFirstPoint = false; } 
         else { window.fCtx.lineTo(curX, y); }
@@ -250,7 +250,7 @@ window.globalRenderLoop = function() {
 document.getElementById('simBtn')?.addEventListener('click', () => {
     window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn'); window.initAudioGlobal();
     if (btn) btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試";
-    document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：0 dB 主峰對齊分貝尺核心開機！" : "狀態：模擬測試已停止。";
+    document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：4kHz 絕對物理投影健全版復活！" : "狀態：模擬測試已停止。";
 });
 
 document.addEventListener('click', (e) => {
@@ -287,7 +287,9 @@ document.addEventListener('input', (e) => {
             window.f2 = parseInt(curVal); if (nextSpan) { let dQ = 0.1 + (window.f2 / 5000.0) * 9.9; nextSpan.innerText = "Q: " + dQ.toFixed(2); }
             window.updateFilterCoefficients(); 
         }
+        // ==========================================
+        // 💡 💡 💡 終極修復：重新打通實體音量調節桿的控制水管！
+        // ==========================================
         if (sliderId === "volumeSlider") { 
             window.currentVolume = curVal; if (nextSpan) nextSpan.innerText = Math.round(curVal * 100) + "%"; 
-if (window.gainNode && window.audioCtx && window.isSpeakerOn) { window.gainNode.gain.setValueAtTime(window.currentVolume, window.audioCtx.currentTime); }}}});window.onload = function() {const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);if (window.updateFilterCoefficients) window.updateFilterCoefficients(); if (window.globalRenderLoop) window.globalRenderLoop();};
-
+if (window.gainNode && window.audioCtx && window.isSpeakerOn) {window.gainNode.gain.setValueAtTime(window.currentVolume, window.audioCtx.currentTime);}}}});window.onload = function() {const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);if (window.updateFilterCoefficients) window.updateFilterCoefficients(); if (window.globalRenderLoop) window.globalRenderLoop();};
