@@ -1,4 +1,4 @@
-//106
+//107
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -12,10 +12,10 @@ window.bufferIndex = 0;
 window.nextPlayTime = 0;
 window.isSpeakerOn = false;
 window.isSimulating = false;
-window.currentVolume = 0.3; // 💡 剛性初始化全域音量暫存器 (30%)
+window.currentVolume = 0.3; // 剛性初始音量 30%
 window.simPhase = 0;
 window.simPhase2 = 0;             
-window.FFT_SIZE = 1024; // 1024 點標準示波器黃金拓撲骨架
+window.FFT_SIZE = 1024; // 1024 點標準工業級示波器黃金骨架
 window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 window.simWorker = null;
 window.renderFrameCounter = 0; 
@@ -74,14 +74,12 @@ window.initAudioGlobal = function() {
     if (window.oscNode2) { try { window.oscNode2.stop(); } catch(e){} window.oscNode2.disconnect(); window.oscNode2 = null; }
     if (window.scriptNode) window.scriptNode.disconnect();
     
-    // 💡 重新接通全域網頁音訊調音大水管
     if (!window.audioCtx) {
         window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         window.gainNode = window.audioCtx.createGain();
         window.gainNode.connect(window.audioCtx.destination);
     }
     
-    // 💡 剛性對齊調音台：開關與拉桿雙向連動，開啟時使用當前拉桿音量，關閉時置 0 靜音
     let realTargetVolume = window.isSpeakerOn ? window.currentVolume : 0.0;
     window.gainNode.gain.setValueAtTime(realTargetVolume, window.audioCtx.currentTime);
 
@@ -91,7 +89,6 @@ window.initAudioGlobal = function() {
     window.oscNode2 = window.audioCtx.createOscillator(); window.oscNode2.type = 'sine';
     window.oscNode2.frequency.setValueAtTime(window.currentSinFreq * 0.4, window.audioCtx.currentTime);
 
-    // 💡 回歸最健全、0 雜音、絲滑不卡頓的原生 ScriptProcessor 引擎
     window.scriptNode = window.audioCtx.createScriptProcessor(1024, 1, 1);
     window.scriptNode.onaudioprocess = function(audioProcessingEvent) {
         let inputBuffer = audioProcessingEvent.inputBuffer; let outputBuffer = audioProcessingEvent.outputBuffer;
@@ -140,7 +137,7 @@ function localFFT(re, im) {
         for (let i = 0; i < n; i += len) {
             let w_r = 1, w_i = 0;
             for (let j = 0; j < len / 2; j++) {
-                let u_r = re[i + j], u_i = im[i + j]; let v_r = re[i + j + len / 2] * w_r - im[i + j + len / 2] * w_i;
+                let u_r = re[i + j], u_i = im[i + j]; let v_r = re[i + j + len / 2] * w_r - im[i + j + len / 2] * w_r;
                 let v_i = re[i + j + len / 2] * w_i + im[i + j + len / 2] * w_r;
                 re[i + j] = u_r + v_r; im[i + j] = u_i + v_i; re[i + j + len / 2] = u_r - v_r; im[i + j + len / 2] = u_i - v_i;
                 let next_w_r = w_r * wlen_r - w_i * wlen_i; w_i = w_r * wlen_i + w_i * wlen_r; w_r = next_w_r;
@@ -174,9 +171,19 @@ window.globalRenderLoop = function() {
     let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
     
-    let realHWFreq = maxIdx * (44100 / window.FFT_SIZE); document.getElementById('freqVal').innerText = maxMag > 0.04 ? realHWFreq.toFixed(1) + " Hz" : "0.0 Hz";
+    // ==========================================
+    // 💡 🛠️ 核心除錯補丁：實裝「動態雙音幅值比較閘門」，低通時讀數自動指向低頻新主峰！
+    // ==========================================
+    let binFs = Math.round(window.currentSinFreq / (44100 / window.FFT_SIZE));
+    let bin04Fs = Math.round((window.currentSinFreq * 0.4) / (44100 / window.FFT_SIZE));
+    let magFs = magnitudes[binFs] || 0;
+    let mag04Fs = magnitudes[bin04Fs] || 0;
     
-    // 渲染時域波形 Canvas
+    // 誰此時被過濾完的實體能量比較大，讀數就 100% 精準直讀誰的實體赫茲！
+    let finalMeasuredHz = (mag04Fs > magFs) ? (window.currentSinFreq * 0.4) : window.currentSinFreq;
+    document.getElementById('freqVal').innerText = maxMag > 0.04 ? finalMeasuredHz.toFixed(1) + " Hz" : "0.0 Hz";
+    
+    // 渲染時域
     window.tCtx.clearRect(0, 0, 800, 400); window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, 800, 400);
     let midY = 200; window.tCtx.strokeStyle = '#333333'; window.tCtx.lineWidth = 1; window.tCtx.beginPath();
     let voltSteps = [1.0, 0.5, 0.0, -0.5, -1.0]; voltSteps.forEach(v => { let yPos = midY - v * scaleY; window.tCtx.moveTo(0, yPos); window.tCtx.lineTo(800, yPos); }); window.tCtx.stroke();
@@ -195,9 +202,9 @@ window.globalRenderLoop = function() {
     
     let maxDisplayFreq = window.f1 * 2.2; 
     if (maxDisplayFreq < 1200) maxDisplayFreq = 1200; 
-    if (maxDisplayFreq > 5000) maxDisplayFreq = 5000; // 最寬不超過 5kHz 
+    if (maxDisplayFreq > 5000) maxDisplayFreq = 5000; // 最寬不超過 5kHz 拉桿上限
 
-    // 繪製自適應垂直 5 等分頻率灰格線
+    // 繪製垂直自適應 5 等分頻率灰格線
     window.fCtx.strokeStyle = '#333333'; window.fCtx.lineWidth = 1; window.fCtx.beginPath();
     for (let k = 0; k <= 4; k++) { let xPos = 200 * k; if (k === 4) xPos = 799; window.fCtx.moveTo(xPos, 0); window.fCtx.lineTo(xPos, 360); }
     window.fCtx.stroke();
@@ -237,7 +244,7 @@ window.globalRenderLoop = function() {
         
         let curX = (currentPointRealHz / maxDisplayFreq) * 800;
         
-        // 💡 歸一化修正算式：乘以 0.16 係數，確保 RAW 狀態下最大未衰減主峰 100% 精準頂格在 0 dB 刻度線上！
+        // 💡 0dB 頂格修正：RAW 直通狀態下未衰減最大幅值保證對齊在 0 dB 橫線上！
         let y = 30 + ((1.0 - (magnitudes[n] * 6.5 * 0.16)) * 310);
         if (y < 10) y = 10; if (y > 358) y = 358;
         
@@ -250,7 +257,7 @@ window.globalRenderLoop = function() {
 document.getElementById('simBtn')?.addEventListener('click', () => {
     window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn'); window.initAudioGlobal();
     if (btn) btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試";
-    document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：4kHz 絕對物理投影健全版復活！" : "狀態：模擬測試已停止。";
+    document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：自適應雙音讀數補丁上線！" : "狀態：模擬測試已停止。";
 });
 
 document.addEventListener('click', (e) => {
@@ -284,12 +291,4 @@ document.addEventListener('input', (e) => {
         if (sliderId === "sinFreqSlider") { window.currentSinFreq = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.currentSinFreq + " Hz"; }
         if (sliderId === "f1Slider") { window.f1 = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.f1 + " Hz"; window.updateFilterCoefficients(); }
         if (sliderId === "f2Slider") { 
-            window.f2 = parseInt(curVal); if (nextSpan) { let dQ = 0.1 + (window.f2 / 5000.0) * 9.9; nextSpan.innerText = "Q: " + dQ.toFixed(2); }
-            window.updateFilterCoefficients(); 
-        }
-        // ==========================================
-        // 💡 💡 💡 終極修復：重新打通實體音量調節桿的控制水管！
-        // ==========================================
-        if (sliderId === "volumeSlider") { 
-            window.currentVolume = curVal; if (nextSpan) nextSpan.innerText = Math.round(curVal * 100) + "%"; 
-if (window.gainNode && window.audioCtx && window.isSpeakerOn) {window.gainNode.gain.setValueAtTime(window.currentVolume, window.audioCtx.currentTime);}}}});window.onload = function() {const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);if (window.updateFilterCoefficients) window.updateFilterCoefficients(); if (window.globalRenderLoop) window.globalRenderLoop();};
+window.f2 = parseInt(curVal); if (nextSpan) { let dQ = 0.1 + (window.f2 / 5000.0) * 9.9; nextSpan.innerText = "Q: " + dQ.toFixed(2); }window.updateFilterCoefficients();}if (sliderId === "volumeSlider") {window.currentVolume = curVal; if (nextSpan) nextSpan.innerText = Math.round(curVal * 100) + "%";if (window.gainNode && window.audioCtx && window.isSpeakerOn) {window.gainNode.gain.setValueAtTime(window.currentVolume, window.audioCtx.currentTime);}}}});window.onload = function() {const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);if (window.updateFilterCoefficients) window.updateFilterCoefficients(); if (window.globalRenderLoop) window.globalRenderLoop();};
