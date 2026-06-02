@@ -22,29 +22,30 @@ window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 let xv = new Float32Array(3), yv = new Float32Array(3);
 
 // ==========================================
-// 💡 2️⃣ 數位濾波器精密係數計算公式（實裝「線性反比強阻尼協議」，下踩力道全面暴增！）
+// 💡 2️⃣ 數位濾波器精密係數計算公式（完璧歸趙：沒收全域分子減幅，阻尼完美鎖定在分母！）
 // ==========================================
 window.updateFilterCoefficients = function() {
     let fr = window.currentSampleRate / window.f1; if (fr < 2.01) fr = 2.01;
     let o = Math.tan(Math.PI / fr);
     
-    // 自適應讀取拉桿 F2 精密品質因數 Q (0.1 ~ 18.0)
+    // 讀取拉桿 F2 精密品質因數 Q (0.1 ~ 18.0)
     let qVal = 0.1 + (window.f2 / 5000.0) * 17.9; 
     if (qVal < 0.1) qVal = 0.1; if (qVal > 18.0) qVal = 18.0;
-    let c = 1 + (o / qVal) + o * o;
 
     if (window.currentFilterMode === 'LP') { 
-        // 💡 阻尼抗性革命：沒收軟綿綿的開根號補償！改用「1.0 / qVal」正統線性反比！
-        // Q 越高，高頻衰減力道瞬間獲得幾何倍率的瘋狂下踩，絕不手軟！
-        let comp = 1.0 / qVal;
-        window.b0 = (o * o / c) * comp; window.b1 = 2 * window.b0; window.b2 = window.b0; 
-        window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - (o / qVal) + o * o) / c; 
+        // 💡 正宗雙線性變換（Bilinear Transform）低通：分子保持 100% 純淨直通，絕不干涉低頻主音！
+        let c = 1 + (o / qVal) + o * o;
+        window.b0 = (o * o) / c; window.b1 = 2 * window.b0; window.b2 = window.b0; 
+        
+        // 💡 阻尼核心回填分母：反饋極點完美嚙合，Q 越高，截止點外高頻的壓制力道越凌厲！
+        window.a1 = 2 * (o * o - 1) / c; 
+        window.a2 = (1 - (o / qVal) + o * o) / c; 
     } 
     else if (window.currentFilterMode === 'HP') { 
-        // 💡 高通同步升級線性強阻尼補償
-        let comp = 1.0 / qVal;
-        window.b0 = (1.0 / c) * comp; window.b1 = -2.0 * window.b0; window.b2 = window.b0; 
-        window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - (o / qVal) + o * o) / c; 
+        let c = 1 + (o / qVal) + o * o;
+        window.b0 = 1.0 / c; window.b1 = -2.0 * window.b0; window.b2 = window.b0; 
+        window.a1 = 2 * (o * o - 1) / c; 
+        window.a2 = (1 - (o / qVal) + o * o) / c; 
     } 
     else if (window.currentFilterMode === 'BP') { 
         let cBP = 1.0 + (o / qVal) + o * o;
@@ -68,9 +69,6 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 window.oscNode = null; window.oscNode2 = null; window.scriptNode = null;
 
-// ==========================================
-// 💡 3️⃣ 聲學直通車：雙音離線信號泵（控制台 100% 雪白放行）
-// ==========================================
 window.initAudioGlobal = function() {
     if (window.audioInterval) clearInterval(window.audioInterval);
     
@@ -138,7 +136,7 @@ window.globalRenderLoop = function() {
 
     let rawSlice = window.filteredDataLog.slice(-adaptivePointsCount);
     
-    // 時域最大絕對值自適應換檔，100% 幾何防出框
+    // 時域最大絕對值自適應換檔
     let absMaxPeak = Math.max(...rawSlice.map(Math.abs)); if (absMaxPeak < 0.1) absMaxPeak = 0.1;
     let scaleY = 145 / absMaxPeak; if (scaleY > 165) scaleY = 165;
 
@@ -166,7 +164,9 @@ window.globalRenderLoop = function() {
     window.tCtx.stroke();
     let totalTimeMs = (rawSlice.length / window.currentSampleRate) * 1000; window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + totalTimeMs.toFixed(2) + " ms", 620, 380);
 
-    // 頻域畫布渲染：正宗分貝標尺
+    // ==========================================
+    // 💡 頻域畫布渲染：正宗分貝標尺（0dB ~ -60dB 精密視窗）
+    // ==========================================
     window.fCtx.clearRect(0, 0, 800, 400); window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400);
     window.fCtx.strokeStyle = '#333333'; window.fCtx.lineWidth = 1; window.fCtx.beginPath();
     for (let k = 0; k <= 4; k++) { let xPos = 200 * k; if (k === 4) xPos = 799; window.fCtx.moveTo(xPos, 0); window.fCtx.lineTo(xPos, 360); } window.fCtx.stroke();
@@ -186,7 +186,7 @@ window.globalRenderLoop = function() {
         let currentPointRealHz = n * hzPerBinHW; if (currentPointRealHz > 5000) break; 
         let curX = (currentPointRealHz / 5000) * 800;
         
-        // 💡 係數補償優化：將線性幅值配合強阻尼係數放大，讓波形動態對齊更極致
+        // 💡 分貝投影優化：回歸正統無分子壓縮的分貝對數映射
         let linearVal = magnitudes[n] * 6.5; if (linearVal < 0.001) linearVal = 0.001; 
         let dB = 20 * Math.log10(linearVal);
         
@@ -200,7 +200,7 @@ window.globalRenderLoop = function() {
 document.getElementById('simBtn')?.addEventListener('click', () => {
     window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn'); window.initAudioGlobal();
     if (btn) btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試";
-    document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：線性強阻尼 Biquad 矩陣點火！" : "狀態：模擬測試已停止。";
+    document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：正宗分母阻尼 Biquad 拓撲啟動！" : "狀態：模擬測試已停止。";
 });
 
 document.addEventListener('click', (e) => {
