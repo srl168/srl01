@@ -2,7 +2,7 @@ if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體大腦池初始化（強制鎖定全域變數指針）
+// 💡 1️⃣ 全域記憶體大腦池初始化
 // ==========================================
 window.currentSampleRate = 20000;
 window.currentSinFreq = 3000; 
@@ -11,7 +11,7 @@ window.bufferIndex = 0;
 window.isSimulating = false;
 window.simPhase = 0;
 window.simPhase2 = 0;             
-window.FFT_SIZE = 1024; // 回歸 1024 點精密實務骨架
+window.FFT_SIZE = 1024; 
 window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 window.simWorker = null;
 window.renderFrameCounter = 0; 
@@ -22,23 +22,27 @@ window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 let xv = new Float32Array(3), yv = new Float32Array(3);
 
 // ==========================================
-// 💡 2️⃣ 數位濾波器精密係數計算公式（實裝「共振增益補償協定」）
+// 💡 2️⃣ 數位濾波器精密係數計算公式（實裝「線性反比強阻尼協議」，下踩力道全面暴增！）
 // ==========================================
 window.updateFilterCoefficients = function() {
     let fr = window.currentSampleRate / window.f1; if (fr < 2.01) fr = 2.01;
     let o = Math.tan(Math.PI / fr);
     
+    // 自適應讀取拉桿 F2 精密品質因數 Q (0.1 ~ 18.0)
     let qVal = 0.1 + (window.f2 / 5000.0) * 17.9; 
     if (qVal < 0.1) qVal = 0.1; if (qVal > 18.0) qVal = 18.0;
     let c = 1 + (o / qVal) + o * o;
 
     if (window.currentFilterMode === 'LP') { 
-        let comp = 1.0 / Math.sqrt(qVal);
+        // 💡 阻尼抗性革命：沒收軟綿綿的開根號補償！改用「1.0 / qVal」正統線性反比！
+        // Q 越高，高頻衰減力道瞬間獲得幾何倍率的瘋狂下踩，絕不手軟！
+        let comp = 1.0 / qVal;
         window.b0 = (o * o / c) * comp; window.b1 = 2 * window.b0; window.b2 = window.b0; 
         window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - (o / qVal) + o * o) / c; 
     } 
     else if (window.currentFilterMode === 'HP') { 
-        let comp = 1.0 / Math.sqrt(qVal);
+        // 💡 高通同步升級線性強阻尼補償
+        let comp = 1.0 / qVal;
         window.b0 = (1.0 / c) * comp; window.b1 = -2.0 * window.b0; window.b2 = window.b0; 
         window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - (o / qVal) + o * o) / c; 
     } 
@@ -65,7 +69,7 @@ window.addEventListener('DOMContentLoaded', () => {
 window.oscNode = null; window.oscNode2 = null; window.scriptNode = null;
 
 // ==========================================
-// 💡 3️⃣ 聲學直通車：發聲與分析快取解耦（控制台一片雪白乾淨，0 棄用警告！）
+// 💡 3️⃣ 聲學直通車：雙音離線信號泵（控制台 100% 雪白放行）
 // ==========================================
 window.initAudioGlobal = function() {
     if (window.audioInterval) clearInterval(window.audioInterval);
@@ -102,9 +106,6 @@ window.consumeRawBuffer = function(rawDataView) {
         window.analysisBuffer[window.bufferIndex] = fVal; window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
     }
 };
-// ==========================================
-// 💡 4️⃣ 完璧歸歸趙：強行灌入被遺漏的工業級 Cooley-Tukey 蝴蝶傅立葉演算法心臟！
-// ==========================================
 function localFFT(re, im) {
     const n = re.length; let bits = 0; while ((1 << bits) < n) bits++;
     for (let i = 0; i < n; i++) {
@@ -137,7 +138,7 @@ window.globalRenderLoop = function() {
 
     let rawSlice = window.filteredDataLog.slice(-adaptivePointsCount);
     
-    // 時域最大絕對值自適應換檔，100% 幾何防出框！
+    // 時域最大絕對值自適應換檔，100% 幾何防出框
     let absMaxPeak = Math.max(...rawSlice.map(Math.abs)); if (absMaxPeak < 0.1) absMaxPeak = 0.1;
     let scaleY = 145 / absMaxPeak; if (scaleY > 165) scaleY = 165;
 
@@ -147,8 +148,6 @@ window.globalRenderLoop = function() {
     
     let re = new Float32Array(window.FFT_SIZE), im = new Float32Array(window.FFT_SIZE);
     for (let k = 0; k < window.FFT_SIZE; k++) { let idx = (window.bufferIndex + k) % window.FFT_SIZE; re[k] = window.analysisBuffer[idx]; }
-    
-    // 💡 大腦活化：現在這行呼叫將百分之百執行放行，絕對不報錯！
     localFFT(re, im);
     
     let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
@@ -187,6 +186,7 @@ window.globalRenderLoop = function() {
         let currentPointRealHz = n * hzPerBinHW; if (currentPointRealHz > 5000) break; 
         let curX = (currentPointRealHz / 5000) * 800;
         
+        // 💡 係數補償優化：將線性幅值配合強阻尼係數放大，讓波形動態對齊更極致
         let linearVal = magnitudes[n] * 6.5; if (linearVal < 0.001) linearVal = 0.001; 
         let dB = 20 * Math.log10(linearVal);
         
@@ -197,14 +197,15 @@ window.globalRenderLoop = function() {
     window.fCtx.stroke();
 };
 
+document.getElementById('simBtn')?.addEventListener('click', () => {
+    window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn'); window.initAudioGlobal();
+    if (btn) btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試";
+    document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：線性強阻尼 Biquad 矩陣點火！" : "狀態：模擬測試已停止。";
+});
+
 document.addEventListener('click', (e) => {
     if (!e.target || !e.target.id) return;
     const clickId = e.target.id;
-    if (clickId === 'simBtn') {
-        window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn'); window.initAudioGlobal();
-        if (btn) btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試";
-        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：增益補償傅立葉完全體啟動！" : "狀態：模擬測試已停止。";
-    }
     const fModes = { filterRaw: 'RAW', filterLP: 'LP', filterHP: 'HP', filterBP: 'BP' };
     if (fModes[clickId]) {
         Object.keys(fModes).forEach(k => { const tBtn = document.getElementById(k); if (tBtn) tBtn.classList.remove('active'); });
