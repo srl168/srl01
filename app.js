@@ -132,6 +132,15 @@ window.globalRenderLoop = function() {
     if (adaptivePointsCount < 64) adaptivePointsCount = 64; if (adaptivePointsCount > window.FFT_SIZE) adaptivePointsCount = window.FFT_SIZE;
 
     let rawSlice = window.filteredDataLog.slice(0, adaptivePointsCount);
+    
+    // ==========================================
+    // 💡 時域畫布渲染（時域振幅自適應盲抓「防爆艙」）
+    // ==========================================
+    let absMaxInSlice = Math.max(...rawSlice.map(Math.abs));
+    if (absMaxInSlice < 0.2) absMaxInSlice = 0.2;
+    // 💡 剛性自適應：根據實體最大峰值動態縮減比例，高 Q 值下複合浪頭 100% 收攏不超出邊界！
+    let scaleY = 140 / absMaxInSlice; if (scaleY > 160) scaleY = 160;
+
     let max = Math.max(...rawSlice), min = Math.min(...rawSlice), vpp = max - min, sq = 0;
     rawSlice.forEach(v => sq += v * v); let rms = Math.sqrt(sq / rawSlice.length);
     document.getElementById('vppVal').innerText = vpp.toFixed(2) + " V"; document.getElementById('rmsVal').innerText = rms.toFixed(2) + " V";
@@ -141,13 +150,9 @@ window.globalRenderLoop = function() {
     let peakFreq = maxIdx * ((window.audioCtx ? window.audioCtx.sampleRate : 44100) / window.FFT_SIZE);
     document.getElementById('freqVal').innerText = maxMag > -100 ? peakFreq.toFixed(1) + " Hz" : "0.0 Hz";
     
-    // ==========================================
-    // 💡 時域畫布渲染（優化振幅乘積比例，100% 幾何防溢位！）
-    // ==========================================
     window.tCtx.clearRect(0, 0, 800, 400);
     window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, 800, 400);
-    
-    let midY = 200; let scaleY = 400 / 2.85; // 140像素安全振幅比例
+    let midY = 200;
 
     window.tCtx.strokeStyle = '#333333'; window.tCtx.lineWidth = 1; window.tCtx.beginPath();
     let voltSteps = [1.0, 0.5, 0.0, -0.5, -1.0];
@@ -171,21 +176,30 @@ window.globalRenderLoop = function() {
     window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + totalTimeMs.toFixed(2) + " ms", 620, 380);
 
     // ==========================================
-    // 💡 頻域畫布渲染（5000Hz 滿幅對齊 + 新增水平分貝格線！）
+    // 💡 頻域畫布渲染（解耦 5000Hz 上限 ➔ 視窗全動態拉伸放大成窄波峰！）
     // ==========================================
     window.fCtx.clearRect(0, 0, 800, 400);
     window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400);
     
-    // 1️⃣ 繪製垂直 5000Hz 頻率網格
+    // 💡 視窗大革命：動態計算全幅畫布最右端的極限頻率。如果截止點很低，自動收縮視野，將細節橫向拉伸放大！
+    let maxDisplayFreq = window.f1 * 2.2; 
+    if (maxDisplayFreq < 1200) maxDisplayFreq = 1200; 
+    if (maxDisplayFreq > 5000) maxDisplayFreq = 5000; // 最寬不超過 5kHz
+
+    // 繪製垂直自適應 5 等分網格
     window.fCtx.strokeStyle = '#333333'; window.fCtx.lineWidth = 1; window.fCtx.beginPath();
     for (let k = 0; k <= 4; k++) { let xPos = 200 * k; if (k === 4) xPos = 799; window.fCtx.moveTo(xPos, 0); window.fCtx.lineTo(xPos, 360); }
     window.fCtx.stroke();
 
+    // 底部動態白高鮮明尺刻度，隨視窗壓縮流暢變更！
     window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 12px Arial';
-    let ticks = ["0.00 kHz", "1.25 kHz", "2.50 kHz", "3.75 kHz", "5.00 kHz"];
-    for (let k = 0; k <= 4; k++) { let textOffset = k === 0 ? 15 : (k === 4 ? -75 : -25); window.fCtx.fillText(ticks[k], (200 * k) + textOffset, 385); }
+    for (let k = 0; k <= 4; k++) {
+        let textOffset = k === 0 ? 15 : (k === 4 ? -75 : -25);
+        let currentTickFreq = (maxDisplayFreq / 4) * k;
+        window.fCtx.fillText((currentTickFreq / 1000).toFixed(2) + " kHz", (200 * k) + textOffset, 385);
+    }
 
-    // 💡 2️⃣ 新增標尺防線：繪製 4 等分「水平分貝（dB）刻度線網格」
+    // 繪製水平分貝橫標尺
     window.fCtx.strokeStyle = '#2d2d2d'; window.fCtx.lineWidth = 1; window.fCtx.beginPath();
     let dbLabels = [
         { db: -10, y: 360 - ((-10 + 140) * (350 / 140)) },
@@ -199,9 +213,9 @@ window.globalRenderLoop = function() {
     window.fCtx.fillStyle = '#aaaaaa'; window.fCtx.font = 'bold 11px Arial';
     dbLabels.forEach(item => { window.fCtx.fillText(item.db + " dB", 20, item.y + 4); });
 
-    // 3️⃣ 繪製滿幅 5kHz 拉伸黃色頻譜線
+    // 💡 窄針狀演算法映射：精確尋找當前動態上限在 FFT 陣列裡的下標，進行鋪滿均勻投影！
     let hzPerBin = ((window.audioCtx ? window.audioCtx.sampleRate : 44100) / window.FFT_SIZE);
-    let maxBinIndex = Math.round(5000 / hzPerBin); if (maxBinIndex > freqData.length) maxBinIndex = freqData.length;
+    let maxBinIndex = Math.round(maxDisplayFreq / hzPerBin); if (maxBinIndex > freqData.length) maxBinIndex = freqData.length;
 
     window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.0; window.fCtx.beginPath();
     let fSliceAdaptive = 800 / (maxBinIndex - 1);
@@ -220,7 +234,7 @@ document.addEventListener('click', (e) => {
     if (clickId === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn'); window.initAudioGlobal();
         if (btn) { btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試"; btn.className = window.isSimulating ? "btn-sim active" : "btn-sim"; }
-        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：5000Hz 滿幅 ＋ 水平分貝標尺網格上線！" : "狀態：模擬測試已停止。";
+        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：動態全視窗窄波峰放大點火成功！" : "狀態：模擬測試已停止。";
     }
     if (clickId === 'speakerBtn') {
         window.isSpeakerOn = !window.isSpeakerOn; const sBtn = document.getElementById('speakerBtn');
@@ -262,12 +276,4 @@ document.addEventListener('input', (e) => {
             }
             window.updateFilterCoefficients(); 
         }
-        if (sliderId === "volumeSlider") { if (nextSpan) nextSpan.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && window.audioCtx) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); }
-    }
-});
-
-window.onload = function() {
-    const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');
-    const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');
-    if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);
-if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);if (window.globalRenderLoop) window.globalRenderLoop();};
+if (sliderId === "volumeSlider") { if (nextSpan) nextSpan.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && window.audioCtx) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); }}});window.onload = function() {const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);if (window.globalRenderLoop) window.globalRenderLoop();};
