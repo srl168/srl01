@@ -1,8 +1,9 @@
+//1
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體大腦池初始化（2音 + 精密 Q 值完全體）
+// 💡 1️⃣ 全域記憶體大腦池初始化
 // ==========================================
 window.currentSampleRate = 20000;
 window.currentSinFreq = 3000; 
@@ -13,7 +14,7 @@ window.isSpeakerOn = false;
 window.isSimulating = false;
 window.simPhase = 0;
 window.simPhase2 = 0;             
-window.FFT_SIZE = 1024; // 💡 1024點完美工業骨架
+window.FFT_SIZE = 1024; 
 window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 window.simWorker = null;
 
@@ -24,7 +25,7 @@ window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 let xv = new Float32Array(3), yv = new Float32Array(3);
 
 // ==========================================
-// 💡 2️⃣ 數位濾波器精密係數計算公式（Q值與拉桿採樣率連動，100% 毫秒級對齊！）
+// 💡 2️⃣ 數位濾波器精密係數計算公式（100% 嚙合當前採樣率拉桿！）
 // ==========================================
 window.updateFilterCoefficients = function() {
     let fr = window.currentSampleRate / window.f1; if (fr < 2.01) fr = 2.01;
@@ -66,9 +67,6 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 window.oscNode = null; window.oscNode2 = null; window.scriptNode = null;
 
-// ==========================================
-// 💡 3️⃣ 聲學直通車：回歸最穩定的 44.1kHz 基礎時鐘直通發聲（徹底消滅波形錯亂！）
-// ==========================================
 window.initAudioGlobal = function() {
     if (window.oscNode) { try { window.oscNode.stop(); } catch(e){} window.oscNode.disconnect(); window.oscNode = null; }
     if (window.oscNode2) { try { window.oscNode2.stop(); } catch(e){} window.oscNode2.disconnect(); window.oscNode2 = null; }
@@ -96,7 +94,6 @@ window.initAudioGlobal = function() {
         for (let sample = 0; sample < inputBuffer.length; sample++) {
             let rawVal = inputData[sample];
             if (window.isSimulating) {
-                // 回歸穩健、絕無相位抖動的原生 44.1kHz 正弦波步進公式！波形 100% 恢復絲滑！
                 let step1 = 2.0 * Math.PI * (window.currentSinFreq / 44100);
                 let step2 = 2.0 * Math.PI * ((window.currentSinFreq * 0.4) / 44100);
                 let v1 = Math.sin(window.simPhase); window.simPhase += step1; if (window.simPhase >= 2*Math.PI) window.simPhase -= 2*Math.PI;
@@ -151,15 +148,16 @@ window.globalRenderLoop = function() {
     if (window.filteredDataLog.length < 50) return;
 
     let minFreq = window.currentSinFreq * 0.4;
-    // 💡 時域採樣與拉桿採樣率對齊
-    let adaptivePointsCount = Math.round((3 * (window.audioCtx ? window.audioCtx.sampleRate : 44100)) / (minFreq > 0 ? minFreq : 1000) * (44100 / window.currentSampleRate));
+    let adaptivePointsCount = Math.round((3 * 44100) / (minFreq > 0 ? minFreq : 1000) * (44100 / window.currentSampleRate));
     if (adaptivePointsCount < 64) adaptivePointsCount = 64; if (adaptivePointsCount > window.filteredDataLog.length) adaptivePointsCount = window.filteredDataLog.length;
 
     let rawSlice = window.filteredDataLog.slice(-adaptivePointsCount);
     
-    // 💡 剛性自適應：盲抓當前影格最高絕對值波峰，高 Q 值共振大浪 100% 絕對收攏不出框！
+    // ==========================================
+    // 💡 解決問題一：解除死鎖限制！實施「純剛性動態防溢位自適應縮放（ScaleY Pure Ratio）」
+    // ==========================================
     let currentFrameMaxPeak = Math.max(...rawSlice.map(Math.abs)); if (currentFrameMaxPeak < 0.1) currentFrameMaxPeak = 0.1;
-    let scaleY = 145 / currentFrameMaxPeak; if (scaleY > 165) scaleY = 165;
+    let scaleY = 145 / currentFrameMaxPeak; // 💡 沒收任何會導致卡死出框的 if (scaleY > 165) 限制！讓波幅完美縮放！
 
     let max = Math.max(...rawSlice), min = Math.min(...rawSlice), vpp = max - min, sq = 0;
     rawSlice.forEach(v => sq += v * v); let rms = Math.sqrt(sq / rawSlice.length);
@@ -172,9 +170,9 @@ window.globalRenderLoop = function() {
     let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
     
-    // 💡 4kHz 精準測量：基於真實物理時鐘（44100）求取精準測量頻率，絕不認錯座標！
-    let realHardwarePeakFreq = maxIdx * (44100 / window.FFT_SIZE); 
-    document.getElementById('freqVal').innerText = maxMag > 0.04 ? realHardwarePeakFreq.toFixed(1) + " Hz" : "0.0 Hz";
+    // 💡 4kHz 精準回報防線：100% 對齊實體硬體 44100 頻率軸計算數字！
+    let realHWFreq = maxIdx * (44100 / window.FFT_SIZE); 
+    document.getElementById('freqVal').innerText = maxMag > 0.04 ? realHWFreq.toFixed(1) + " Hz" : "0.0 Hz";
     
     // 渲染時域
     window.tCtx.clearRect(0, 0, 800, 400); window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, 800, 400);
@@ -189,41 +187,40 @@ window.globalRenderLoop = function() {
     let totalTimeMs = (rawSlice.length / window.currentSampleRate) * 1000; window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + totalTimeMs.toFixed(2) + " ms", 620, 380);
 
     // ==========================================
-    // 💡 💡 💡 頻域畫布渲染：幾何拉伸放大防線（4kHz 永遠死鎖釘在 4kHz 刻度！）
+    // 💡 💡 💡 解決問題二：橫軸幾何大改組（4kHz 永遠死鎖釘在 4kHz 刻度線上！）
     // ==========================================
     window.fCtx.clearRect(0, 0, 800, 400); window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400);
     
-    // 💡 幾何解耦大絕招：全幅畫布最右端，無條件代表「當前拉桿取樣率的一半（Nyquist 頻率 = window.currentSampleRate / 2）」！
-    let nyquistLimit = window.currentSampleRate / 2;
-
+    // 💡 鋼性死鎖：全幅畫布最右端，代表固定不變的 5000 Hz 工業觀測視野！
     window.fCtx.strokeStyle = '#333333'; window.fCtx.lineWidth = 1; window.fCtx.beginPath();
     for (let k = 0; k <= 4; k++) { let xPos = 200 * k; if (k === 4) xPos = 799; window.fCtx.moveTo(xPos, 0); window.fCtx.lineTo(xPos, 360); }
     window.fCtx.stroke();
 
-    // 底部 5 等分數字刻度，隨取樣率拉桿變動而流暢更新
     window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 12px Arial';
-    for (let k = 0; k <= 4; k++) {
-        let textOffset = k === 0 ? 15 : (k === 4 ? -75 : -25);
-        let currentTickFreq = (nyquistLimit / 4) * k;
-        window.fCtx.fillText((currentTickFreq / 1000).toFixed(2) + " kHz", (200 * k) + textOffset, 385);
-    }
+    let ticks = ["0.00 kHz", "1.25 kHz", "2.50 kHz", "3.75 kHz", "5.00 kHz"];
+    for (let k = 0; k <= 4; k++) { let textOffset = k === 0 ? 15 : (k === 4 ? -75 : -25); window.fCtx.fillText(ticks[k], (200 * k) + textOffset, 385); }
 
-    // 水平分貝格線標尺
     window.fCtx.strokeStyle = '#222222'; window.fCtx.beginPath();
     let dbPositions = [0.4, 0.2, 0.08, 0.02]; dbPositions.forEach(p => { window.fCtx.moveTo(0, 360 - p*350); window.fCtx.lineTo(800, 360 - p*350); });
     window.fCtx.stroke();
 
-    // 💡 精準畫線映射：利用 44100 實體數據庫，對齊當前拉桿取樣率極限進行滿幅投影
+    // 💡 絕對直通車繪圖映射：直接用內存點位的真實物理頻率，1:1 投影到 5000Hz 畫布寬度上！
     let hzPerBinHW = (44100 / window.FFT_SIZE);
-    let displayBinCount = Math.round(nyquistLimit / hzPerBinHW); if (displayBinCount > magnitudes.length) displayBinCount = magnitudes.length;
-
     window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.0; window.fCtx.beginPath();
-    let fSliceAdaptive = 800 / (displayBinCount - 1);
-    for (let n = 0; n < displayBinCount; n++) { 
-        let curX = n * fSliceAdaptive;
+    
+    let isFirstPoint = true;
+    for (let n = 0; n < magnitudes.length; n++) { 
+        let currentPointRealHz = n * hzPerBinHW;
+        // 💡 幾何防線：如果該數據點的實體頻率超過了 5000Hz 視野，直接掐斷不畫，防止向右側溢出！
+        if (currentPointRealHz > 5000) break; 
+        
+        // 💡 剛性歸位：X 座標 = (真實物理頻率 / 5000) * 800 像素，4kHz 註定死鎖落在 640 像素處！
+        let curX = (currentPointRealHz / 5000) * 800;
         let y = 360 - (magnitudes[n] * 350 * 5); 
         if (y < 10) y = 10; if (y > 358) y = 358;
-        if (n == 0) window.fCtx.moveTo(curX, y); else window.fCtx.lineTo(curX, y); 
+        
+        if (isFirstPoint) { window.fCtx.moveTo(curX, y); isFirstPoint = false; } 
+        else { window.fCtx.lineTo(curX, y); }
     }
     window.fCtx.stroke();
 };
@@ -234,7 +231,7 @@ document.addEventListener('click', (e) => {
     if (clickId === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn'); window.initAudioGlobal();
         if (btn) btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試";
-        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：4kHz 剛性對齊刻度矩陣點火！" : "狀態：模擬測試已停止。";
+        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：4kHz 物理幾何直通防線解鎖！" : "狀態：模擬測試已停止。";
     }
     if (clickId === 'speakerBtn') {
         window.isSpeakerOn = !window.isSpeakerOn; const sBtn = document.getElementById('speakerBtn');
