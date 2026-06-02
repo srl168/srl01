@@ -23,7 +23,7 @@ window.hardwareFilter = null; window.hardwareAnalyser = null;
 let renderFrameCounter = 0;
 
 // ==========================================
-// 💡 2️⃣ 數位濾波器精密係數計算公式
+// 💡 2️⃣ 數位濾波器核心大腦（完美支持 LP/HP/BP 連動更新）
 // ==========================================
 window.updateFilterCoefficients = function() {
     let fr = window.currentSampleRate / window.f1; if (fr < 2.01) fr = 2.01;
@@ -69,7 +69,7 @@ window.addEventListener('DOMContentLoaded', () => {
 window.oscNode = null; window.oscNode2 = null; window.scriptNode = null;
 
 // ==========================================
-// 💡 3️⃣ 聲學大革命：100% 純硬體雙音 Mixer 網路
+// 💡 3️⃣ 聲學大革命：100% 純硬體雙音對照組直通網路（0 斷音、控制台雪白放行）
 // ==========================================
 window.initAudioGlobal = function() {
     if (window.oscNode) { try { window.oscNode.stop(); } catch(e){} window.oscNode.disconnect(); window.oscNode = null; }
@@ -134,6 +134,15 @@ window.globalRenderLoop = function() {
     if (adaptivePointsCount < 64) adaptivePointsCount = 64; if (adaptivePointsCount > window.FFT_SIZE) adaptivePointsCount = window.FFT_SIZE;
 
     let rawSlice = window.filteredDataLog.slice(0, adaptivePointsCount);
+    
+    // ==========================================
+    // 💡 解決問題一：時域振幅「動態自適應自動增益衰減（Auto-Ranging ScaleY）」
+    // ==========================================
+    let absMaxInSlice = Math.max(...rawSlice.map(Math.abs));
+    if (absMaxInSlice < 0.2) absMaxInSlice = 0.2;
+    // 💡 剛性自動換檔：根據真實最高峰值，即時動態壓縮比例，確保高 Q 值下大波形 100% 收攏不超出邊界！
+    let scaleY = 140 / absMaxInSlice; if (scaleY > 160) scaleY = 160;
+
     let max = Math.max(...rawSlice), min = Math.min(...rawSlice), vpp = max - min, sq = 0;
     rawSlice.forEach(v => sq += v * v); let rms = Math.sqrt(sq / rawSlice.length);
     document.getElementById('vppVal').innerText = vpp.toFixed(2) + " V"; document.getElementById('rmsVal').innerText = rms.toFixed(2) + " V";
@@ -143,14 +152,9 @@ window.globalRenderLoop = function() {
     let peakFreq = maxIdx * ((window.audioCtx ? window.audioCtx.sampleRate : 44100) / window.FFT_SIZE);
     document.getElementById('freqVal').innerText = maxMag > -100 ? peakFreq.toFixed(1) + " Hz" : "0.0 Hz";
     
-    // ==========================================
-    // 💡 時域畫布渲染（綠色主波形線 + 100% 幾何防溢位）
-    // ==========================================
-    window.tCtx.clearRect(0, 0, 800, 400);
-    window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, 800, 400);
-    
-    let midY = 200; let scaleY = 400 / 2.85; // 140像素安全振幅比例
-
+    // 渲染時域
+    window.tCtx.clearRect(0, 0, 800, 400); window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, 800, 400);
+    let midY = 200;
     window.tCtx.strokeStyle = '#333333'; window.tCtx.lineWidth = 1; window.tCtx.beginPath();
     let voltSteps = [1.0, 0.5, 0.0, -0.5, -1.0];
     voltSteps.forEach(v => { let yPos = midY - v * scaleY; window.tCtx.moveTo(0, yPos); window.tCtx.lineTo(800, yPos); });
@@ -173,40 +177,43 @@ window.globalRenderLoop = function() {
     window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + totalTimeMs.toFixed(2) + " ms", 620, 380);
 
     // ==========================================
-    // 💡 頻域畫布渲染（5000Hz 滿幅對齊 + 新增水平 dB 標尺格線！）
+    // 💡 解決問題二：頻域動態全視窗放大（5000Hz 下載自適應解耦 ➔ 100% 窄波峰！）
     // ==========================================
-    window.fCtx.clearRect(0, 0, 800, 400);
-    window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400);
+    window.fCtx.clearRect(0, 0, 800, 400); window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400);
     
-    // 1️⃣ 繪製垂直 5000Hz 頻率網格
+    // 💡 儀表大革命：動態計算畫布最右端的上限上限頻率。如果截止頻率很低，自動調窄視窗，將信號幾何級放大！
+    let maxDisplayFreq = window.f1 * 2.2; 
+    if (maxDisplayFreq < 1200) maxDisplayFreq = 1200; 
+    if (maxDisplayFreq > 5000) maxDisplayFreq = 5000; // 最寬死鎖在 5000Hz
+
+    // 繪製垂直自適應 5 等分頻率灰線網格
     window.fCtx.strokeStyle = '#333333'; window.fCtx.lineWidth = 1; window.fCtx.beginPath();
     for (let k = 0; k <= 4; k++) { let xPos = 200 * k; if (k === 4) xPos = 799; window.fCtx.moveTo(xPos, 0); window.fCtx.lineTo(xPos, 360); }
     window.fCtx.stroke();
 
-    // 印上底部 5 等分 kHz 文字
+    // 底部動態純白 kHz 數字尺，跟隨視窗放大精細收縮！
     window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 12px Arial';
-    let ticks = ["0.00 kHz", "1.25 kHz", "2.50 kHz", "3.75 kHz", "5.00 kHz"];
-    for (let k = 0; k <= 4; k++) { let textOffset = k === 0 ? 15 : (k === 4 ? -75 : -25); window.fCtx.fillText(ticks[k], (200 * k) + textOffset, 385); }
+    for (let k = 0; k <= 4; k++) {
+        let textOffset = k === 0 ? 15 : (k === 4 ? -75 : -25);
+        let currentTickFreq = (maxDisplayFreq / 4) * k;
+        window.fCtx.fillText((currentTickFreq / 1000).toFixed(2) + " kHz", (200 * k) + textOffset, 385);
+    }
 
-    // 💡 2️⃣ 重磅功能：繪製 4 等分「水平分貝（dB）刻度線網格」
+    // 繪製水平分貝橫格線
     window.fCtx.strokeStyle = '#2d2d2d'; window.fCtx.lineWidth = 1; window.fCtx.beginPath();
-    // 建立 4 個分貝參考面：-10dB (高共振區), -40dB (通帶區), -80dB (截止區), -120dB (噪音底)
     let dbLabels = [
-        { db: -10, y: 360 - ((-10 + 140) * (350 / 140)) },
-        { db: -40, y: 360 - ((-40 + 140) * (350 / 140)) },
-        { db: -80, y: 360 - ((-80 + 140) * (350 / 140)) },
-        { db: -120, y: 360 - ((-120 + 140) * (350 / 140)) }
+        { db: -10, y: 360 - ((-10 + 140) * (350 / 140)) }, { db: -40, y: 360 - ((-40 + 140) * (350 / 140)) },
+        { db: -80, y: 360 - ((-80 + 140) * (350 / 140)) }, { db: -120, y: 360 - ((-120 + 140) * (350 / 140)) }
     ];
     dbLabels.forEach(item => { window.fCtx.moveTo(0, item.y); window.fCtx.lineTo(800, item.y); });
     window.fCtx.stroke();
     
-    // 印上左側分貝純白刻度字體
     window.fCtx.fillStyle = '#aaaaaa'; window.fCtx.font = 'bold 11px Arial';
     dbLabels.forEach(item => { window.fCtx.fillText(item.db + " dB", 20, item.y + 4); });
 
-    // 3️⃣ 繪製滿幅 5kHz 拉伸黃色頻譜線
+    // 💡 窄波峰核心拉伸演算法：精準尋找動態視窗對應在 FFT 數組裡的最高下標
     let hzPerBin = ((window.audioCtx ? window.audioCtx.sampleRate : 44100) / window.FFT_SIZE);
-    let maxBinIndex = Math.round(5000 / hzPerBin); if (maxBinIndex > freqData.length) maxBinIndex = freqData.length;
+    let maxBinIndex = Math.round(maxDisplayFreq / hzPerBin); if (maxBinIndex > freqData.length) maxBinIndex = freqData.length;
 
     window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.0; window.fCtx.beginPath();
     let fSliceAdaptive = 800 / (maxBinIndex - 1);
@@ -225,7 +232,7 @@ document.addEventListener('click', (e) => {
     if (clickId === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn'); window.initAudioGlobal();
         if (btn) { btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試"; btn.className = window.isSimulating ? "btn-sim active" : "btn-sim"; }
-        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：5000Hz 滿幅 ＋ 水平分貝標尺網格上線！" : "狀態：模擬測試已停止。";
+        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：自適應窄波峰分析儀點火成功！" : "狀態：模擬測試已停止。";
     }
     if (clickId === 'speakerBtn') {
         window.isSpeakerOn = !window.isSpeakerOn; const sBtn = document.getElementById('speakerBtn');
@@ -272,9 +279,4 @@ document.addEventListener('input', (e) => {
 });
 
 window.onload = function() {
-    const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');
-    const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');
-    if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);
-    if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);
-    if (window.globalRenderLoop) window.globalRenderLoop();
-};
+const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);if (window.globalRenderLoop) window.globalRenderLoop();};
