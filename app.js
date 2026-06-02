@@ -59,12 +59,12 @@ window.updateFilterCoefficients = function() {
 window.applyFilter = function(x) { return x; };
 
 window.addEventListener('DOMContentLoaded', () => {
-    window.S_UUID = 0xFF01; window.C_UUID = 0xFF02;
     window.tCanvas = document.getElementById('timeCanvas'); window.fCanvas = document.getElementById('freqCanvas');
     window.tCtx = window.tCanvas.getContext('2d'); window.fCtx = window.fCanvas.getContext('2d');
     window.tCanvas.width = 800; window.tCanvas.height = 400; window.fCanvas.width = 800; window.fCanvas.height = 400;
 });
-//
+window.oscNode = null; window.oscNode2 = null; window.scriptNode = null;
+
 // ==========================================
 // 💡 3️⃣ 聲學大革命：100% 純硬體雙音對照組直通網路（控制台 0 警告、0 雜音）
 // ==========================================
@@ -111,7 +111,6 @@ window.consumeRawBuffer = function(rawDataView) {
         window.hardwareAnalyser.getFloatTimeDomainData(buffer);
     }
 };
-//
 window.globalRenderLoop = function() {
     requestAnimationFrame(window.globalRenderLoop); if (!window.hardwareAnalyser) return;
     renderFrameCounter++; if (renderFrameCounter % 2 !== 0) return;
@@ -140,26 +139,30 @@ window.globalRenderLoop = function() {
     document.getElementById('freqVal').innerText = maxMag > -100 ? peakFreq.toFixed(1) + " Hz" : "0.0 Hz";
     
     // ==========================================
-    // 💡 畫布渲染：時域綠色畫布與水平電壓刻度尺
+    // 💡 時域畫布渲染（綠色波形 + 純白剛性橫標尺）
     // ==========================================
     window.tCtx.clearRect(0, 0, window.tCanvas.width, window.tCanvas.height);
     window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, window.tCanvas.width, window.tCanvas.height);
     
-    let midY = window.tCanvas.height / 2;
-    let scaleY = window.tCanvas.height / 2.3;
+    let midY = window.tCanvas.height / 2; let scaleY = window.tCanvas.height / 2.3;
 
-    // 💡 工業級標尺：繪製時域背景虛線橫網格（+1.0V, +0.5V, 0V, -0.5V, -1.0V）
-    window.tCtx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; window.tCtx.lineWidth = 1; window.tCtx.setLineDash([4, 4]);
-    window.tCtx.fillStyle = 'rgba(255, 255, 255, 0.4)'; window.tCtx.font = '12px monospace';
+    // 💡 標尺大對齊：繪製時域背景絕對純白（#ffffff）虛線橫網格（+1.0V, +0.5V, 0V, -0.5V, -1.0V）
+    window.tCtx.strokeStyle = '#444444'; window.tCtx.lineWidth = 1; window.tCtx.beginPath();
     let voltSteps = [1.0, 0.5, 0.0, -0.5, -1.0];
     voltSteps.forEach(v => {
         let yPos = midY - v * scaleY;
-        window.tCtx.beginPath(); window.tCtx.moveTo(0, yPos); window.tCtx.lineTo(window.tCanvas.width, yPos); window.tCtx.stroke();
-        window.tCtx.fillText((v >= 0 ? "+" : "") + v.toFixed(1) + "V", 10, yPos - 4);
+        window.tCtx.moveTo(0, yPos); window.tCtx.lineTo(window.tCanvas.width, yPos);
     });
-    window.tCtx.setLineDash([]); // 還原實線
+    window.tCtx.stroke();
 
-    // 繪製波形線
+    // 💡 印上絕對鮮明的純白電壓標籤字體
+    window.tCtx.fillStyle = '#ffffff'; window.tCtx.font = 'bold 12px Arial';
+    voltSteps.forEach(v => {
+        let yPos = midY - v * scaleY;
+        window.tCtx.fillText((v >= 0 ? "+" : "") + v.toFixed(1) + "V", 12, yPos + 4);
+    });
+
+    // 繪製綠色主波形
     window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath();
     let tSlice = window.tCanvas.width / (rawSlice.length - 1);
     window.tCtx.moveTo(0, midY - ((rawSlice[0] || 0) * scaleY));
@@ -170,35 +173,43 @@ window.globalRenderLoop = function() {
     }
     window.tCtx.stroke();
     
-    // 💡 動態時間標籤：動態標注當前屏幕顯示的總時域時間跨度
+    // 💡 右下角動態時間標尺標籤
     let totalTimeMs = (rawSlice.length / window.currentSampleRate) * 1000;
-    window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + totalTimeMs.toFixed(2) + " ms", window.tCanvas.width - 150, window.tCanvas.height - 15);
+    window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + totalTimeMs.toFixed(2) + " ms", window.tCanvas.width - 160, window.tCanvas.height - 15);
 
     // ==========================================
-    // 💡 畫布渲染：頻域黃色畫布與奈奎斯特頻率等分刻度尺
+    // 💡 頻域畫布渲染（黃色頻譜 + 純白 5等分縱標尺）
     // ==========================================
     window.fCtx.clearRect(0, 0, window.fCanvas.width, window.fCanvas.height);
     window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, window.fCanvas.width, window.fCanvas.height);
     
-    // 💡 工業級標尺：繪製頻域垂直 5 等分頻率刻度線（0 Hz ~ Nyquist 頻率）
-    window.fCtx.strokeStyle = 'rgba(255, 255, 255, 0.12)'; window.fCtx.lineWidth = 1; window.fCtx.setLineDash([3, 5]);
-    window.fCtx.fillStyle = 'rgba(255, 173, 0, 0.6)'; window.fCtx.font = '11px monospace';
-    
-    let nyquistFreq = window.currentSampleRate / 2; // 當前採樣率拉桿下的觀測極限頻率
+    // 💡 標尺大對齊：繪製頻域垂直 5 等分絕對純白（#ffffff）標尺線（0 Hz ~ Nyquist 頻率）
+    window.fCtx.strokeStyle = '#444444'; window.fCtx.lineWidth = 1; window.fCtx.beginPath();
+    for (let k = 0; k <= 4; k++) {
+        let xPos = (window.fCanvas.width / 4) * k;
+        if (k === 4) xPos = window.fCanvas.width - 1; // 防止線條貼邊溢出
+        window.fCtx.moveTo(xPos, 0); window.fCtx.lineTo(xPos, window.fCanvas.height - 30);
+    }
+    window.fCtx.stroke();
+
+    // 💡 底部精準打上 5 等分奈奎斯特實體 kHz 數字標籤
+    window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 12px Arial';
+    let nyquistFreq = window.currentSampleRate / 2; // 當前採樣率下的最大觀測頻率
     for (let k = 0; k <= 4; k++) {
         let xPos = (window.fCanvas.width / 4) * k;
         let currentTickFreq = (nyquistFreq / 4) * k;
-        window.fCtx.beginPath(); window.fCtx.moveTo(xPos, 0); window.fCtx.lineTo(xPos, window.fCanvas.height - 25); window.fCtx.stroke();
-        // 將數字轉為 kHz 乾淨標記在畫布最底端
-        window.fCtx.fillText((currentTickFreq / 1000).toFixed(2) + " kHz", xPos + 5, window.fCanvas.height - 8);
+        let txt = (currentTickFreq / 1000).toFixed(2) + " kHz";
+        let offsetObj = k === 0 ? 10 : (k === 4 ? -65 : -25); // 邊緣文字內縮校正
+        window.fCtx.fillText(txt, xPos + offsetObj, window.fCanvas.height - 10);
     }
-    window.fCtx.setLineDash([]); // 還原實線
 
     // 繪製黃色頻譜線
-    window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 1.5; window.fCtx.beginPath();
+    window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.0; window.fCtx.beginPath();
     let fSlice = window.fCanvas.width / (freqData.length / 2);
     for (let n = 0; n < freqData.length / 2; n++) { 
-        let y = window.fCanvas.height - ((freqData[n] + 140) * ((window.fCanvas.height - 25) / 140)) - 25; 
+        // 💡 對數安全安全投影：確保完全鎖定在畫布安全視野內，絕不上溢下漏！
+        let y = window.fCanvas.height - ((freqData[n] + 140) * ((window.fCanvas.height - 35) / 140)) - 35; 
+        if (y < 5) y = 5; if (y > window.fCanvas.height - 32) y = window.fCanvas.height - 32;
         if (n == 0) window.fCtx.moveTo(0, y); else window.fCtx.lineTo(n * fSlice, y); 
     }
     window.fCtx.stroke();
@@ -210,7 +221,7 @@ document.addEventListener('click', (e) => {
     if (clickId === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn'); window.initAudioGlobal();
         if (btn) { btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試"; btn.className = window.isSimulating ? "btn-sim active" : "btn-sim"; }
-        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：晶片直通＋雙音電壓頻率刻度尺上線！" : "狀態：模擬測試已停止。";
+        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：晶片直通＋雙音純白鋼性刻度尺上線！" : "狀態：模擬測試已停止。";
     }
     if (clickId === 'speakerBtn') {
         window.isSpeakerOn = !window.isSpeakerOn; const sBtn = document.getElementById('speakerBtn');
@@ -255,8 +266,4 @@ document.addEventListener('input', (e) => {
         }
         if (sliderId === "f1Slider") { window.f1 = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.f1 + " Hz"; window.updateFilterCoefficients(); }
         if (sliderId === "f2Slider") { 
-            window.f2 = parseInt(curVal); 
-            if (nextSpan) {
-                if (window.currentFilterMode === 'LP' || window.currentFilterMode === 'HP') {
-                    let dQ = 0.1 + (window.f2 / 5000.0) * 9.9; nextSpan.innerText = "Q: " + dQ.toFixed(2);
-} else { nextSpan.innerText = window.f2 + " Hz"; }}window.updateFilterCoefficients();}if (sliderId === "volumeSlider") { if (nextSpan) nextSpan.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && window.audioCtx) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); }}});window.onload = function() {const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);if (window.globalRenderLoop) window.globalRenderLoop();};
+window.f2 = parseInt(curVal);if (nextSpan) {if (window.currentFilterMode === 'LP' || window.currentFilterMode === 'HP') {let dQ = 0.1 + (window.f2 / 5000.0) * 9.9; nextSpan.innerText = "Q: " + dQ.toFixed(2);} else { nextSpan.innerText = window.f2 + " Hz"; }}window.updateFilterCoefficients();}if (sliderId === "volumeSlider") { if (nextSpan) nextSpan.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && window.audioCtx) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); }}});window.onload = function() {const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);if (window.globalRenderLoop) window.globalRenderLoop();};
