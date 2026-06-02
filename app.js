@@ -69,9 +69,6 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 window.oscNode = null; window.oscNode2 = null; window.scriptNode = null;
 
-// ==========================================
-// 💡 3️⃣ 聲學大革命：100% 純硬體直通雙音發生器
-// ==========================================
 window.initAudioGlobal = function() {
     if (window.oscNode) { try { window.oscNode.stop(); } catch(e){} window.oscNode.disconnect(); window.oscNode = null; }
     if (window.oscNode2) { try { window.oscNode2.stop(); } catch(e){} window.oscNode2.disconnect(); window.oscNode2 = null; }
@@ -99,7 +96,6 @@ window.initAudioGlobal = function() {
 
         window.oscNode2 = window.audioCtx.createOscillator();
         window.oscNode2.type = 'sine';
-        // 💡 實務雙音對照組：第二音固定生成鎖死在主頻率的 0.4 倍，完美支援複頻調變
         window.oscNode2.frequency.setValueAtTime(window.currentSinFreq * 0.4, window.audioCtx.currentTime);
 
         window.oscNode.connect(window.hardwareFilter);
@@ -151,9 +147,7 @@ window.globalRenderLoop = function() {
     window.tCtx.clearRect(0, 0, 800, 400);
     window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, 800, 400);
     
-    let midY = 200; 
-    // 💡 剛性幾何校準：將比例縮小優化為 400 / 2.85（實體 140 像素），雙音 MIX 時大浪絕對收攏在畫布內！
-    let scaleY = 400 / 2.85; 
+    let midY = 200; let scaleY = 400 / 2.85; // 140像素安全振幅比例
 
     window.tCtx.strokeStyle = '#333333'; window.tCtx.lineWidth = 1; window.tCtx.beginPath();
     let voltSteps = [1.0, 0.5, 0.0, -0.5, -1.0];
@@ -177,12 +171,12 @@ window.globalRenderLoop = function() {
     window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + totalTimeMs.toFixed(2) + " ms", 620, 380);
 
     // ==========================================
-    // 💡 頻域畫布渲染（強制 5000Hz 為畫布最右端！全幅滿幅拉伸！）
+    // 💡 頻域畫布渲染（5000Hz 滿幅對齊 + 新增水平分貝格線！）
     // ==========================================
     window.fCtx.clearRect(0, 0, 800, 400);
     window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400);
     
-    // 💡 建立 5000Hz 工業級垂直標尺（5等分：0Hz, 1.25kHz, 2.5kHz, 3.75kHz, 5kHz）
+    // 1️⃣ 繪製垂直 5000Hz 頻率網格
     window.fCtx.strokeStyle = '#333333'; window.fCtx.lineWidth = 1; window.fCtx.beginPath();
     for (let k = 0; k <= 4; k++) { let xPos = 200 * k; if (k === 4) xPos = 799; window.fCtx.moveTo(xPos, 0); window.fCtx.lineTo(xPos, 360); }
     window.fCtx.stroke();
@@ -191,11 +185,24 @@ window.globalRenderLoop = function() {
     let ticks = ["0.00 kHz", "1.25 kHz", "2.50 kHz", "3.75 kHz", "5.00 kHz"];
     for (let k = 0; k <= 4; k++) { let textOffset = k === 0 ? 15 : (k === 4 ? -75 : -25); window.fCtx.fillText(ticks[k], (200 * k) + textOffset, 385); }
 
-    // 💡 核心演算法：以硬體原生的取樣率，計算 5000Hz 對應在 FFT 陣列裡的最高數據下標
+    // 💡 2️⃣ 新增標尺防線：繪製 4 等分「水平分貝（dB）刻度線網格」
+    window.fCtx.strokeStyle = '#2d2d2d'; window.fCtx.lineWidth = 1; window.fCtx.beginPath();
+    let dbLabels = [
+        { db: -10, y: 360 - ((-10 + 140) * (350 / 140)) },
+        { db: -40, y: 360 - ((-40 + 140) * (350 / 140)) },
+        { db: -80, y: 360 - ((-80 + 140) * (350 / 140)) },
+        { db: -120, y: 360 - ((-120 + 140) * (350 / 140)) }
+    ];
+    dbLabels.forEach(item => { window.fCtx.moveTo(0, item.y); window.fCtx.lineTo(800, item.y); });
+    window.fCtx.stroke();
+    
+    window.fCtx.fillStyle = '#aaaaaa'; window.fCtx.font = 'bold 11px Arial';
+    dbLabels.forEach(item => { window.fCtx.fillText(item.db + " dB", 20, item.y + 4); });
+
+    // 3️⃣ 繪製滿幅 5kHz 拉伸黃色頻譜線
     let hzPerBin = ((window.audioCtx ? window.audioCtx.sampleRate : 44100) / window.FFT_SIZE);
     let maxBinIndex = Math.round(5000 / hzPerBin); if (maxBinIndex > freqData.length) maxBinIndex = freqData.length;
 
-    // 繪製黃色頻譜線（以 maxBinIndex 為界進行 800 像素滿幅均勻幾何拉伸！）
     window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.0; window.fCtx.beginPath();
     let fSliceAdaptive = 800 / (maxBinIndex - 1);
     for (let n = 0; n < maxBinIndex; n++) { 
@@ -213,7 +220,7 @@ document.addEventListener('click', (e) => {
     if (clickId === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn'); window.initAudioGlobal();
         if (btn) { btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試"; btn.className = window.isSimulating ? "btn-sim active" : "btn-sim"; }
-        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：5000Hz 滿幅寬度對齊矩陣通電！" : "狀態：模擬測試已停止。";
+        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：5000Hz 滿幅 ＋ 水平分貝標尺網格上線！" : "狀態：模擬測試已停止。";
     }
     if (clickId === 'speakerBtn') {
         window.isSpeakerOn = !window.isSpeakerOn; const sBtn = document.getElementById('speakerBtn');
@@ -263,6 +270,4 @@ window.onload = function() {
     const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');
     const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');
     if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);
-    if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);
-    if (window.globalRenderLoop) window.globalRenderLoop();
-};
+if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);if (window.globalRenderLoop) window.globalRenderLoop();};
