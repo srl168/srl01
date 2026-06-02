@@ -61,6 +61,7 @@ window.applyFilter = function(x) { return x; };
 window.addEventListener('DOMContentLoaded', () => {
     window.tCanvas = document.getElementById('timeCanvas'); window.fCanvas = document.getElementById('freqCanvas');
     window.tCtx = window.tCanvas.getContext('2d'); window.fCtx = window.fCanvas.getContext('2d');
+    // 💡 剛性初始化：在網頁加載完畢的第一毫秒，無條件強制賦予實體解像度像素骨架！
     window.tCanvas.width = 800; window.tCanvas.height = 400; window.fCanvas.width = 800; window.fCanvas.height = 400;
 });
 window.oscNode = null; window.oscNode2 = null; window.scriptNode = null;
@@ -115,6 +116,10 @@ window.globalRenderLoop = function() {
     requestAnimationFrame(window.globalRenderLoop); if (!window.hardwareAnalyser) return;
     renderFrameCounter++; if (renderFrameCounter % 2 !== 0) return;
     
+    // 💡 剛性門閥校準：在每一格繪圖刷新時，無條件暴力死鎖實體解析度，徹底摧毀 CSS 的拉伸剪切！
+    if (window.tCanvas.width !== 800) { window.tCanvas.width = 800; window.tCanvas.height = 400; }
+    if (window.fCanvas.width !== 800) { window.fCanvas.width = 800; window.fCanvas.height = 400; }
+
     let timeData = new Float32Array(window.FFT_SIZE); window.hardwareAnalyser.getFloatTimeDomainData(timeData);
     let freqData = new Float32Array(window.hardwareAnalyser.frequencyBinCount); window.hardwareAnalyser.getFloatFrequencyData(freqData);
     
@@ -139,32 +144,26 @@ window.globalRenderLoop = function() {
     document.getElementById('freqVal').innerText = maxMag > -100 ? peakFreq.toFixed(1) + " Hz" : "0.0 Hz";
     
     // ==========================================
-    // 💡 時域畫布渲染（綠色波形 + 純白剛性橫標尺）
+    // 💡 時域畫布渲染（強制 800x400 安全座標系）
     // ==========================================
-    window.tCtx.clearRect(0, 0, window.tCanvas.width, window.tCanvas.height);
-    window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, window.tCanvas.width, window.tCanvas.height);
+    window.tCtx.clearRect(0, 0, 800, 400);
+    window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, 800, 400);
     
-    let midY = window.tCanvas.height / 2; let scaleY = window.tCanvas.height / 2.3;
+    let midY = 200; let scaleY = 150; // 在 400 高度中留出安全上下邊界
 
-    // 💡 標尺大對齊：繪製時域背景絕對純白（#ffffff）虛線橫網格（+1.0V, +0.5V, 0V, -0.5V, -1.0V）
+    // 💡 繪製絕對純白 (#ffffff) 電壓橫網格
     window.tCtx.strokeStyle = '#444444'; window.tCtx.lineWidth = 1; window.tCtx.beginPath();
     let voltSteps = [1.0, 0.5, 0.0, -0.5, -1.0];
-    voltSteps.forEach(v => {
-        let yPos = midY - v * scaleY;
-        window.tCtx.moveTo(0, yPos); window.tCtx.lineTo(window.tCanvas.width, yPos);
-    });
+    voltSteps.forEach(v => { let yPos = midY - v * scaleY; window.tCtx.moveTo(0, yPos); window.tCtx.lineTo(800, yPos); });
     window.tCtx.stroke();
 
-    // 💡 印上絕對鮮明的純白電壓標籤字體
-    window.tCtx.fillStyle = '#ffffff'; window.tCtx.font = 'bold 12px Arial';
-    voltSteps.forEach(v => {
-        let yPos = midY - v * scaleY;
-        window.tCtx.fillText((v >= 0 ? "+" : "") + v.toFixed(1) + "V", 12, yPos + 4);
-    });
+    // 💡 將字體無條件改成高對比純白，並加上安全向右內縮偏移，防擠壓出界！
+    window.tCtx.fillStyle = '#ffffff'; window.tCtx.font = 'bold 13px Courier New';
+    voltSteps.forEach(v => { let yPos = midY - v * scaleY; window.tCtx.fillText((v >= 0 ? "+" : "") + v.toFixed(1) + "V", 25, yPos + 5); });
 
-    // 繪製綠色主波形
+    // 繪製綠色波形
     window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath();
-    let tSlice = window.tCanvas.width / (rawSlice.length - 1);
+    let tSlice = 800 / (rawSlice.length - 1);
     window.tCtx.moveTo(0, midY - ((rawSlice[0] || 0) * scaleY));
     for (let j = 0; j < rawSlice.length - 1; j++) {
         let x1 = j * tSlice; let y1 = midY - ((rawSlice[j] || 0) * scaleY);
@@ -173,43 +172,37 @@ window.globalRenderLoop = function() {
     }
     window.tCtx.stroke();
     
-    // 💡 右下角動態時間標尺標籤
     let totalTimeMs = (rawSlice.length / window.currentSampleRate) * 1000;
-    window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + totalTimeMs.toFixed(2) + " ms", window.tCanvas.width - 160, window.tCanvas.height - 15);
+    window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + totalTimeMs.toFixed(2) + " ms", 620, 380);
 
     // ==========================================
-    // 💡 頻域畫布渲染（黃色頻譜 + 純白 5等分縱標尺）
+    // 💡 頻域畫布渲染（強制 800x400，安全內縮 40像素留給底部數字標籤）
     // ==========================================
-    window.fCtx.clearRect(0, 0, window.fCanvas.width, window.fCanvas.height);
-    window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, window.fCanvas.width, window.fCanvas.height);
+    window.fCtx.clearRect(0, 0, 800, 400);
+    window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400);
     
-    // 💡 標尺大對齊：繪製頻域垂直 5 等分絕對純白（#ffffff）標尺線（0 Hz ~ Nyquist 頻率）
+    // 💡 繪製頻域 5 等分實體垂直灰線網格（座標精準限制在 0 ~ 800 內）
     window.fCtx.strokeStyle = '#444444'; window.fCtx.lineWidth = 1; window.fCtx.beginPath();
-    for (let k = 0; k <= 4; k++) {
-        let xPos = (window.fCanvas.width / 4) * k;
-        if (k === 4) xPos = window.fCanvas.width - 1; // 防止線條貼邊溢出
-        window.fCtx.moveTo(xPos, 0); window.fCtx.lineTo(xPos, window.fCanvas.height - 30);
-    }
+    for (let k = 0; k <= 4; k++) { let xPos = 200 * k; if (k === 4) xPos = 799; window.fCtx.moveTo(xPos, 0); window.fCtx.lineTo(xPos, 360); }
     window.fCtx.stroke();
 
-    // 💡 底部精準打上 5 等分奈奎斯特實體 kHz 數字標籤
-    window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 12px Arial';
-    let nyquistFreq = window.currentSampleRate / 2; // 當前採樣率下的最大觀測頻率
+    // 💡 強制印上純白高鮮明實體 kHz 數字刻度（安全抬高在畫布底端 385 像素位置，絕不沉底！）
+    window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 13px Courier New';
+    let nyquistFreq = window.currentSampleRate / 2;
     for (let k = 0; k <= 4; k++) {
-        let xPos = (window.fCanvas.width / 4) * k;
-        let currentTickFreq = (nyquistFreq / 4) * k;
+        let xPos = 200 * k; let currentTickFreq = (nyquistFreq / 4) * k;
         let txt = (currentTickFreq / 1000).toFixed(2) + " kHz";
-        let offsetObj = k === 0 ? 10 : (k === 4 ? -65 : -25); // 邊緣文字內縮校正
-        window.fCtx.fillText(txt, xPos + offsetObj, window.fCanvas.height - 10);
+        let textOffset = k === 0 ? 15 : (k === 4 ? -75 : -30); // 邊緣向內對齊優化
+        window.fCtx.fillText(txt, xPos + textOffset, 385);
     }
 
-    // 繪製黃色頻譜線
+    // 繪製黃色頻譜波形
     window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.0; window.fCtx.beginPath();
-    let fSlice = window.fCanvas.width / (freqData.length / 2);
+    let fSlice = 800 / (freqData.length / 2);
     for (let n = 0; n < freqData.length / 2; n++) { 
-        // 💡 對數安全安全投影：確保完全鎖定在畫布安全視野內，絕不上溢下漏！
-        let y = window.fCanvas.height - ((freqData[n] + 140) * ((window.fCanvas.height - 35) / 140)) - 35; 
-        if (y < 5) y = 5; if (y > window.fCanvas.height - 32) y = window.fCanvas.height - 32;
+        // 💡 剛性安全視野校準：將 Y 軸底部鎖死在 360 像素，留出最乾淨、最空曠的下方空間印數字！
+        let y = 360 - ((freqData[n] + 140) * (350 / 140)); 
+        if (y < 10) y = 10; if (y > 358) y = 358;
         if (n == 0) window.fCtx.moveTo(0, y); else window.fCtx.lineTo(n * fSlice, y); 
     }
     window.fCtx.stroke();
@@ -221,7 +214,7 @@ document.addEventListener('click', (e) => {
     if (clickId === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn'); window.initAudioGlobal();
         if (btn) { btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試"; btn.className = window.isSimulating ? "btn-sim active" : "btn-sim"; }
-        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：晶片直通＋雙音純白鋼性刻度尺上線！" : "狀態：模擬測試已停止。";
+        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：800x400 鋼性解析度刻度尺開機！" : "狀態：模擬測試已停止。";
     }
     if (clickId === 'speakerBtn') {
         window.isSpeakerOn = !window.isSpeakerOn; const sBtn = document.getElementById('speakerBtn');
@@ -266,4 +259,8 @@ document.addEventListener('input', (e) => {
         }
         if (sliderId === "f1Slider") { window.f1 = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.f1 + " Hz"; window.updateFilterCoefficients(); }
         if (sliderId === "f2Slider") { 
-window.f2 = parseInt(curVal);if (nextSpan) {if (window.currentFilterMode === 'LP' || window.currentFilterMode === 'HP') {let dQ = 0.1 + (window.f2 / 5000.0) * 9.9; nextSpan.innerText = "Q: " + dQ.toFixed(2);} else { nextSpan.innerText = window.f2 + " Hz"; }}window.updateFilterCoefficients();}if (sliderId === "volumeSlider") { if (nextSpan) nextSpan.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && window.audioCtx) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); }}});window.onload = function() {const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);if (window.globalRenderLoop) window.globalRenderLoop();};
+            window.f2 = parseInt(curVal); 
+            if (nextSpan) {
+                if (window.currentFilterMode === 'LP' || window.currentFilterMode === 'HP') {
+                    let dQ = 0.1 + (window.f2 / 5000.0) * 9.9; nextSpan.innerText = "Q: " + dQ.toFixed(2);
+} else { nextSpan.innerText = window.f2 + " Hz"; }}window.updateFilterCoefficients();}if (sliderId === "volumeSlider") { if (nextSpan) nextSpan.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && window.audioCtx) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); }}});window.onload = function() {const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);if (window.globalRenderLoop) window.globalRenderLoop();};
