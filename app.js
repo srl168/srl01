@@ -23,7 +23,7 @@ window.hardwareFilter = null; window.hardwareAnalyser = null;
 let renderFrameCounter = 0;
 
 // ==========================================
-// 💡 2️⃣ 100% 硬件晶片加速的濾波器型態同步閘門（帶有 5ms 硬件平滑緩降通道）
+// 💡 2️⃣ 100% 硬件晶片加速的濾波器型態同步閘門（帶有 5ms 硬件平滑過渡通道）
 // ==========================================
 window.updateFilterCoefficients = function() {
     if (!window.hardwareFilter || !window.audioCtx) return;
@@ -36,6 +36,7 @@ window.updateFilterCoefficients = function() {
         else if (window.currentFilterMode === 'LP') { 
             window.hardwareFilter.type = 'lowpass'; 
             window.hardwareFilter.frequency.linearRampToValueAtTime(window.f1, t); 
+            // 解鎖 LP 模式下的 Q 值調試控制器（將 F2 映射為 0.1 ~ 10.0 精密 Q 值）
             let dynamicQ = 0.1 + (window.f2 / 5000.0) * 9.9;
             if (dynamicQ < 0.1) dynamicQ = 0.1; if (dynamicQ > 10.0) dynamicQ = 10.0;
             window.hardwareFilter.Q.linearRampToValueAtTime(dynamicQ, t);
@@ -43,6 +44,7 @@ window.updateFilterCoefficients = function() {
         else if (window.currentFilterMode === 'HP') { 
             window.hardwareFilter.type = 'highpass'; 
             window.hardwareFilter.frequency.linearRampToValueAtTime(window.f1, t); 
+            // 解鎖 HP 模式下的 Q 值調試控制器
             let dynamicQ = 0.1 + (window.f2 / 5000.0) * 9.9;
             if (dynamicQ < 0.1) dynamicQ = 0.1; if (dynamicQ > 10.0) dynamicQ = 10.0;
             window.hardwareFilter.Q.linearRampToValueAtTime(dynamicQ, t);
@@ -50,6 +52,7 @@ window.updateFilterCoefficients = function() {
         else if (window.currentFilterMode === 'BP') { 
             window.hardwareFilter.type = 'bandpass'; 
             window.hardwareFilter.frequency.linearRampToValueAtTime(window.f1, t); 
+            // 帶通模式下恢復為 F1/F2 標準頻寬比值計算
             let qVal = window.f1 / (window.f2 > 0 ? window.f2 : 1.0); if (qVal < 0.1) qVal = 0.1;
             window.hardwareFilter.Q.linearRampToValueAtTime(qVal, t);
         }
@@ -78,7 +81,7 @@ window.initAudioGlobal = function() {
         window.hardwareAnalyser = window.audioCtx.createAnalyser();   
         window.hardwareAnalyser.fftSize = window.FFT_SIZE;
         
-        // 💡 1對1 剛性硬體圖學直連鏈：Oscillators ➔ 硬體濾波 ➔ 硬體分析 ➔ 增益 ➔ 喇叭
+        // 💡 1對1 剛性硬體鏈：Oscillators ➔ 硬體濾波 ➔ 硬體分析 ➔ 增益 ➔ 喇叭
         window.hardwareFilter.connect(window.hardwareAnalyser);
         window.hardwareAnalyser.connect(window.gainNode);
         window.gainNode.connect(window.audioCtx.destination);
@@ -89,7 +92,7 @@ window.initAudioGlobal = function() {
     window.updateFilterCoefficients();
 
     if (window.isSimulating) {
-        // 💡 同時點火兩路獨立的純硬體 Oscillator 發生器
+        // 💡 剛性釋放：同時點火兩路獨立的純硬體 Oscillator 發生器，絕不使用任何 ScriptProcessor！
         window.oscNode = window.audioCtx.createOscillator();
         window.oscNode.type = 'sine';
         window.oscNode.frequency.setValueAtTime(window.currentSinFreq, window.audioCtx.currentTime);
@@ -146,11 +149,11 @@ window.globalRenderLoop = function() {
     let midY = window.tCanvas.height / 2;
 
     let tSlice = window.tCanvas.width / (rawSlice.length - 1);
-    window.tCtx.moveTo(0, midY - ((rawSlice || 0) * (window.tCanvas.height / 2.3)));
+    window.tCtx.moveTo(0, midY - ((rawSlice[0] || 0) * (window.tCanvas.height / 2.3)));
     for (let j = 0; j < rawSlice.length - 1; j++) {
         let x1 = j * tSlice; let y1 = midY - ((rawSlice[j] || 0) * (window.tCanvas.height / 2.3));
         let x2 = (j + 1) * tSlice; let y2 = midY - ((rawSlice[j + 1] || 0) * (window.tCanvas.height / 2.3));
-        window.tCtx.quadraticCurveTo(x1, y1, (x1 + x2) / 2, (y1 + y2) / 2); // 💡 GPU 貝氏平滑，0錯字！
+        window.tCtx.quadraticCurveTo(x1, y1, (x1 + x2) / 2, (y1 + y2) / 2); 
     }
     window.tCtx.stroke();
     
