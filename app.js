@@ -1,4 +1,4 @@
-//1
+//2
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -153,11 +153,8 @@ window.globalRenderLoop = function() {
 
     let rawSlice = window.filteredDataLog.slice(-adaptivePointsCount);
     
-    // ==========================================
-    // 💡 解決問題一：解除死鎖限制！實施「純剛性動態防溢位自適應縮放（ScaleY Pure Ratio）」
-    // ==========================================
     let currentFrameMaxPeak = Math.max(...rawSlice.map(Math.abs)); if (currentFrameMaxPeak < 0.1) currentFrameMaxPeak = 0.1;
-    let scaleY = 145 / currentFrameMaxPeak; // 💡 沒收任何會導致卡死出框的 if (scaleY > 165) 限制！讓波幅完美縮放！
+    let scaleY = 145 / currentFrameMaxPeak; 
 
     let max = Math.max(...rawSlice), min = Math.min(...rawSlice), vpp = max - min, sq = 0;
     rawSlice.forEach(v => sq += v * v); let rms = Math.sqrt(sq / rawSlice.length);
@@ -170,7 +167,6 @@ window.globalRenderLoop = function() {
     let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
     
-    // 💡 4kHz 精準回報防線：100% 對齊實體硬體 44100 頻率軸計算數字！
     let realHWFreq = maxIdx * (44100 / window.FFT_SIZE); 
     document.getElementById('freqVal').innerText = maxMag > 0.04 ? realHWFreq.toFixed(1) + " Hz" : "0.0 Hz";
     
@@ -187,11 +183,12 @@ window.globalRenderLoop = function() {
     let totalTimeMs = (rawSlice.length / window.currentSampleRate) * 1000; window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + totalTimeMs.toFixed(2) + " ms", 620, 380);
 
     // ==========================================
-    // 💡 💡 💡 解決問題二：橫軸幾何大改組（4kHz 永遠死鎖釘在 4kHz 刻度線上！）
+    // 💡 💡 💡 頻域畫布渲染：正宗分貝（dB）縱軸，高頻 100% 斷崖衰減歸位！
     // ==========================================
     window.fCtx.clearRect(0, 0, 800, 400); window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400);
     
-    // 💡 鋼性死鎖：全幅畫布最右端，代表固定不變的 5000 Hz 工業觀測視野！
+    let nyquistLimit = window.currentSampleRate / 2;
+
     window.fCtx.strokeStyle = '#333333'; window.fCtx.lineWidth = 1; window.fCtx.beginPath();
     for (let k = 0; k <= 4; k++) { let xPos = 200 * k; if (k === 4) xPos = 799; window.fCtx.moveTo(xPos, 0); window.fCtx.lineTo(xPos, 360); }
     window.fCtx.stroke();
@@ -200,24 +197,42 @@ window.globalRenderLoop = function() {
     let ticks = ["0.00 kHz", "1.25 kHz", "2.50 kHz", "3.75 kHz", "5.00 kHz"];
     for (let k = 0; k <= 4; k++) { let textOffset = k === 0 ? 15 : (k === 4 ? -75 : -25); window.fCtx.fillText(ticks[k], (200 * k) + textOffset, 385); }
 
+    // 💡 實裝標準工業分貝水平格線標尺（0dB 代表無衰減，-60dB 代表大幅過濾壓扁）
     window.fCtx.strokeStyle = '#222222'; window.fCtx.beginPath();
-    let dbPositions = [0.4, 0.2, 0.08, 0.02]; dbPositions.forEach(p => { window.fCtx.moveTo(0, 360 - p*350); window.fCtx.lineTo(800, 360 - p*350); });
+    // 頂部為 0dB (峰值)，下方依序為 -12dB, -30dB, -50dB
+    let dbSteps = [0, -12, -30, -50];
+    dbSteps.forEach(db => {
+        let yPos = 30 + ((db / -60) * 310); // 將 0 ~ -60dB 均勻等分投影到 30~340 像素區間
+        window.fCtx.moveTo(0, yPos); window.fCtx.lineTo(800, yPos);
+    });
     window.fCtx.stroke();
+    
+    window.fCtx.fillStyle = '#aaaaaa'; window.fCtx.font = 'bold 11px Arial';
+    dbSteps.forEach(db => {
+        let yPos = 30 + ((db / -60) * 310);
+        window.fCtx.fillText(db + " dB", 20, yPos + 4);
+    });
 
-    // 💡 絕對直通車繪圖映射：直接用內存點位的真實物理頻率，1:1 投影到 5000Hz 畫布寬度上！
+    // 絕對物理頻率橫軸直通車
     let hzPerBinHW = (44100 / window.FFT_SIZE);
     window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.0; window.fCtx.beginPath();
     
     let isFirstPoint = true;
     for (let n = 0; n < magnitudes.length; n++) { 
         let currentPointRealHz = n * hzPerBinHW;
-        // 💡 幾何防線：如果該數據點的實體頻率超過了 5000Hz 視野，直接掐斷不畫，防止向右側溢出！
         if (currentPointRealHz > 5000) break; 
         
-        // 💡 剛性歸位：X 座標 = (真實物理頻率 / 5000) * 800 像素，4kHz 註定死鎖落在 640 像素處！
         let curX = (currentPointRealHz / 5000) * 800;
-        let y = 360 - (magnitudes[n] * 350 * 5); 
-        if (y < 10) y = 10; if (y > 358) y = 358;
+        
+        // 💡 核心對數增益運算：將線性幅值 100% 轉化為正宗工業分貝標度！
+        let linearVal = magnitudes[n] * 6; // 配合前級振幅平分進行系數校準
+        if (linearVal < 0.001) linearVal = 0.001; // 防止 log10(0) 爆發負無限大
+        let dB = 20 * Math.log10(linearVal);
+        
+        if (dB > 5) dB = 5; if (dB < -60) dB = -60; // 剛性死鎖在安全視野內
+        
+        // 💡 幾何翻轉歸位：0dB 在最上方（高高挺立），-60dB 在最下方（代表徹底被壓扁削平！）
+        let y = 30 + ((dB / -60) * 310); 
         
         if (isFirstPoint) { window.fCtx.moveTo(curX, y); isFirstPoint = false; } 
         else { window.fCtx.lineTo(curX, y); }
@@ -231,7 +246,7 @@ document.addEventListener('click', (e) => {
     if (clickId === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn'); window.initAudioGlobal();
         if (btn) btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試";
-        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：4kHz 物理幾何直通防線解鎖！" : "狀態：模擬測試已停止。";
+        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：工業級分貝對數縱軸（dB Scale）完美點火！" : "狀態：模擬測試已停止。";
     }
     if (clickId === 'speakerBtn') {
         window.isSpeakerOn = !window.isSpeakerOn; const sBtn = document.getElementById('speakerBtn');
@@ -272,10 +287,4 @@ document.addEventListener('input', (e) => {
             }
             window.updateFilterCoefficients(); 
         }
-        if (sliderId === "volumeSlider") { if (nextSpan) nextSpan.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && window.audioCtx) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); }
-    }
-});
-
-window.onload = function() {
-    const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');
-const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);if (window.updateFilterCoefficients) window.updateFilterCoefficients(); if (window.globalRenderLoop) window.globalRenderLoop();};
+if (sliderId === "volumeSlider") { if (nextSpan) nextSpan.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && window.audioCtx) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); }}});window.onload = function() {const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);if (window.updateFilterCoefficients) window.updateFilterCoefficients(); if (window.globalRenderLoop) window.globalRenderLoop();};
