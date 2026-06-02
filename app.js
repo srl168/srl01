@@ -1,4 +1,4 @@
-//2
+//3
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -21,43 +21,55 @@ window.simWorker = null;
 let renderFrameCounter = 0;
 window.currentFilterMode = 'RAW';
 window.f1 = 1000; window.f2 = 3000;
-window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
+window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a0 = 1; window.a1 = 0; window.a2 = 0;
 let xv = new Float32Array(3), yv = new Float32Array(3);
 
 // ==========================================
-// 💡 2️⃣ 數位濾波器精密係數計算公式（100% 嚙合當前採樣率拉桿！）
+// 💡 2️⃣ 100% 剛性歸位：工業級標準 Biquad 濾波係數公式（徹底修正 Q 值高頻壓不下去黑洞！）
 // ==========================================
 window.updateFilterCoefficients = function() {
-    let fr = window.currentSampleRate / window.f1; if (fr < 2.01) fr = 2.01;
-    let o = Math.tan(Math.PI / fr);
+    // 基於標準工科學定義，計算角頻率 w0 與阻尼因子 alpha
+    let w0 = 2 * Math.PI * window.f1 / window.currentSampleRate;
+    if (w0 < 0.01) w0 = 0.01; if (w0 > Math.PI - 0.01) w0 = Math.PI - 0.01;
+    let cosW0 = Math.cos(w0); let sinW0 = Math.sin(w0);
     
-    let qValLP_HP = 0.1 + (window.f2 / 5000.0) * 9.9; 
+    // 自適應讀取 F2 對應的 LP/HP 品質因數 Q
+    let qValLP_HP = 0.1 + (window.f2 / 5000.0) * 9.9;
     if (qValLP_HP < 0.1) qValLP_HP = 0.1; if (qValLP_HP > 10.0) qValLP_HP = 10.0;
-
-    if (window.currentFilterMode === 'LP') { 
-        let c = 1 + (o / qValLP_HP) + o * o;
-        window.b0 = (o * o) / c; window.b1 = 2 * window.b0; window.b2 = window.b0; 
-        window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - (o / qValLP_HP) + o * o) / c; 
-    } 
-    else if (window.currentFilterMode === 'HP') { 
-        let c = 1 + (o / qValLP_HP) + o * o;
-        window.b0 = 1.0 / c; window.b1 = -2.0 * window.b0; window.b2 = window.b0; 
-        window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - (o / qValLP_HP) + o * o) / c; 
-    } 
-    else if (window.currentFilterMode === 'BP') { 
+    
+    if (window.currentFilterMode === 'RAW') {
+        window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a0 = 1; window.a1 = 0; window.a2 = 0;
+    }
+    else if (window.currentFilterMode === 'LP') {
+        // 💡 正宗 DSP 晶片低通公式：Q 值越高，高頻阻尼抗性越剛性，4kHz 註定被壓得越低！
+        let alpha = sinW0 / (2 * qValLP_HP);
+        window.b0 = (1 - cosW0) / 2; window.b1 = 1 - cosW0; window.b2 = (1 - cosW0) / 2;
+        window.a0 = 1 + alpha; window.a1 = -2 * cosW0; window.a2 = 1 - alpha;
+    }
+    else if (window.currentFilterMode === 'HP') {
+        let alpha = sinW0 / (2 * qValLP_HP);
+        window.b0 = (1 + cosW0) / 2; window.b1 = -(1 + cosW0); window.b2 = (1 + cosW0) / 2;
+        window.a0 = 1 + alpha; window.a1 = -2 * cosW0; window.a2 = 1 - alpha;
+    }
+    else if (window.currentFilterMode === 'BP') {
         let qValBP = window.f1 / (window.f2 > 0 ? window.f2 : 1.0); if (qValBP < 0.1) qValBP = 0.1;
-        let cBP = 1.0 + (o / qValBP) + o * o;
-        window.b0 = (o / qValBP) / cBP; window.b1 = 0.0; window.b2 = -window.b0;
-        window.a1 = 2.0 * (o * o - 1.0) / cBP; window.a2 = (1.0 - (o / qValBP) + o * o) / cBP;
+        let alpha = sinW0 / (2 * qValBP);
+        window.b0 = alpha; window.b1 = 0; window.b2 = -alpha;
+        window.a0 = 1 + alpha; window.a1 = -2 * cosW0; window.a2 = 1 - alpha;
     }
 };
 
-window.applyFilter = function(x) { 
+// 💡 3️⃣ 100% 晶片級直通數位過濾執行水管（加入 a0 歸一化，杜絕係數爆炸）
+window.applyFilter = function(x) {
     if (window.currentFilterMode === 'RAW') return x;
-    xv = xv; xv = xv; xv = x; yv = yv; yv = yv;
-    yv = (window.b0 * xv) + (window.b1 * xv) + (window.b2 * xv) - (window.a1 * yv) - (window.a2 * yv);
-    if (isNaN(yv) || !isFinite(yv)) { yv=0; yv=0; yv=0; xv=0; xv=0; xv=0; }
-    return yv;
+    xv[2] = xv[1]; xv[1] = xv[0]; xv[0] = x;
+    yv[2] = yv[1]; yv[1] = yv[0];
+    
+    // 實施直通車標準 Biquad 差分方程，完美融合歸一化 a0 因子
+    yv[0] = (window.b0 * xv[0] + window.b1 * xv[1] + window.b2 * xv[2] - window.a1 * yv[1] - window.a2 * yv[2]) / window.a0;
+    
+    if (isNaN(yv[0]) || !isFinite(yv[0])) { yv[0]=0; yv[1]=0; yv[2]=0; xv[0]=0; xv[1]=0; xv[2]=0; }
+    return yv[0];
 };
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -153,6 +165,7 @@ window.globalRenderLoop = function() {
 
     let rawSlice = window.filteredDataLog.slice(-adaptivePointsCount);
     
+    // 時域自動縮放防線，高 Q 值下 100% 自適應收攏
     let currentFrameMaxPeak = Math.max(...rawSlice.map(Math.abs)); if (currentFrameMaxPeak < 0.1) currentFrameMaxPeak = 0.1;
     let scaleY = 145 / currentFrameMaxPeak; 
 
@@ -183,12 +196,10 @@ window.globalRenderLoop = function() {
     let totalTimeMs = (rawSlice.length / window.currentSampleRate) * 1000; window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + totalTimeMs.toFixed(2) + " ms", 620, 380);
 
     // ==========================================
-    // 💡 💡 💡 頻域畫布渲染：正宗分貝（dB）縱軸，高頻 100% 斷崖衰減歸位！
+    // 💡 頻域畫布渲染：對數分貝標尺（0 ~ -60dB 剛性視窗）
     // ==========================================
     window.fCtx.clearRect(0, 0, 800, 400); window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400);
     
-    let nyquistLimit = window.currentSampleRate / 2;
-
     window.fCtx.strokeStyle = '#333333'; window.fCtx.lineWidth = 1; window.fCtx.beginPath();
     for (let k = 0; k <= 4; k++) { let xPos = 200 * k; if (k === 4) xPos = 799; window.fCtx.moveTo(xPos, 0); window.fCtx.lineTo(xPos, 360); }
     window.fCtx.stroke();
@@ -197,23 +208,16 @@ window.globalRenderLoop = function() {
     let ticks = ["0.00 kHz", "1.25 kHz", "2.50 kHz", "3.75 kHz", "5.00 kHz"];
     for (let k = 0; k <= 4; k++) { let textOffset = k === 0 ? 15 : (k === 4 ? -75 : -25); window.fCtx.fillText(ticks[k], (200 * k) + textOffset, 385); }
 
-    // 💡 實裝標準工業分貝水平格線標尺（0dB 代表無衰減，-60dB 代表大幅過濾壓扁）
+    // 繪製水平分貝線標尺
     window.fCtx.strokeStyle = '#222222'; window.fCtx.beginPath();
-    // 頂部為 0dB (峰值)，下方依序為 -12dB, -30dB, -50dB
     let dbSteps = [0, -12, -30, -50];
-    dbSteps.forEach(db => {
-        let yPos = 30 + ((db / -60) * 310); // 將 0 ~ -60dB 均勻等分投影到 30~340 像素區間
-        window.fCtx.moveTo(0, yPos); window.fCtx.lineTo(800, yPos);
-    });
+    dbSteps.forEach(db => { let yPos = 30 + ((db / -60) * 310); window.fCtx.moveTo(0, yPos); window.fCtx.lineTo(800, yPos); });
     window.fCtx.stroke();
     
     window.fCtx.fillStyle = '#aaaaaa'; window.fCtx.font = 'bold 11px Arial';
-    dbSteps.forEach(db => {
-        let yPos = 30 + ((db / -60) * 310);
-        window.fCtx.fillText(db + " dB", 20, yPos + 4);
-    });
+    dbSteps.forEach(db => { let yPos = 30 + ((db / -60) * 310); window.fCtx.fillText(db + " dB", 20, yPos + 4); });
 
-    // 絕對物理頻率橫軸直通車
+    // 絕對一對一物理頻率 X 軸映射（4kHz 永遠死鎖歸位！）
     let hzPerBinHW = (44100 / window.FFT_SIZE);
     window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.0; window.fCtx.beginPath();
     
@@ -224,15 +228,12 @@ window.globalRenderLoop = function() {
         
         let curX = (currentPointRealHz / 5000) * 800;
         
-        // 💡 核心對數增益運算：將線性幅值 100% 轉化為正宗工業分貝標度！
-        let linearVal = magnitudes[n] * 6; // 配合前級振幅平分進行系數校準
-        if (linearVal < 0.001) linearVal = 0.001; // 防止 log10(0) 爆發負無限大
+        // 💡 標準分貝校準（線性幅值 ➔ Log10 dB 映射）
+        let linearVal = magnitudes[n] * 6.5; if (linearVal < 0.001) linearVal = 0.001; 
         let dB = 20 * Math.log10(linearVal);
         
-        if (dB > 5) dB = 5; if (dB < -60) dB = -60; // 剛性死鎖在安全視野內
-        
-        // 💡 幾何翻轉歸位：0dB 在最上方（高高挺立），-60dB 在最下方（代表徹底被壓扁削平！）
-        let y = 30 + ((dB / -60) * 310); 
+        if (dB > 5) dB = 5; if (dB < -60) dB = -60;
+        let y = 30 + ((dB / -60) * 310); // 幾何翻轉：0dB 在最頂層，-60dB 沉底
         
         if (isFirstPoint) { window.fCtx.moveTo(curX, y); isFirstPoint = false; } 
         else { window.fCtx.lineTo(curX, y); }
@@ -246,7 +247,7 @@ document.addEventListener('click', (e) => {
     if (clickId === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn'); window.initAudioGlobal();
         if (btn) btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試";
-        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：工業級分貝對數縱軸（dB Scale）完美點火！" : "狀態：模擬測試已停止。";
+        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：正宗工業 Biquad 濾波網絡啟動！" : "狀態：模擬測試已停止。";
     }
     if (clickId === 'speakerBtn') {
         window.isSpeakerOn = !window.isSpeakerOn; const sBtn = document.getElementById('speakerBtn');
@@ -287,4 +288,10 @@ document.addEventListener('input', (e) => {
             }
             window.updateFilterCoefficients(); 
         }
-if (sliderId === "volumeSlider") { if (nextSpan) nextSpan.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && window.audioCtx) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); }}});window.onload = function() {const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);if (window.updateFilterCoefficients) window.updateFilterCoefficients(); if (window.globalRenderLoop) window.globalRenderLoop();};
+        if (sliderId === "volumeSlider") { if (nextSpan) nextSpan.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && window.audioCtx) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); }
+    }
+});
+
+window.onload = function() {
+    const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');
+const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);if (window.updateFilterCoefficients) window.updateFilterCoefficients(); if (window.globalRenderLoop) window.globalRenderLoop();};
