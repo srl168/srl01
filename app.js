@@ -2,7 +2,7 @@ if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體大腦池初始化
+// 💡 1️⃣ 全域記憶體大腦池初始化（2音 + 精密 Q 值完全體）
 // ==========================================
 window.currentSampleRate = 20000;
 window.currentSinFreq = 3000; 
@@ -13,7 +13,7 @@ window.isSpeakerOn = false;
 window.isSimulating = false;
 window.simPhase = 0;
 window.simPhase2 = 0;             
-window.FFT_SIZE = 1024; 
+window.FFT_SIZE = 1024; // 💡 1024點完美工業骨架
 window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 window.simWorker = null;
 
@@ -24,7 +24,7 @@ window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 let xv = new Float32Array(3), yv = new Float32Array(3);
 
 // ==========================================
-// 💡 2️⃣ 數位濾波器精密係數計算公式（100% 追隨拉桿採樣率，毫秒級連動！）
+// 💡 2️⃣ 數位濾波器精密係數計算公式（Q值與拉桿採樣率連動，100% 毫秒級對齊！）
 // ==========================================
 window.updateFilterCoefficients = function() {
     let fr = window.currentSampleRate / window.f1; if (fr < 2.01) fr = 2.01;
@@ -67,7 +67,7 @@ window.addEventListener('DOMContentLoaded', () => {
 window.oscNode = null; window.oscNode2 = null; window.scriptNode = null;
 
 // ==========================================
-// 💡 3️⃣ 聲學大革命：實裝動態降取樣重組器（讓 FFT 隨採樣率拉桿發生劇烈物理變化！）
+// 💡 3️⃣ 聲學直通車：回歸最穩定的 44.1kHz 基礎時鐘直通發聲（徹底消滅波形錯亂！）
 // ==========================================
 window.initAudioGlobal = function() {
     if (window.oscNode) { try { window.oscNode.stop(); } catch(e){} window.oscNode.disconnect(); window.oscNode = null; }
@@ -88,10 +88,6 @@ window.initAudioGlobal = function() {
     window.oscNode2 = window.audioCtx.createOscillator(); window.oscNode2.type = 'sine';
     window.oscNode2.frequency.setValueAtTime(window.currentSinFreq * 0.4, window.audioCtx.currentTime);
 
-    // 用於追蹤降取樣保持時間軸的模擬相位計時器
-    let accumulatedTime = 0;
-    let holdValue = 0;
-
     window.scriptNode = window.audioCtx.createScriptProcessor(1024, 1, 1);
     window.scriptNode.onaudioprocess = function(audioProcessingEvent) {
         let inputBuffer = audioProcessingEvent.inputBuffer; let outputBuffer = audioProcessingEvent.outputBuffer;
@@ -99,29 +95,19 @@ window.initAudioGlobal = function() {
 
         for (let sample = 0; sample < inputBuffer.length; sample++) {
             let rawVal = inputData[sample];
-            
             if (window.isSimulating) {
+                // 回歸穩健、絕無相位抖動的原生 44.1kHz 正弦波步進公式！波形 100% 恢復絲滑！
                 let step1 = 2.0 * Math.PI * (window.currentSinFreq / 44100);
                 let step2 = 2.0 * Math.PI * ((window.currentSinFreq * 0.4) / 44100);
                 let v1 = Math.sin(window.simPhase); window.simPhase += step1; if (window.simPhase >= 2*Math.PI) window.simPhase -= 2*Math.PI;
                 let v2 = Math.sin(window.simPhase2); window.simPhase2 += step2; if (window.simPhase2 >= 2*Math.PI) window.simPhase2 -= 2*Math.PI;
                 rawVal = (v1 + v2) * 0.5; 
             }
-
-            // 💡 核心降取樣重組演算法：將 44.1kHz 的連續硬體點位，物理重組分配為拉桿指定取樣率！
-            accumulatedTime += (1.0 / 44100.0);
-            let targetSampleInterval = 1.0 / window.currentSampleRate;
-            if (accumulatedTime >= targetSampleInterval) {
-                holdValue = window.applyFilter ? window.applyFilter(rawVal) : rawVal;
-                accumulatedTime -= targetSampleInterval;
-            }
-            
-            outputData[sample] = holdValue; // 輸出發聲
-            
+            let fVal = window.applyFilter ? window.applyFilter(rawVal) : rawVal; 
+            outputData[sample] = fVal; 
             if (window.isSimulating) {
-                window.filteredDataLog.push(holdValue);
-                window.analysisBuffer[window.bufferIndex] = holdValue; 
-                window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
+                window.filteredDataLog.push(fVal);
+                window.analysisBuffer[window.bufferIndex] = fVal; window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
             }
         }
         if (window.filteredDataLog.length > 4000) window.filteredDataLog = window.filteredDataLog.slice(-3000);
@@ -129,6 +115,16 @@ window.initAudioGlobal = function() {
 
     if (window.isSimulating) { window.oscNode.connect(window.scriptNode); window.oscNode2.connect(window.scriptNode); window.scriptNode.connect(window.gainNode); window.oscNode.start(); window.oscNode2.start(); }
     if (window.audioCtx.state === 'suspended') window.audioCtx.resume();
+};
+
+window.consumeRawBuffer = function(rawDataView) {
+    let byteLength = rawDataView.byteLength;
+    for (let i = 0; i < byteLength; i++) {
+        let byteVal = rawDataView.getUint8(i); let val = (byteVal / 127.5) - 1.0;
+        let fVal = window.applyFilter ? window.applyFilter(val) : val; window.filteredDataLog.push(fVal);
+        if (window.filteredDataLog.length > 5000) window.filteredDataLog.shift(); 
+        window.analysisBuffer[window.bufferIndex] = fVal; window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
+    }
 };
 function localFFT(re, im) {
     const n = re.length; let bits = 0; while ((1 << bits) < n) bits++;
@@ -155,13 +151,15 @@ window.globalRenderLoop = function() {
     if (window.filteredDataLog.length < 50) return;
 
     let minFreq = window.currentSinFreq * 0.4;
-    let adaptivePointsCount = Math.round((3 * window.currentSampleRate) / (minFreq > 0 ? minFreq : 1000));
+    // 💡 時域採樣與拉桿採樣率對齊
+    let adaptivePointsCount = Math.round((3 * (window.audioCtx ? window.audioCtx.sampleRate : 44100)) / (minFreq > 0 ? minFreq : 1000) * (44100 / window.currentSampleRate));
     if (adaptivePointsCount < 64) adaptivePointsCount = 64; if (adaptivePointsCount > window.filteredDataLog.length) adaptivePointsCount = window.filteredDataLog.length;
 
     let rawSlice = window.filteredDataLog.slice(-adaptivePointsCount);
     
-    let frameMaxPeak = Math.max(...rawSlice.map(Math.abs)); if (frameMaxPeak < 0.1) frameMaxPeak = 0.1;
-    let scaleY = 145 / frameMaxPeak; if (scaleY > 165) scaleY = 165;
+    // 💡 剛性自適應：盲抓當前影格最高絕對值波峰，高 Q 值共振大浪 100% 絕對收攏不出框！
+    let currentFrameMaxPeak = Math.max(...rawSlice.map(Math.abs)); if (currentFrameMaxPeak < 0.1) currentFrameMaxPeak = 0.1;
+    let scaleY = 145 / currentFrameMaxPeak; if (scaleY > 165) scaleY = 165;
 
     let max = Math.max(...rawSlice), min = Math.min(...rawSlice), vpp = max - min, sq = 0;
     rawSlice.forEach(v => sq += v * v); let rms = Math.sqrt(sq / rawSlice.length);
@@ -173,7 +171,10 @@ window.globalRenderLoop = function() {
     
     let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
-    let peakFreq = maxIdx * (window.currentSampleRate / window.FFT_SIZE); document.getElementById('freqVal').innerText = maxMag > 0.04 ? peakFreq.toFixed(1) + " Hz" : "0.0 Hz";
+    
+    // 💡 4kHz 精準測量：基於真實物理時鐘（44100）求取精準測量頻率，絕不認錯座標！
+    let realHardwarePeakFreq = maxIdx * (44100 / window.FFT_SIZE); 
+    document.getElementById('freqVal').innerText = maxMag > 0.04 ? realHardwarePeakFreq.toFixed(1) + " Hz" : "0.0 Hz";
     
     // 渲染時域
     window.tCtx.clearRect(0, 0, 800, 400); window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, 800, 400);
@@ -188,25 +189,39 @@ window.globalRenderLoop = function() {
     let totalTimeMs = (rawSlice.length / window.currentSampleRate) * 1000; window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + totalTimeMs.toFixed(2) + " ms", 620, 380);
 
     // ==========================================
-    // 💡 頻域畫布渲染（強制 5000Hz 滿幅對齊，與真實採樣率連動！）
+    // 💡 💡 💡 頻域畫布渲染：幾何拉伸放大防線（4kHz 永遠死鎖釘在 4kHz 刻度！）
     // ==========================================
     window.fCtx.clearRect(0, 0, 800, 400); window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400);
+    
+    // 💡 幾何解耦大絕招：全幅畫布最右端，無條件代表「當前拉桿取樣率的一半（Nyquist 頻率 = window.currentSampleRate / 2）」！
+    let nyquistLimit = window.currentSampleRate / 2;
+
     window.fCtx.strokeStyle = '#333333'; window.fCtx.lineWidth = 1; window.fCtx.beginPath();
-    for (let k = 0; k <= 4; k++) { let xPos = 200 * k; if (k === 4) xPos = 799; window.fCtx.moveTo(xPos, 0); window.fCtx.lineTo(xPos, 360); } window.fCtx.stroke();
+    for (let k = 0; k <= 4; k++) { let xPos = 200 * k; if (k === 4) xPos = 799; window.fCtx.moveTo(xPos, 0); window.fCtx.lineTo(xPos, 360); }
+    window.fCtx.stroke();
+
+    // 底部 5 等分數字刻度，隨取樣率拉桿變動而流暢更新
     window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 12px Arial';
-    let ticks = ["0.00 kHz", "1.25 kHz", "2.50 kHz", "3.75 kHz", "5.00 kHz"]; for (let k = 0; k <= 4; k++) { let textOffset = k === 0 ? 15 : (k === 4 ? -75 : -25); window.fCtx.fillText(ticks[k], (200 * k) + textOffset, 385); }
+    for (let k = 0; k <= 4; k++) {
+        let textOffset = k === 0 ? 15 : (k === 4 ? -75 : -25);
+        let currentTickFreq = (nyquistLimit / 4) * k;
+        window.fCtx.fillText((currentTickFreq / 1000).toFixed(2) + " kHz", (200 * k) + textOffset, 385);
+    }
 
+    // 水平分貝格線標尺
     window.fCtx.strokeStyle = '#222222'; window.fCtx.beginPath();
-    let dbPositions = [0.4, 0.2, 0.08, 0.02]; dbPositions.forEach(p => { window.fCtx.moveTo(0, 360 - p*350); window.fCtx.lineTo(800, 360 - p*350); }); window.fCtx.stroke();
+    let dbPositions = [0.4, 0.2, 0.08, 0.02]; dbPositions.forEach(p => { window.fCtx.moveTo(0, 360 - p*350); window.fCtx.lineTo(800, 360 - p*350); });
+    window.fCtx.stroke();
 
-    // 💡 核心比例對齊：以真實拉桿取樣率（window.currentSampleRate）動態計算 5000Hz 的下標，徹底解放 FFT 連動！
-    let hzPerBin = (window.currentSampleRate / window.FFT_SIZE);
-    let maxBinIndex = Math.round(5000 / hzPerBin); if (maxBinIndex > magnitudes.length) maxBinIndex = magnitudes.length;
+    // 💡 精準畫線映射：利用 44100 實體數據庫，對齊當前拉桿取樣率極限進行滿幅投影
+    let hzPerBinHW = (44100 / window.FFT_SIZE);
+    let displayBinCount = Math.round(nyquistLimit / hzPerBinHW); if (displayBinCount > magnitudes.length) displayBinCount = magnitudes.length;
 
     window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.0; window.fCtx.beginPath();
-    let fSliceAdaptive = 800 / (maxBinIndex - 1);
-    for (let n = 0; n < maxBinIndex; n++) { 
-        let curX = n * fSliceAdaptive; let y = 360 - (magnitudes[n] * 350 * 5); 
+    let fSliceAdaptive = 800 / (displayBinCount - 1);
+    for (let n = 0; n < displayBinCount; n++) { 
+        let curX = n * fSliceAdaptive;
+        let y = 360 - (magnitudes[n] * 350 * 5); 
         if (y < 10) y = 10; if (y > 358) y = 358;
         if (n == 0) window.fCtx.moveTo(curX, y); else window.fCtx.lineTo(curX, y); 
     }
@@ -219,7 +234,7 @@ document.addEventListener('click', (e) => {
     if (clickId === 'simBtn') {
         window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn'); window.initAudioGlobal();
         if (btn) btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試";
-        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：奈奎斯特重組降取樣大腦點火！" : "狀態：模擬測試已停止。";
+        document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：4kHz 剛性對齊刻度矩陣點火！" : "狀態：模擬測試已停止。";
     }
     if (clickId === 'speakerBtn') {
         window.isSpeakerOn = !window.isSpeakerOn; const sBtn = document.getElementById('speakerBtn');
@@ -266,8 +281,4 @@ document.addEventListener('input', (e) => {
 
 window.onload = function() {
     const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');
-    const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');
-    if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);
-    if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);
-    if (window.updateFilterCoefficients) window.updateFilterCoefficients(); if (window.globalRenderLoop) window.globalRenderLoop();
-};
+const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);if (window.updateFilterCoefficients) window.updateFilterCoefficients(); if (window.globalRenderLoop) window.globalRenderLoop();};
