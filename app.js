@@ -1,4 +1,4 @@
-//118
+//1181
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -149,20 +149,13 @@ window.globalRenderLoop = function() {
     // 渲染自適應頻域
     window.fCtx.clearRect(0, 0, 800, 400); window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400); window.fCtx.strokeStyle = '#333'; window.fCtx.beginPath(); for (let k = 0; k <= 4; k++) window.fCtx.moveTo(k * 200, 0), window.fCtx.lineTo(k * 200, 360); window.fCtx.stroke();
     
-    // 💡 🛠️ 實時向 HTML 提取極限天花板，改 HTML 後端 JS 0 修改連動！
     let htmlMaxFreq = parseFloat(document.getElementById('sinFreqSlider')?.max) || 5000;
-    
-    // 💡 🛠️ 真・核心自適應：無論何種模式，畫布寬度上限一律跟隨「當前實際信號內容（FocusHz * 1.5）」流暢內縮放大！
     let maxDisplayFreq = finalViewFocusHz * 1.5; 
-    
-    // 剛性極限雙防線：下限不低於 200Hz（防止拉伸過頭），上限死死卡在 HTML 設定的最大值天花板（防止飛出框）！
-    if (maxDisplayFreq < 200) maxDisplayFreq = 200; 
-    if (maxDisplayFreq > htmlMaxFreq) maxDisplayFreq = htmlMaxFreq;
+    if (maxDisplayFreq < 200) maxDisplayFreq = 200; if (maxDisplayFreq > htmlMaxFreq) maxDisplayFreq = htmlMaxFreq;
     
     window.fCtx.fillStyle = '#ffffff'; for (let k = 0; k <= 4; k++) window.fCtx.fillText((((maxDisplayFreq / 4) * k) / 1000).toFixed(2) + " kHz", k * 200 + (k === 0 ? 15 : k === 4 ? -75 : -25), 385);
     window.fCtx.strokeStyle = '#555555'; window.fCtx.beginPath(); dbSteps.forEach(db => { window.fCtx.moveTo(0, 30 + ((db / -50) * 310)); window.fCtx.lineTo(800, 30 + ((db / -50) * 310)); }); window.fCtx.stroke(); window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 11px Arial'; dbSteps.forEach(db => window.fCtx.fillText(db + " dB", 20, 34 + ((db / -50) * 310)));
     
-    // 主動追蹤雙音局部最高點 Bin 下標
     let realFsPeakBin = bFs, real04FsPeakBin = b04Fs;
     if (window.currentFilterMode === 'RAW') {
         for (let o = -3; o <= 3; o++) {
@@ -180,7 +173,10 @@ window.globalRenderLoop = function() {
         let y = 30 + ((1.0 - (magnitudes[n] / currentFrameMaxMag)) * 310);
         if (window.currentFilterMode === 'RAW' && (n === realFsPeakBin || n === real04FsPeakBin)) { y = 32.0; }
         
+        // 💡 🛠️ 終極硬核安全層：如果除以 0 或訊號全無產生 NaN，強制歸位沉底 358px 阻帶網格，100% 絕對不卡死、不出界！
+        if (isNaN(y) || !isFinite(y)) y = 358.0;
         if (y < 32.0) y = 32.0; if (y > 358) y = 358; 
+        
         if (isFirstPoint) { window.fCtx.moveTo(curX, y); isFirstPoint = false; } else { window.fCtx.lineTo(curX, y); }
     } window.fCtx.stroke();
 };
@@ -190,7 +186,13 @@ document.addEventListener('click', (e) => {
     if (!e.target || !e.target.id) return;
     if (e.target.id === 'speakerBtn') { window.isSpeakerOn = !window.isSpeakerOn; document.getElementById('speakerBtn').innerText = window.isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉"; if (window.gainNode) window.gainNode.gain.setValueAtTime(window.isSpeakerOn ? window.currentVolume : 0.0, window.audioCtx.currentTime); }
     let fModes = { filterRaw: 'RAW', filterLP: 'LP', filterHP: 'HP', filterBP: 'BP' }[e.target.id];
-    if (fModes) { document.querySelectorAll('.active').forEach(b => b.classList.remove('active')); e.target.classList.add('active'); window.currentFilterMode = fModes; window.updateFilterCoefficients(); }
+    if (fModes) { 
+        document.querySelectorAll('.active').forEach(b => b.classList.remove('active')); e.target.classList.add('active'); window.currentFilterMode = fModes;
+        // 💡 🛠️ 剛性修復：點擊 LP, HP, BP 任何一個濾波按鈕時，100% 強制把 F2 控制面板完全展開！
+        const f2View = document.getElementById('f2Container');
+        if (f2View) f2View.style.display = (fModes === 'RAW') ? 'none' : 'flex';
+        window.updateFilterCoefficients(); 
+    }
 });
 document.addEventListener('input', (e) => {
     if (!e.target || e.target.type !== 'range') return;
