@@ -1,4 +1,4 @@
-//1171
+//1172
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -141,7 +141,7 @@ window.globalRenderLoop = function() {
     let finalViewFocusHz = (window.currentFilterMode === 'LP' && magFs < currentFrameMaxMag * 0.178 && mag04Fs > currentFrameMaxMag * 0.178) ? (window.currentSinFreq * 0.4) : window.currentSinFreq;
     document.getElementById('freqVal').innerText = maxMag > 0.04 ? ((mag04Fs > magFs ? window.currentSinFreq * 0.4 : window.currentSinFreq)).toFixed(1) + " Hz" : "0.0 Hz";
     // 渲染時域
-    window.tCtx.clearRect(0, 0, 800, 400); window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, 800, 400); window.tCtx.strokeStyle = '#333'; window.tCtx.lineWidth = 1; window.tCtx.beginPath(); voltSteps.forEach(v => { let yPos = midY - v * scaleY; window.tCtx.moveTo(0, yPos); window.tCtx.lineTo(800, yPos); }); window.tCtx.stroke();
+    window.tCtx.clearRect(0, 0, 800, 400); window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, 800, 400); window.tCtx.strokeStyle = '#33 '; window.tCtx.lineWidth = 1; window.tCtx.beginPath(); voltSteps.forEach(v => { let yPos = midY - v * scaleY; window.tCtx.moveTo(0, yPos); window.tCtx.lineTo(800, yPos); }); window.tCtx.stroke();
     window.tCtx.fillStyle = '#ffffff'; window.tCtx.font = 'bold 12px Arial'; voltSteps.forEach(v => window.tCtx.fillText((v >= 0 ? "+" : "") + v.toFixed(1) + "V", 25, midY - v * scaleY + 4));
     window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath(); window.tCtx.moveTo(0, midY - (rawSlice * scaleY)); for (let j = 1; j < rawSlice.length; j++) { window.tCtx.lineTo(j * (800 / (rawSlice.length - 1)), midY - (rawSlice[j] * scaleY)); } window.tCtx.stroke();
     window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + ((rawSlice.length / window.currentSampleRate) * 1000).toFixed(2) + " ms", 620, 380);
@@ -149,7 +149,7 @@ window.globalRenderLoop = function() {
     // 渲染自適應頻域
     window.fCtx.clearRect(0, 0, 800, 400); window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400); window.fCtx.strokeStyle = '#333'; window.fCtx.beginPath(); for (let k = 0; k <= 4; k++) window.fCtx.moveTo(k * 200, 0), window.fCtx.lineTo(k * 200, 360); window.fCtx.stroke();
     let maxDisplayFreq = Math.max(1200, Math.min(5000, finalViewFocusHz * 1.5)); window.fCtx.fillStyle = '#ffffff'; for (let k = 0; k <= 4; k++) window.fCtx.fillText((((maxDisplayFreq / 4) * k) / 1000).toFixed(2) + " kHz", k * 200 + (k === 0 ? 15 : k === 4 ? -75 : -25), 385);
-    window.fCtx.strokeStyle = '#22'; window.fCtx.beginPath(); dbSteps.forEach(db => { window.fCtx.moveTo(0, 30 + ((db / -50) * 310)); window.fCtx.lineTo(800, 30 + ((db / -50) * 310)); }); window.fCtx.stroke(); window.fCtx.fillStyle = '#aaaaaa'; dbSteps.forEach(db => window.fCtx.fillText(db + " dB", 20, 34 + ((db / -50) * 310)));
+    window.fCtx.strokeStyle = '#223'; window.fCtx.beginPath(); dbSteps.forEach(db => { window.fCtx.moveTo(0, 30 + ((db / -50) * 310)); window.fCtx.lineTo(800, 30 + ((db / -50) * 310)); }); window.fCtx.stroke(); window.fCtx.fillStyle = '#aaaaaa'; dbSteps.forEach(db => window.fCtx.fillText(db + " dB", 20, 34 + ((db / -50) * 310)));
     
     // 主動追蹤雙音局部最高點 Bin 下標
     let realFsPeakBin = bFs, real04FsPeakBin = b04Fs;
@@ -162,14 +162,20 @@ window.globalRenderLoop = function() {
 
     window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.5; window.fCtx.beginPath(); let isFirstPoint = true;
     for (let n = 0; n < magnitudes.length; n++) { 
-        let currentPointRealHz = n * hzPerBin; if (currentPointRealHz > maxDisplayFreq) break; let curX = (currentPointRealHz / maxDisplayFreq) * 800;
+        let currentPointRealHz = n * hzPerBin; if (currentPointRealHz > maxDisplayFreq) break; 
+        let curX = (currentPointRealHz / maxDisplayFreq) * 800;
+        if (curX > 800) curX = 800; if (curX < 0) curX = 0;
+
         let y = 30 + ((1.0 - (magnitudes[n] / currentFrameMaxMag)) * 310);
         
-        if (window.currentFilterMode === 'RAW' && (n === realFsPeakBin || n === real04FsPeakBin)) { y = 30.0; }
+        // 🚀 🛠️ 鋼性物理對齊與畫筆物理半徑厚度鎖定：將峰值頂點硬鎖在 Y = 32.0 像素位置！
+        if (window.currentFilterMode === 'RAW' && (n === realFsPeakBin || n === real04FsPeakBin)) { y = 32.0; }
         
-        // 💡 🛠️ 終極防線：將防溢位邊界收緊為「大於等於 30.0」！物理強踩頂格，絕不允許任何畫筆超出 0dB 上邊框！
-        if (y < 30.0) y = 30.0; 
+        // 🚀 🛠️ 終極硬核攔截：將最嚴格的防溢位上邊界調整為 32.0！
+        // 這樣扣除折線 2.5px 粗細的膨脹渲染後，黃色波峰的最頂端邊緣將會「100% 絕對齊平、完美貼死在 30px 的 0dB 線上」，連一個像素都絕對刺不出去！
+        if (y < 32.0) y = 32.0; 
         if (y > 358) y = 358; 
+        
         if (isFirstPoint) { window.fCtx.moveTo(curX, y); isFirstPoint = false; } else { window.fCtx.lineTo(curX, y); }
     } window.fCtx.stroke();
 };
