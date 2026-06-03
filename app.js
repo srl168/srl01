@@ -1,4 +1,3 @@
-//110
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
