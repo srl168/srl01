@@ -29,7 +29,8 @@ window.addEventListener('DOMContentLoaded', () => {
 // 💡 2️⃣ 數位濾波器精密係數計算公式
 // ==========================================
 window.updateFilterCoefficients = function() {
-    let fr = window.currentSampleRate / window.f1; if (fr < 2.01) fr = 2.01;
+//    let fr = window.currentSampleRate / window.f1; if (fr < 2.01) fr = 2.01;
+    let fr = window.f1 / window.currentSampleRate; if (fr < 2.01) fr = 2.01;
     let o = Math.tan(Math.PI / fr);
     
     // 直讀 F2 面板為純粹的物理 Q 值
