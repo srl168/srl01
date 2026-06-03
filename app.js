@@ -1,4 +1,4 @@
-//114
+//115
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -156,7 +156,6 @@ window.globalRenderLoop = function() {
 
     let rawSlice = window.filteredDataLog.slice(-adaptivePointsCount);
     
-    // 時域自適應換檔防出框
     let absMaxPeak = Math.max(...rawSlice.map(Math.abs)); if (absMaxPeak < 0.1) absMaxPeak = 0.1;
     let scaleY = 145 / absMaxPeak; if (scaleY > 165) scaleY = 165;
 
@@ -171,7 +170,6 @@ window.globalRenderLoop = function() {
     let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
     
-    // 💡 🛠️ 1️⃣ 抓取實體雙音下標周圍 3 個 Bin 的最大值（消滅洩漏擺動黑洞）
     let hzPerBin = 44100 / window.FFT_SIZE;
     let bFs = Math.round(window.currentSinFreq / hzPerBin);
     let b04Fs = Math.round((window.currentSinFreq * 0.4) / hzPerBin);
@@ -179,22 +177,16 @@ window.globalRenderLoop = function() {
     let magFs = Math.max(magnitudes[bFs-1]||0, magnitudes[bFs]||0, magnitudes[bFs+1]||0);
     let mag04Fs = Math.max(magnitudes[b04Fs-1]||0, magnitudes[b04Fs]||0, magnitudes[b04Fs+1]||0);
     
-    // 💡 🛠️ 2️⃣ 實裝「最高峰智慧融合歸一母數（Smart Equal-Peak Fusion）」
-    // RAW 模式下直接強行拉平兩根核心點位，徹底煙滅「誰高誰低、交替跳變閃爍」的黑洞！
     let currentFrameMaxMag = Math.max(...magnitudes);
-    if (window.currentFilterMode === 'RAW') {
-        currentFrameMaxMag = Math.max(magFs, mag04Fs);
-    }
+    if (window.currentFilterMode === 'RAW') { currentFrameMaxMag = Math.max(magFs, mag04Fs); }
     if (currentFrameMaxMag < 0.001) currentFrameMaxMag = 0.001;
 
-    // 💡 🛠️ 3️⃣ -15dB 門檻防線判定（高頻跌破最高峰 18% 才允許收縮視野）
     let thresholdGateValue = currentFrameMaxMag * 0.178; 
     let finalViewFocusHz = window.currentSinFreq;
     if (window.currentFilterMode === 'LP' && magFs < thresholdGateValue && mag04Fs > thresholdGateValue) {
         finalViewFocusHz = window.currentSinFreq * 0.4; 
     }
     
-    // 讀數同步指向
     let finalMeasuredHz = (mag04Fs > magFs) ? (window.currentSinFreq * 0.4) : window.currentSinFreq;
     document.getElementById('freqVal').innerText = maxMag > 0.04 ? finalMeasuredHz.toFixed(1) + " Hz" : "0.0 Hz";
     
@@ -210,9 +202,7 @@ window.globalRenderLoop = function() {
     window.tCtx.stroke();
     let totalTimeMs = (rawSlice.length / window.currentSampleRate) * 1000; window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + totalTimeMs.toFixed(2) + " ms", 620, 380);
 
-    // ==========================================
-    // 💡 🛠️ 4️⃣ 內容自適應橫向寬度視野
-    // ==========================================
+    // 頻域畫布自適應觀測寬度
     window.fCtx.clearRect(0, 0, 800, 400); window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400);
     let maxDisplayFreq = finalViewFocusHz * 1.5; if (maxDisplayFreq < 1200) maxDisplayFreq = 1200; if (maxDisplayFreq > 5000) maxDisplayFreq = 5000;
 
@@ -221,14 +211,12 @@ window.globalRenderLoop = function() {
     window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 12px Arial';
     for (let k = 0; k <= 4; k++) { let textOffset = k === 0 ? 15 : (k === 4 ? -75 : -25); let currentTickFreq = (maxDisplayFreq / 4) * k; window.fCtx.fillText((currentTickFreq / 1000).toFixed(2) + " kHz", (200 * k) + textOffset, 385); }
 
-    // 💡 左側標準分貝水平網格（0 ~ -50 dB）
+    // 左側 0 到 -50 dB 水平標尺格線（白色橫線鎖定 0 dB，即 Y = 30）
     window.fCtx.strokeStyle = '#222222'; window.fCtx.beginPath();
     let dbSteps = [0, -12, -30, -50]; dbSteps.forEach(db => { let yPos = 30 + ((db / -50) * 310); window.fCtx.moveTo(0, yPos); window.fCtx.lineTo(800, yPos); }); window.fCtx.stroke();
     window.fCtx.fillStyle = '#aaaaaa'; window.fCtx.font = 'bold 11px Arial'; dbSteps.forEach(db => { let yPos = 30 + ((db / -50) * 310); window.fCtx.fillText(db + " dB", 20, yPos + 4); });
 
-    // ==========================================
-    // 💡 🛠️ 5️⃣ 修正：雙峰剛性死鎖 0 dB 最頂端（1:1 平分投影）
-    // ==========================================
+    // 💡 🛠️ 絕對幾何直通投影與 0 dB 實體像素級「硬鎖頂格」畫筆
     let hzPerBinHW = (44100 / window.FFT_SIZE); window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.5; window.fCtx.beginPath();
     let isFirstPoint = true;
     for (let n = 0; n < magnitudes.length; n++) { 
@@ -236,14 +224,18 @@ window.globalRenderLoop = function() {
         let curX = (currentPointRealHz / maxDisplayFreq) * 800;
         
         let val = magnitudes[n];
-        // 🚀 在 RAW 模式下，強行讓這兩根主音的渲染母數對齊，讓其尖端 100% 齊平卡死在 0 dB 線上！
+        let normalizedRatio = val / currentFrameMaxMag;
+        let y = 30 + ((1.0 - normalizedRatio) * 310);
+        
+        // 💡 🛠️ 終極補丁：在 RAW 模式下，只要點位撞到雙音的物理核心尖峰，物理座標強制歸零、鎖死在 Y = 30 像素上！
         if (window.currentFilterMode === 'RAW') {
-            if (Math.abs(currentPointRealHz - window.currentSinFreq) < hzPerBin * 1.5) val = currentFrameMaxMag;
-            if (Math.abs(currentPointRealHz - window.currentSinFreq * 0.4) < hzPerBin * 1.5) val = currentFrameMaxMag;
+            if (Math.abs(currentPointRealHz - window.currentSinFreq) < hzPerBin * 1.2 || 
+                Math.abs(currentPointRealHz - window.currentSinFreq * 0.4) < hzPerBin * 1.2) {
+                y = 30.0; // 🚀 100% 剛性卡死、物理貼齊在 0 dB 橫線上！完全消滅圖學留白誤差！
+            }
         }
         
-        let normalizedRatio = val / currentFrameMaxMag;
-        let y = 30 + ((1.0 - normalizedRatio) * 310); if (y < 10) y = 10; if (y > 358) y = 358;
+        if (y < 28) y = 28; if (y > 358) y = 358; // 收緊安全邊界，給予畫筆寬度完美充填
         if (isFirstPoint) { window.fCtx.moveTo(curX, y); isFirstPoint = false; } else { window.fCtx.lineTo(curX, y); }
     }
     window.fCtx.stroke();
@@ -252,7 +244,7 @@ window.globalRenderLoop = function() {
 document.getElementById('simBtn')?.addEventListener('click', () => {
     window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn'); window.initAudioGlobal();
     if (btn) btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試";
-    document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：智慧融合定對齊開機！" : "狀態：模擬測試已停止。";
+    document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：0dB 實體像素級硬鎖卡死補丁生效！" : "狀態：模擬測試已停止。";
 });
 
 document.addEventListener('click', (e) => {
@@ -260,7 +252,7 @@ document.addEventListener('click', (e) => {
     const clickId = e.target.id;
     if (clickId === 'speakerBtn') {
         window.isSpeakerOn = !window.isSpeakerOn; const sBtn = document.getElementById('speakerBtn');
-        if (sBtn) { sBtn.innerText = window.isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉"; sBtn.className = window.isSpeakerOn ? "btn-speaker" : "btn-speaker muted"; }
+        if (sBtn) { sBtn.innerText = window.isSpeakerOn ? "🔊 喇臘發聲：開啟" : "🔇 喇叭發聲：關閉"; sBtn.className = window.isSpeakerOn ? "btn-speaker" : "btn-speaker muted"; }
         if (window.gainNode && window.audioCtx) { let realVol = window.isSpeakerOn ? window.currentVolume : 0.0; window.gainNode.gain.setValueAtTime(realVol, window.audioCtx.currentTime); }
     }
     const fModes = { filterRaw: 'RAW', filterLP: 'LP', filterHP: 'HP', filterBP: 'BP' };
@@ -276,4 +268,6 @@ document.addEventListener('click', (e) => {
 document.addEventListener('input', (e) => {
     if (e.target && e.target.type === 'range') {
         let sliderId = e.target.id; let curVal = parseFloat(e.target.value); let nextSpan = e.target.nextElementSibling;
-if (sliderId === "sampleRateSlider") { window.currentSampleRate = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.currentSampleRate + " Hz"; window.updateFilterCoefficients(); }if (sliderId === "sinFreqSlider") { window.currentSinFreq = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.currentSinFreq + " Hz"; }if (sliderId === "f1Slider") { window.f1 = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.f1 + " Hz"; window.updateFilterCoefficients(); }if (sliderId === "f2Slider") { window.f2 = parseInt(curVal); if (nextSpan) { let dQ = 0.1 + (window.f2 / 5000.0) * 9.9; nextSpan.innerText = "Q: " + dQ.toFixed(2); } window.updateFilterCoefficients(); }if (sliderId === "volumeSlider") { window.currentVolume = curVal; if (nextSpan) nextSpan.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && window.audioCtx && window.isSpeakerOn) { window.gainNode.gain.setValueAtTime(window.currentVolume, window.audioCtx.currentTime); } }}});window.onload = function() {const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider'); const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value); if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);if (window.updateFilterCoefficients) window.updateFilterCoefficients(); if (window.globalRenderLoop) window.globalRenderLoop();};
+        if (sliderId === "sampleRateSlider") { window.currentSampleRate = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.currentSampleRate + " Hz"; window.updateFilterCoefficients(); }
+        if (sliderId === "sinFreqSlider") { window.currentSinFreq = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.currentSinFreq + " Hz"; }
+f (sliderId === "f1Slider") { window.f1 = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.f1 + " Hz"; window.updateFilterCoefficients(); }if (sliderId === "f2Slider") { window.f2 = parseInt(curVal); if (nextSpan) { let dQ = 0.1 + (window.f2 / 5000.0) * 9.9; nextSpan.innerText = "Q: " + dQ.toFixed(2); } window.updateFilterCoefficients(); }if (sliderId === "volumeSlider") { window.currentVolume = curVal; if (nextSpan) nextSpan.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && window.audioCtx && window.isSpeakerOn) { window.gainNode.gain.setValueAtTime(window.currentVolume, window.audioCtx.currentTime); } }}});window.onload = function() {const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider'); const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value); if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);if (window.updateFilterCoefficients) window.updateFilterCoefficients(); if (window.globalRenderLoop) window.globalRenderLoop();};
