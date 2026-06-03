@@ -1,4 +1,4 @@
-//1173
+//118
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -149,16 +149,18 @@ window.globalRenderLoop = function() {
     // 渲染自適應頻域
     window.fCtx.clearRect(0, 0, 800, 400); window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400); window.fCtx.strokeStyle = '#333'; window.fCtx.beginPath(); for (let k = 0; k <= 4; k++) window.fCtx.moveTo(k * 200, 0), window.fCtx.lineTo(k * 200, 360); window.fCtx.stroke();
     
-    let maxDisplayFreq = Math.max(200, Math.min(5000, finalViewFocusHz * 1.5)); window.fCtx.fillStyle = '#ffffff'; for (let k = 0; k <= 4; k++) window.fCtx.fillText((((maxDisplayFreq / 4) * k) / 1000).toFixed(2) + " kHz", k * 200 + (k === 0 ? 15 : k === 4 ? -75 : -25), 385);
+    // 💡 🛠️ 實時向 HTML 提取極限天花板，改 HTML 後端 JS 0 修改連動！
+    let htmlMaxFreq = parseFloat(document.getElementById('sinFreqSlider')?.max) || 5000;
     
-    // 💡 🛠️ 終極修飾一：將分貝（dB）水平格線調亮為高清晰的中灰色（#555555）
-    window.fCtx.strokeStyle = '#555555'; window.fCtx.beginPath(); 
-    dbSteps.forEach(db => { window.fCtx.moveTo(0, 30 + ((db / -50) * 310)); window.fCtx.lineTo(800, 30 + ((db / -50) * 310)); }); 
-    window.fCtx.stroke(); 
+    // 💡 🛠️ 真・核心自適應：無論何種模式，畫布寬度上限一律跟隨「當前實際信號內容（FocusHz * 1.5）」流暢內縮放大！
+    let maxDisplayFreq = finalViewFocusHz * 1.5; 
     
-    // 💡 🛠️ 終極修飾二：將分貝（dB）刻度文字直接提升為高對比的純白色（#ffffff）
-    window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 11px Arial'; 
-    dbSteps.forEach(db => window.fCtx.fillText(db + " dB", 20, 34 + ((db / -50) * 310)));
+    // 剛性極限雙防線：下限不低於 200Hz（防止拉伸過頭），上限死死卡在 HTML 設定的最大值天花板（防止飛出框）！
+    if (maxDisplayFreq < 200) maxDisplayFreq = 200; 
+    if (maxDisplayFreq > htmlMaxFreq) maxDisplayFreq = htmlMaxFreq;
+    
+    window.fCtx.fillStyle = '#ffffff'; for (let k = 0; k <= 4; k++) window.fCtx.fillText((((maxDisplayFreq / 4) * k) / 1000).toFixed(2) + " kHz", k * 200 + (k === 0 ? 15 : k === 4 ? -75 : -25), 385);
+    window.fCtx.strokeStyle = '#555555'; window.fCtx.beginPath(); dbSteps.forEach(db => { window.fCtx.moveTo(0, 30 + ((db / -50) * 310)); window.fCtx.lineTo(800, 30 + ((db / -50) * 310)); }); window.fCtx.stroke(); window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 11px Arial'; dbSteps.forEach(db => window.fCtx.fillText(db + " dB", 20, 34 + ((db / -50) * 310)));
     
     // 主動追蹤雙音局部最高點 Bin 下標
     let realFsPeakBin = bFs, real04FsPeakBin = b04Fs;
