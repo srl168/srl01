@@ -1,4 +1,4 @@
-//117
+//1171
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -136,7 +136,7 @@ window.globalRenderLoop = function() {
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; } }
     
     let hzPerBin = 44100 / window.FFT_SIZE, bFs = Math.round(window.currentSinFreq / hzPerBin), b04Fs = Math.round((window.currentSinFreq * 0.4) / hzPerBin);
-    let magFs = Math.max(magnitudes[bFs-1]||0, magnitudes[bFs]||0, magnitudes[bFs+1]||0), mag04Fs = Math.max(magnitudes[b04Fs-1]||0, magnets = magnitudes[b04Fs]||0, magnitudes[b04Fs+1]||0);
+    let magFs = Math.max(magnitudes[bFs-1]||0, magnitudes[bFs]||0, magnitudes[bFs+1]||0), mag04Fs = Math.max(magnitudes[b04Fs-1]||0, magnitudes[b04Fs]||0, magnitudes[b04Fs+1]||0);
     let currentFrameMaxMag = (window.currentFilterMode === 'RAW') ? Math.max(magFs, mag04Fs) : Math.max(...magnitudes); if (currentFrameMaxMag < 0.001) currentFrameMaxMag = 0.001;
     let finalViewFocusHz = (window.currentFilterMode === 'LP' && magFs < currentFrameMaxMag * 0.178 && mag04Fs > currentFrameMaxMag * 0.178) ? (window.currentSinFreq * 0.4) : window.currentSinFreq;
     document.getElementById('freqVal').innerText = maxMag > 0.04 ? ((mag04Fs > magFs ? window.currentSinFreq * 0.4 : window.currentSinFreq)).toFixed(1) + " Hz" : "0.0 Hz";
@@ -151,7 +151,7 @@ window.globalRenderLoop = function() {
     let maxDisplayFreq = Math.max(1200, Math.min(5000, finalViewFocusHz * 1.5)); window.fCtx.fillStyle = '#ffffff'; for (let k = 0; k <= 4; k++) window.fCtx.fillText((((maxDisplayFreq / 4) * k) / 1000).toFixed(2) + " kHz", k * 200 + (k === 0 ? 15 : k === 4 ? -75 : -25), 385);
     window.fCtx.strokeStyle = '#22'; window.fCtx.beginPath(); dbSteps.forEach(db => { window.fCtx.moveTo(0, 30 + ((db / -50) * 310)); window.fCtx.lineTo(800, 30 + ((db / -50) * 310)); }); window.fCtx.stroke(); window.fCtx.fillStyle = '#aaaaaa'; dbSteps.forEach(db => window.fCtx.fillText(db + " dB", 20, 34 + ((db / -50) * 310)));
     
-    // 💡 🛠️ 終極主動追蹤硬鎖大腦：動態掃描目前 RAW 模式下雙音區域的真實最高點 Bin 下標
+    // 主動追蹤雙音局部最高點 Bin 下標
     let realFsPeakBin = bFs, real04FsPeakBin = b04Fs;
     if (window.currentFilterMode === 'RAW') {
         for (let o = -3; o <= 3; o++) {
@@ -165,10 +165,12 @@ window.globalRenderLoop = function() {
         let currentPointRealHz = n * hzPerBin; if (currentPointRealHz > maxDisplayFreq) break; let curX = (currentPointRealHz / maxDisplayFreq) * 800;
         let y = 30 + ((1.0 - (magnitudes[n] / currentFrameMaxMag)) * 310);
         
-        // 🚀 🛠️ 磐石死鎖判定：只要目前的循環下標撞到我們即時追蹤出來的最高峰 Bin，坐標無條件歸零死鎖在 Y=30.0 上！
         if (window.currentFilterMode === 'RAW' && (n === realFsPeakBin || n === real04FsPeakBin)) { y = 30.0; }
         
-        if (y < 28) y = 28; if (y > 358) y = 358; if (isFirstPoint) { window.fCtx.moveTo(curX, y); isFirstPoint = false; } else { window.fCtx.lineTo(curX, y); }
+        // 💡 🛠️ 終極防線：將防溢位邊界收緊為「大於等於 30.0」！物理強踩頂格，絕不允許任何畫筆超出 0dB 上邊框！
+        if (y < 30.0) y = 30.0; 
+        if (y > 358) y = 358; 
+        if (isFirstPoint) { window.fCtx.moveTo(curX, y); isFirstPoint = false; } else { window.fCtx.lineTo(curX, y); }
     } window.fCtx.stroke();
 };
 
