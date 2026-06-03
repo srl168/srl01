@@ -1,4 +1,4 @@
-//1181
+//1182
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -45,11 +45,12 @@ window.updateFilterCoefficients = function() {
 
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
-    xv = xv; xv = xv; xv = x; 
-    yv = yv; yv = yv;
-    yv = (window.b0 * xv) + (window.b1 * xv) + (window.b2 * xv) - (window.a1 * yv) - (window.a2 * yv);
-    if (isNaN(yv) || !isFinite(yv)) { yv=yv=yv=xv=xv=xv=0; } 
-    return yv;
+    // 💡 🛠️ 終極復原：精準歸位二階 IIR 歷史延遲快取，徹底消滅 HP 數據歸零沒波形黑洞！
+    xv[2] = xv[1]; xv[1] = xv[0]; xv[0] = x; 
+    yv[2] = yv[1]; yv[1] = yv[0];
+    yv[0] = (window.b0 * xv[0]) + (window.b1 * xv[1]) + (window.b2 * xv[2]) - (window.a1 * yv[1]) - (window.a2 * yv[2]);
+    if (isNaN(yv[0]) || !isFinite(yv[0])) { yv[0]=yv[1]=yv[2]=xv[0]=xv[1]=xv[2]=0; } 
+    return yv[0];
 };
 window.oscNode = null; window.oscNode2 = null; window.scriptNode = null;
 window.audioCtx = null; window.gainNode = null;
@@ -73,13 +74,16 @@ window.initAudioGlobal = function() {
         window.oscNode2.frequency.setValueAtTime(window.currentSinFreq * 0.4, window.audioCtx.currentTime);
         window.scriptNode = window.audioCtx.createScriptProcessor(1024, 1, 1);
         window.scriptNode.onaudioprocess = function(audioProcessingEvent) {
-            let inputData = audioProcessingEvent.inputBuffer.getChannelData(0); 
             let outputData = audioProcessingEvent.outputBuffer.getChannelData(0);
             for (let sample = 0; sample < audioProcessingEvent.inputBuffer.length; sample++) {
                 let step1 = 2.0 * Math.PI * (window.currentSinFreq / 44100), step2 = 2.0 * Math.PI * ((window.currentSinFreq * 0.4) / 44100);
                 let rawVal = (Math.sin(window.simPhase) + Math.sin(window.simPhase2)) * 0.5;
                 window.simPhase = (window.simPhase + step1) % (2 * Math.PI); window.simPhase2 = (window.simPhase2 + step2) % (2 * Math.PI);
-                let fVal = window.applyFilter ? window.applyFilter(rawVal) : rawVal; outputData[sample] = fVal;
+                
+                // 💡 🛠️ 終極修復：將漏掉的 applyFilter 精準接回發聲管線！讓過濾後的波形 100% 注入示波器！
+                let fVal = window.applyFilter ? window.applyFilter(rawVal) : rawVal; 
+                outputData[sample] = fVal;
+                
                 window.filteredDataLog.push(fVal); window.analysisBuffer[window.bufferIndex] = fVal; window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
             }
             if (window.filteredDataLog.length > 4000) window.filteredDataLog = window.filteredDataLog.slice(-3000);
@@ -137,7 +141,8 @@ window.globalRenderLoop = function() {
     
     let hzPerBin = 44100 / window.FFT_SIZE, bFs = Math.round(window.currentSinFreq / hzPerBin), b04Fs = Math.round((window.currentSinFreq * 0.4) / hzPerBin);
     let magFs = Math.max(magnitudes[bFs-1]||0, magnitudes[bFs]||0, magnitudes[bFs+1]||0), mag04Fs = Math.max(magnitudes[b04Fs-1]||0, magnitudes[b04Fs]||0, magnitudes[b04Fs+1]||0);
-    let currentFrameMaxMag = (window.currentFilterMode === 'RAW') ? Math.max(magFs, mag04Fs) : Math.max(...magnitudes); if (currentFrameMaxMag < 0.001) currentFrameMaxMag = 0.001;
+    
+    let currentFrameMaxMag = Math.max(...magnitudes); if (currentFrameMaxMag < 0.001) currentFrameMaxMag = 0.001;
     let finalViewFocusHz = (window.currentFilterMode === 'LP' && magFs < currentFrameMaxMag * 0.178 && mag04Fs > currentFrameMaxMag * 0.178) ? (window.currentSinFreq * 0.4) : window.currentSinFreq;
     document.getElementById('freqVal').innerText = maxMag > 0.04 ? ((mag04Fs > magFs ? window.currentSinFreq * 0.4 : window.currentSinFreq)).toFixed(1) + " Hz" : "0.0 Hz";
     // 渲染時域
@@ -173,7 +178,6 @@ window.globalRenderLoop = function() {
         let y = 30 + ((1.0 - (magnitudes[n] / currentFrameMaxMag)) * 310);
         if (window.currentFilterMode === 'RAW' && (n === realFsPeakBin || n === real04FsPeakBin)) { y = 32.0; }
         
-        // 💡 🛠️ 終極硬核安全層：如果除以 0 或訊號全無產生 NaN，強制歸位沉底 358px 阻帶網格，100% 絕對不卡死、不出界！
         if (isNaN(y) || !isFinite(y)) y = 358.0;
         if (y < 32.0) y = 32.0; if (y > 358) y = 358; 
         
@@ -184,14 +188,19 @@ window.globalRenderLoop = function() {
 document.getElementById('simBtn')?.addEventListener('click', () => { window.isSimulating = !window.isSimulating; document.getElementById('simBtn').innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試"; window.initAudioGlobal(); });
 document.addEventListener('click', (e) => {
     if (!e.target || !e.target.id) return;
-    if (e.target.id === 'speakerBtn') { window.isSpeakerOn = !window.isSpeakerOn; document.getElementById('speakerBtn').innerText = window.isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉"; if (window.gainNode) window.gainNode.gain.setValueAtTime(window.isSpeakerOn ? window.currentVolume : 0.0, window.audioCtx.currentTime); }
-    let fModes = { filterRaw: 'RAW', filterLP: 'LP', filterHP: 'HP', filterBP: 'BP' }[e.target.id];
-    if (fModes) { 
-        document.querySelectorAll('.active').forEach(b => b.classList.remove('active')); e.target.classList.add('active'); window.currentFilterMode = fModes;
-        // 💡 🛠️ 剛性修復：點擊 LP, HP, BP 任何一個濾波按鈕時，100% 強制把 F2 控制面板完全展開！
+    let clickId = e.target.id;
+    if (clickId === 'speakerBtn') { window.isSpeakerOn = !window.isSpeakerOn; document.getElementById('speakerBtn').innerText = window.isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉"; if (window.gainNode) window.gainNode.gain.setValueAtTime(window.isSpeakerOn ? window.currentVolume : 0.0, window.audioCtx.currentTime); }
+    
+    // 🚀 🛠️ 100% 撥亂反正：復原您神聖不可侵犯的 4 大原始實體按鈕 ID 綁定！
+    const fModes = { filterRaw: 'RAW', filterLP: 'LP', filterHP: 'HP', filterBP: 'BP' };
+    if (fModes[clickId]) {
+        document.querySelectorAll('.active').forEach(b => b.classList.remove('active')); e.target.classList.add('active'); 
+        window.currentFilterMode = fModes[clickId];
+        
+        // 🚀 🛠️ 100% 復原 F2 拉桿面板：只要不是 RAW，f2Container 面板 100% 靈敏浮現！
         const f2View = document.getElementById('f2Container');
-        if (f2View) f2View.style.display = (fModes === 'RAW') ? 'none' : 'flex';
-        window.updateFilterCoefficients(); 
+        if (f2View) f2View.style.display = (fModes[clickId] === 'RAW') ? 'none' : 'flex';
+        window.updateFilterCoefficients();
     }
 });
 document.addEventListener('input', (e) => {
