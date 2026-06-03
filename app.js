@@ -119,7 +119,6 @@ window.initAudioGlobal = function() {
 
 window.consumeRawBuffer = function(rawDataView) {
     let byteLength = rawDataView.byteLength;
-    // 💡 實體藍牙信號泵直通：有數據進來就 100% 灌入分析快取，絕不阻塞！
     for (let i = 0; i < byteLength; i++) {
         let byteVal = rawDataView.getUint8(i); let val = (byteVal / 127.5) - 1.0;
         let fVal = window.applyFilter ? window.applyFilter(val) : val; window.filteredDataLog.push(fVal);
@@ -150,7 +149,22 @@ function localFFT(re, im) {
 window.globalRenderLoop = function() {
     requestAnimationFrame(window.globalRenderLoop); window.renderFrameCounter++; if (window.renderFrameCounter % 2 !== 0) return;
     
-    // 💡 核心真理：不論模擬是否關閉，只要快取池有藍牙或模擬訊號，100% 絕對放行繪製！
+    // 💡 🛠️ 1️⃣ 語法修正：如果未開啟模擬測試且沒有資料，優雅刷黑並保留背景刻度網格，徹底煙滅語法錯誤！
+    if (!window.isSimulating && window.filteredDataLog.length === 0) {
+        window.tCtx.clearRect(0, 0, 800, 400); window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, 800, 400);
+        window.tCtx.strokeStyle = '#333333'; window.tCtx.lineWidth = 1; window.tCtx.beginPath();
+        [50, 125, 200, 275, 350].forEach(y => { window.tCtx.moveTo(0, y); window.tCtx.lineTo(800, y); }); window.tCtx.stroke();
+        window.tCtx.fillStyle = '#ffffff'; window.tCtx.font = 'bold 12px Arial'; window.tCtx.fillText("+1.0V", 25, 54); window.tCtx.fillText("0.0V", 25, 204); window.tCtx.fillText("-1.0V", 25, 354);
+        
+        window.fCtx.clearRect(0, 0, 800, 400); window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400);
+        window.fCtx.strokeStyle = '#333333'; window.fCtx.lineWidth = 1; window.fCtx.beginPath();
+        for (let k = 0; k <= 4; k++) { let xPos = 200 * k; if (k === 4) xPos = 799; window.fCtx.moveTo(xPos, 0); window.fCtx.lineTo(xPos, 360); } window.fCtx.stroke();
+        window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 12px Arial'; let ticks = ["0.00 kHz", "1.25 kHz", "2.50 kHz", "3.75 kHz", "5.00 kHz"]; for (let k = 0; k <= 4; k++) { let textOffset = k === 0 ? 15 : (k === 4 ? -75 : -25); window.fCtx.fillText(ticks[k], (200 * k) + textOffset, 385); }
+        
+        document.getElementById('vppVal').innerText = "0.00 V"; document.getElementById('rmsVal').innerText = "0.00 V"; document.getElementById('freqVal').innerText = "0.0 Hz";
+        return; 
+    }
+
     if (window.filteredDataLog.length < 10) return;
 
     let minFreq = window.currentSinFreq * 0.4;
@@ -167,7 +181,6 @@ window.globalRenderLoop = function() {
     rawSlice.forEach(v => sq += v * v); let rms = Math.sqrt(sq / rawSlice.length);
     document.getElementById('vppVal').innerText = vpp.toFixed(2) + " V"; document.getElementById('rmsVal').innerText = rms.toFixed(2) + " V";
     
-    // 徹底洗淨 FFT 蝴蝶陣列，杜絕殘留空轉神經質狂抖
     let re = new Float32Array(window.FFT_SIZE), im = new Float32Array(window.FFT_SIZE);
     for (let k = 0; k < window.FFT_SIZE; k++) { let idx = (window.bufferIndex + k) % window.FFT_SIZE; re[k] = window.analysisBuffer[idx]; }
     localFFT(re, im);
@@ -175,7 +188,7 @@ window.globalRenderLoop = function() {
     let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0, maxIdx = 0;
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; maxIdx = m; } }
     
-    // 智能雙音讀數對齊補丁：低通時讀數自動指向低頻新主峰！
+    // 💡 智能雙音讀數對齊補丁：低通時讀數自動指向低頻新主峰！
     let binFs = Math.round(window.currentSinFreq / (44100 / window.FFT_SIZE));
     let bin04Fs = Math.round((window.currentSinFreq * 0.4) / (44100 / window.FFT_SIZE));
     let magFs = magnitudes[binFs] || 0; let mag04Fs = magnitudes[bin04Fs] || 0;
@@ -195,21 +208,20 @@ window.globalRenderLoop = function() {
     let totalTimeMs = (rawSlice.length / window.currentSampleRate) * 1000; window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + totalTimeMs.toFixed(2) + " ms", 620, 380);
 
     // ==========================================
-    // 💡 🛠️ 1️⃣ 修正一：實裝真正的「訊號內容自適應」橫向觀測寬度（隨信號內容動態伸縮！）
+    // 💡 🛠️ 2️⃣ 功能一：以信號內容為核心的「真・自適應觀測寬度」（X軸依主訊號流暢拉伸放大）
     // ==========================================
     window.fCtx.clearRect(0, 0, 800, 400); window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400);
     
-    // 💡 工業級自適應防線：最右端全幅無條件死鎖在當前測量信號頻率的 1.5 倍！波峰絕對不飛走！
     let maxDisplayFreq = finalMeasuredHz * 1.5; 
     if (maxDisplayFreq < 1200) maxDisplayFreq = 1200; 
-    if (maxDisplayFreq > 5000) maxDisplayFreq = 5000; // 安全觀測邊界
+    if (maxDisplayFreq > 5000) maxDisplayFreq = 5000; // 最寬不超過 5kHz
 
     // 繪製自適應垂直 5 等分頻率灰格線
     window.fCtx.strokeStyle = '#333333'; window.fCtx.lineWidth = 1; window.fCtx.beginPath();
     for (let k = 0; k <= 4; k++) { let xPos = 200 * k; if (k === 4) xPos = 799; window.fCtx.moveTo(xPos, 0); window.fCtx.lineTo(xPos, 360); }
     window.fCtx.stroke();
 
-    // 底部 kHz 純白標籤隨信號自適應完美刷新
+    // 底部 kHz 純白刻度尺標自適應更新
     window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 12px Arial';
     for (let k = 0; k <= 4; k++) {
         let textOffset = k === 0 ? 15 : (k === 4 ? -75 : -25);
@@ -218,12 +230,12 @@ window.globalRenderLoop = function() {
     }
 
     // ==========================================
-    // 💡 🛠️ 2️⃣ 功能二：在畫布左側新增標準「分貝（dB）水平標尺網格」
+    // 💡 🛠️ 3️⃣ 功能二：在畫布左側穩健實裝標準「分貝（dB）水平標尺網格」
     // ==========================================
     window.fCtx.strokeStyle = '#222222'; window.fCtx.beginPath();
     let dbSteps = [0, -12, -30, -50];
     dbSteps.forEach(db => {
-        let yPos = 30 + ((db / -50) * 310); // 均勻等分映射到 Y 軸
+        let yPos = 30 + ((db / -50) * 310); // 均勻分配
         window.fCtx.moveTo(0, yPos); window.fCtx.lineTo(800, yPos);
     });
     window.fCtx.stroke();
@@ -232,9 +244,8 @@ window.globalRenderLoop = function() {
     dbSteps.forEach(db => { let yPos = 30 + ((db / -50) * 310); window.fCtx.fillText(db + " dB", 20, yPos + 4); });
 
     // ==========================================
-    // 💡 🛠️ 3️⃣ 修正二：實裝純圖學最高峰「剛性死鎖 0 dB」歸一化投影（保證最高頂點完美對齊！）
+    // 💡 🛠️ 4️⃣ 修正：實施純圖學最高峰「剛性死鎖 0 dB」歸一化動態投影（保證不偏擺！）
     // ==========================================
-    // 💡 實時盲抓目前陣列中的真實最大幅值，以此作為動態比例母數
     let currentFrameMaxMag = Math.max(...magnitudes); if (currentFrameMaxMag < 0.001) currentFrameMaxMag = 0.001;
 
     let hzPerBinHW = (44100 / window.FFT_SIZE);
@@ -243,12 +254,11 @@ window.globalRenderLoop = function() {
     let isFirstPoint = true;
     for (let n = 0; n < magnitudes.length; n++) { 
         let currentPointRealHz = n * hzPerBinHW;
-        if (currentPointRealHz > maxDisplayFreq) break; // 超過自適應上限則截斷
+        if (currentPointRealHz > maxDisplayFreq) break; 
         
         let curX = (currentPointRealHz / maxDisplayFreq) * 800;
         
-        // 💡 完美的純圖學動態歸一化投影：當前點幅值 / 當前最高幅值
-        // 🚀 這使得無論在哪種濾波模式下，全場最高的那根核心波峰，其尖端 100% 剛性、精密鎖定在最上方的 0 dB 橫線（實體第 30 像素位置），絕對不再對不準！
+        // 🚀 純圖學動態歸一化投影（最高峰頂點無條件卡死在 0 dB 最頂端！）
         let normalizedRatio = magnitudes[n] / currentFrameMaxMag;
         let y = 30 + ((1.0 - normalizedRatio) * 310);
         if (y < 10) y = 10; if (y > 358) y = 358;
@@ -262,7 +272,7 @@ window.globalRenderLoop = function() {
 document.getElementById('simBtn')?.addEventListener('click', () => {
     window.isSimulating = !window.isSimulating; const btn = document.getElementById('simBtn'); window.initAudioGlobal();
     if (btn) btn.innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試";
-    document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：自適應 ＋ 最高峰死鎖 0dB 大開機！" : "狀態：模擬測試已停止，等待實體藍牙數據。";
+    document.getElementById('status').innerText = window.isSimulating ? "▶️ 離線沙盒：自適應寬度 ＋ 0dB死鎖系統上線！" : "狀態：模擬測試已停止，等待信號源。";
 });
 
 document.addEventListener('click', (e) => {
@@ -274,23 +284,4 @@ document.addEventListener('click', (e) => {
         if (window.gainNode && window.audioCtx) {
             let realVol = window.isSpeakerOn ? window.currentVolume : 0.0;
             window.gainNode.gain.setValueAtTime(realVol, window.audioCtx.currentTime);
-        }
-    }
-    const fModes = { filterRaw: 'RAW', filterLP: 'LP', filterHP: 'HP', filterBP: 'BP' };
-    if (fModes[clickId]) {
-        Object.keys(fModes).forEach(k => { const tBtn = document.getElementById(k); if (tBtn) tBtn.classList.remove('active'); });
-        e.target.classList.add('active'); window.currentFilterMode = fModes[clickId];
-        const f2View = document.getElementById('f2Container'); if (f2View) f2View.style.display = 'flex';
-        const f2SliderEl = document.getElementById('f2Slider');
-        if (f2SliderEl && f2SliderEl.nextElementSibling) {
-            let dQ = 0.1 + (window.f2 / 5000.0) * 9.9; f2SliderEl.nextElementSibling.innerText = "Q: " + dQ.toFixed(2);
-        }
-        window.updateFilterCoefficients();
-    }
-});
-
-document.addEventListener('input', (e) => {
-    if (e.target && e.target.type === 'range') {
-        let sliderId = e.target.id; let curVal = parseFloat(e.target.value); let nextSpan = e.target.nextElementSibling;
-        if (sliderId === "sampleRateSlider") { window.currentSampleRate = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.currentSampleRate + " Hz"; window.updateFilterCoefficients(); }
-if (sliderId === "sinFreqSlider") { window.currentSinFreq = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.currentSinFreq + " Hz"; }if (sliderId === "f1Slider") { window.f1 = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.f1 + " Hz"; window.updateFilterCoefficients(); }if (sliderId === "f2Slider") {window.f2 = parseInt(curVal); if (nextSpan) { let dQ = 0.1 + (window.f2 / 5000.0) * 9.9; nextSpan.innerText = "Q: " + dQ.toFixed(2); }window.updateFilterCoefficients();}if (sliderId === "volumeSlider") {window.currentVolume = curVal; if (nextSpan) nextSpan.innerText = Math.round(curVal * 100) + "%";if (window.gainNode && window.audioCtx && window.isSpeakerOn) {window.gainNode.gain.setValueAtTime(window.currentVolume, window.audioCtx.currentTime);}}}});window.onload = function() {const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);if (window.updateFilterCoefficients) window.updateFilterCoefficients(); if (window.globalRenderLoop) window.globalRenderLoop();};
+}}const fModes = { filterRaw: 'RAW', filterLP: 'LP', filterHP: 'HP', filterBP: 'BP' };if (fModes[clickId]) {Object.keys(fModes).forEach(k => { const tBtn = document.getElementById(k); if (tBtn) tBtn.classList.remove('active'); });e.target.classList.add('active'); window.currentFilterMode = fModes[clickId];const f2View = document.getElementById('f2Container'); if (f2View) f2View.style.display = 'flex';const f2SliderEl = document.getElementById('f2Slider');if (f2SliderEl && f2SliderEl.nextElementSibling) {let dQ = 0.1 + (window.f2 / 5000.0) * 9.9; f2SliderEl.nextElementSibling.innerText = "Q: " + dQ.toFixed(2);}window.updateFilterCoefficients();}});document.addEventListener('input', (e) => {if (e.target && e.target.type === 'range') {let sliderId = e.target.id; let curVal = parseFloat(e.target.value); let nextSpan = e.target.nextElementSibling;if (sliderId === "sampleRateSlider") { window.currentSampleRate = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.currentSampleRate + " Hz"; window.updateFilterCoefficients(); }if (sliderId === "sinFreqSlider") { window.currentSinFreq = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.currentSinFreq + " Hz"; }if (sliderId === "f1Slider") { window.f1 = parseInt(curVal); if (nextSpan) nextSpan.innerText = window.f1 + " Hz"; window.updateFilterCoefficients(); }if (sliderId === "f2Slider") {window.f2 = parseInt(curVal); if (nextSpan) { let dQ = 0.1 + (window.f2 / 5000.0) * 9.9; nextSpan.innerText = "Q: " + dQ.toFixed(2); }window.updateFilterCoefficients();}if (sliderId === "volumeSlider") {window.currentVolume = curVal; if (nextSpan) nextSpan.innerText = Math.round(curVal * 100) + "%";if (window.gainNode && window.audioCtx && window.isSpeakerOn) {window.gainNode.gain.setValueAtTime(window.currentVolume, window.audioCtx.currentTime);}}}});window.onload = function() {const sEl = document.getElementById('sampleRateSlider'); const fEl = document.getElementById('sinFreqSlider');const f1El = document.getElementById('f1Slider'); const f2El = document.getElementById('f2Slider');if (sEl) window.currentSampleRate = parseInt(sEl.value); if (fEl) window.currentSinFreq = parseInt(fEl.value);if (f1El) window.f1 = parseInt(f1El.value); if (f2El) window.f2 = parseInt(f2El.value);if (window.updateFilterCoefficients) window.updateFilterCoefficients(); if (window.globalRenderLoop) window.globalRenderLoop();};
