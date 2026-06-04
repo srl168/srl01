@@ -1,4 +1,4 @@
-//1196
+//1197
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -15,7 +15,7 @@ window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 
 window.currentFilterMode = 'RAW'; window.f1 = 1000; window.f2 = 3000;
 window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
-window.xv = new Float32Array(3); window.yv = new Float32Array(3); // 🚀 全域剛性死鎖
+window.xv = new Float32Array(3); window.yv = new Float32Array(3); // 全域剛性死鎖
 
 window.addEventListener('DOMContentLoaded', () => {
     window.tCanvas = document.getElementById('timeCanvas'); 
@@ -156,7 +156,7 @@ window.globalRenderLoop = function() {
     let hzPerBin = 44100 / window.FFT_SIZE, bFs = Math.round(window.currentSinFreq / hzPerBin), b04Fs = Math.round((window.currentSinFreq * 0.4) / hzPerBin);
     let magFs = Math.max(magnitudes[bFs-1]||0, magnitudes[bFs]||0, magnitudes[bFs+1]||0), mag04Fs = Math.max(magnitudes[b04Fs-1]||0, magnitudes[b04Fs]||0, magnitudes[b04Fs+1]||0);
     
-    // 💡 🛠️ 正常化共用分母：LP / HP 下不再讓分母隨衰減崩塌，全模式共享最高實體能量基準
+    // 💡 🛠️ 正常化共用分母：不分模式，100% 盲讀全景實體最高點（Max Peak），徹底物理拔除除以 0 的 NaN 當機死穴！
     let currentFrameMaxMag = Math.max(...magnitudes); if (currentFrameMaxMag < 0.001) currentFrameMaxMag = 0.001;
     
     let finalViewFocusHz = (window.currentFilterMode === 'LP' && magFs < currentFrameMaxMag * 0.178 && mag04Fs > currentFrameMaxMag * 0.178) ? (window.currentSinFreq * 0.4) : window.currentSinFreq;
@@ -175,27 +175,19 @@ window.globalRenderLoop = function() {
     window.fCtx.fillStyle = '#ffffff'; for (let k = 0; k <= 4; k++) window.fCtx.fillText((((maxDisplayFreq / 4) * k) / 1000).toFixed(2) + " kHz", k * 200 + (k === 0 ? 15 : k === 4 ? -75 : -25), 385);
     window.fCtx.strokeStyle = '#555555'; window.fCtx.lineWidth = 1; window.fCtx.beginPath(); dbSteps.forEach(db => { window.fCtx.moveTo(0, 30 + ((db / -50) * 310)); window.fCtx.lineTo(800, 30 + ((db / -50) * 310)); }); window.fCtx.stroke(); window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 11px Arial'; dbSteps.forEach(db => window.fCtx.fillText(db + " dB", 20, 34 + ((db / -50) * 310)));
     
-    // 💡 🛠️ 剛性雙峰追蹤：精準找出當前畫布上代表主音與子音的實體 Bin 座標
     let realFsPeakBin = bFs, real04FsPeakBin = b04Fs;
-    for (let o = -3; o <= 3; o++) { 
-        if ((magnitudes[bFs+o]||0) > (magnitudes[realFsPeakBin]||0)) realFsPeakBin = bFs + o; 
-        if ((magnitudes[b04Fs+o]||0) > (magnitudes[real04FsPeakBin]||0)) real04FsPeakBin = b04Fs + o; 
-    }
+    for (let o = -3; o <= 3; o++) { if ((magnitudes[bFs+o]||0) > (magnitudes[realFsPeakBin]||0)) realFsPeakBin = bFs + o; if ((magnitudes[b04Fs+o]||0) > (magnitudes[real04FsPeakBin]||0)) real04FsPeakBin = b04Fs + o; }
     
-    // 💡 🛠️ 計算這兩根主音在當前濾波狀態下的最大殘留值，作為放行帶的衝頂增益分母
-    let localPeakValue = Math.max(magnitudes[realFsPeakBin]||0, magnitudes[real04FsPeakBin]||0);
-    if (localPeakValue < 0.015) localPeakValue = currentFrameMaxMag; // 防除以0
-
     window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.5; window.fCtx.beginPath(); let isFirstPoint = true;
     for (let n = 0; n < magnitudes.length; n++) { 
         let currentPointRealHz = n * hzPerBin; if (currentPointRealHz > maxDisplayFreq) break; let curX = (currentPointRealHz / maxDisplayFreq) * 800; if (curX > 800) curX = 800; if (curX < 0) curX = 0;
         
-        // 🚀 🛠️ 全模式統一除以 localPeakValue 增益！
-        let y = 30 + ((1.0 - (magnitudes[n] / localPeakValue)) * 310);
+        let y = 30 + ((1.0 - (magnitudes[n] / currentFrameMaxMag)) * 310);
         
-        // 🚀 🛠️ 世紀終極鎖定：不論在 RAW, LP, HP, BP 下，只要這根峰柱沒有被完全切斷（大於門檻），最高點 100% 強制吸附在 Y=32px（0dB 線）！
-        if ((n === realFsPeakBin && magnitudes[realFsPeakBin] > 0.015) || (n === real04FsPeakBin && magnitudes[real04FsPeakBin] > 0.015)) { 
-            if (magnitudes[n] >= localPeakValue * 0.92) y = 32.0; 
+        // 🚀 🛠️ 世紀防線：只要該點的能量「等於當前景格的全場最高峰值（currentFrameMaxMag）」，或者在 RAW 下對應雙主音，坐標 100% 硬吸附在 Y=32px（0dB 線）！
+        // 這樣做 LP / HP / BP 模式的有效主波峰統統 100% 被拉到最頂端，絕對不塌陷，也絕對不再讓幾何除法斷線！
+        if (magnitudes[n] === currentFrameMaxMag || (window.currentFilterMode === 'RAW' && (n === realFsPeakBin || n === real04FsPeakBin))) { 
+            y = 32.0; 
         }
         
         if (isNaN(y) || !isFinite(y)) y = 358.0; if (y < 32.0) y = 32.0; if (y > 358) y = 358; 
