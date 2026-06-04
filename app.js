@@ -1,4 +1,4 @@
-//120
+//1201
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -186,29 +186,16 @@ window.globalRenderLoop = function() {
         if (isFirstPoint) { window.fCtx.moveTo(curX, y); isFirstPoint = false; } else { window.fCtx.lineTo(curX, y); }
     } window.fCtx.stroke();
 };
-// 💡 🛠️ 儀表按鈕高對比燈號同步渲染函數：讓被選中的按鈕發出極光霓虹色，未選中的退回暗灰色
-// ==========================================
-// 💡 🛠️ 終極修復：換裝最高權限 setProperty("...", "...", "important") 強踩防線！
-// ==========================================
+// 💡 🛠️ 正宗零風險 Class 切換函數：只動 classList，0 風險、0 崩潰凸顯選取按鈕！
 window.renderFilterButtonLights = function() {
     const btnIds = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
     Object.keys(btnIds).forEach(mode => {
         let btnEl = document.getElementById(btnIds[mode]);
         if (!btnEl) return;
         if (window.currentFilterMode === mode) {
-            // 🚀 被選中的按鈕：用最高權限強行染成亮綠色、黑字、並注入大範圍霓虹發光！
-            btnEl.style.setProperty("background-color", "#00ff66", "important");
-            btnEl.style.setProperty("color", "#111111", "important");
-            btnEl.style.setProperty("font-weight", "bold", "important");
-            btnEl.style.setProperty("box-shadow", "0 0 12px #00ff66, 0 0 25px #00ff66, inset 0 0 5px #ffffff", "important");
-            btnEl.style.setProperty("border-color", "#ffffff", "important");
+            btnEl.classList.add('active'); // 🚀 剛性激活原本前端定義的選取凸顯高亮！
         } else {
-            // 未被選中的按鈕：用最高權限退回沉穩暗灰色、白字、熄滅發光
-            btnEl.style.setProperty("background-color", "#2A2A2A", "important");
-            btnEl.style.setProperty("color", "#ffffff", "important");
-            btnEl.style.setProperty("font-weight", "normal", "important");
-            btnEl.style.setProperty("box-shadow", "none", "important");
-            btnEl.style.setProperty("border-color", "#444444", "important");
+            btnEl.classList.remove('active'); // 剛性褪色暗化未選中按鈕
         }
     });
 };
@@ -224,7 +211,7 @@ document.addEventListener('click', (e) => {
         window.currentFilterMode = fModes[clickId];
         const f2View = document.getElementById('f2Container'); if (f2View) f2View.style.display = (clickId === 'filterBP') ? 'flex' : 'none';
         window.updateFilterCoefficients();
-        window.renderFilterButtonLights(); // 🚀 點擊時即時觸發物理彩色燈號刷新！
+        window.renderFilterButtonLights(); // 🚀 點擊時安全刷新選取高亮！
     }
 });
 document.addEventListener('input', (e) => {
