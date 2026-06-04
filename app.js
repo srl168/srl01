@@ -1,4 +1,8 @@
-//11992
+//1194-2 OK（中心頻率型帶通）：陡峭的「單中心孤峰」
+/*
+原理：這一版是標準的「常數增益諧振濾波器（Resonator）」。它是硬性把 \(F_{1}\) 當作中心點，再用 \(Q = \frac{F_1}{F_2}\) 去控制陡峭度。波形特徵：不論您把代表頻寬的 \(F_{2}\) 拉得再大，它的數學公式本質上都只有一個中心尖峰。反映在頻譜圖上，它永遠是一座中間尖銳、兩側向下塌陷的「金字塔孤峰」。它的頂端只有在 \(F_{1}\) 那個一像素的點位上能碰到 0dB 線，兩側會立刻斜斜地滑落，所以它的頂部完全沒有平坦度可言。
+*/
+ 
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -44,13 +48,15 @@ window.updateFilterCoefficients = function() {
         window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - (o / qVal) + o * o) / c; 
     } 
     else if (window.currentFilterMode === 'BP') { 
-        let f2Correct = window.f2; if (f2Correct <= window.f1) f2Correct = window.f1 + 10;
-        let fr2 = fs / f2Correct; if (fr2 < 2.01) fr2 = 2.01;
-        let o2 = Math.tan(Math.PI / fr2);
-        let W = o2 - o; if (W < 0.001) W = 0.001; let C = o * o2; 
-        let cBP = 1.0 + W + C;
-        window.b0 = W / cBP; window.b1 = 0.0; window.b2 = -window.b0;
-        window.a1 = 2.0 * (C - 1.0) / cBP; window.a2 = (1.0 - W + C) / cBP;
+        // 🚀 🛠️ 正常版中心頻率流分流：F1 代表正中央頂格點，F2 代表物理寬度（Hz）
+        let bandwidth = window.f2 > 0 ? window.f2 : 1.0;
+        let qValBP = window.f1 / bandwidth;
+        if (qValBP < 0.05) qValBP = 0.05; if (qValBP > 20.0) qValBP = 20.0;
+        
+        // 執行最純粹的常數增益諧振濾波矩陣（尖峰頂頭）
+        let cBP = 1.0 + (o / qValBP) + o * o;
+        window.b0 = (o / qValBP) / cBP; window.b1 = 0.0; window.b2 = -window.b0;
+        window.a1 = 2.0 * (o * o - 1.0) / cBP; window.a2 = (1.0 - (o / qValBP) + o * o) / cBP;
     } 
     else { window.b0 = 1; window.b1 = window.b2 = window.a1 = window.a2 = 0; }
     
