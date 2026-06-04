@@ -1,4 +1,4 @@
-//1199
+//11991
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -61,14 +61,18 @@ window.updateFilterCoefficients = function() {
 
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
-    window.xv = window.xv; window.xv = window.xv; window.xv = x;
-    window.yv = window.yv; window.yv = window.yv;
-    window.yv = (window.b0 * window.xv) + (window.b1 * window.xv) + (window.b2 * window.xv) 
-                   - (window.a1 * window.yv) - (window.a2 * window.yv);
-    if (isNaN(window.yv) || !isFinite(window.yv)) { 
-        window.yv = window.yv = window.yv = window.xv = window.xv = window.xv = 0; 
+    
+    // 🚀 🛠️ 暫存器下標 [2] [1] [0] 100% 剛性寫回補齊！徹底疏通歷史移位差分數據！
+    window.xv[2] = window.xv[1]; window.xv[1] = window.xv[0]; window.xv[0] = x;
+    window.yv[2] = window.yv[1]; window.yv[1] = window.yv[0];
+    
+    window.yv[0] = (window.b0 * window.xv[0]) + (window.b1 * window.xv[1]) + (window.b2 * window.xv[2]) 
+                   - (window.a1 * window.yv[1]) - (window.a2 * window.yv[2]);
+    
+    if (isNaN(window.yv[0]) || !isFinite(window.yv[0])) { 
+        window.yv[0] = window.yv[1] = window.yv[2] = window.xv[0] = window.xv[1] = window.xv[2] = 0; 
     } 
-    return window.yv;
+    return window.yv[0];
 };
 window.oscNode = null; window.oscNode2 = null; window.scriptNode = null;
 window.audioCtx = null; window.gainNode = null;
@@ -155,21 +159,24 @@ window.globalRenderLoop = function() {
     
     let hzPerBin = 44100 / window.FFT_SIZE, bFs = Math.round(window.currentSinFreq / hzPerBin), b04Fs = Math.round((window.currentSinFreq * 0.4) / hzPerBin);
     let magFs = Math.max(magnitudes[bFs-1]||0, magnitudes[bFs]||0, magnitudes[bFs+1]||0);
-    // 💡 🛠️ 錯字徹底消滅：將原先壞掉的 magnets = 錯字徹底更正為純淨的 magnitudes，迴圈永久安全放行！
     let mag04Fs = Math.max(magnitudes[b04Fs-1]||0, magnitudes[b04Fs]||0, magnitudes[b04Fs+1]||0);
     
-    let currentFrameMaxMag = 0.5;
+    // 💡 🛠️ 正常化共用分母：不分模式，100% 盲讀全景實體最高點（Max Peak），徹底物理拔除除以 0 的 NaN 當機死穴！
+    let currentFrameMaxMag = Math.max(...magnitudes); if (currentFrameMaxMag < 0.001) currentFrameMaxMag = 0.001;
+    
     let finalViewFocusHz = (window.currentFilterMode === 'LP' && magFs < 0.05 && mag04Fs > 0.05) ? (window.currentSinFreq * 0.4) : window.currentSinFreq;
     document.getElementById('freqVal').innerText = maxMag > 0.02 ? ((magnitudes[b04Fs] > magnitudes[bFs] ? window.currentSinFreq * 0.4 : window.currentSinFreq)).toFixed(1) + " Hz" : "0.0 Hz";
     // 渲染時域
     window.tCtx.clearRect(0, 0, 800, 400); window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, 800, 400); window.tCtx.strokeStyle = '#333'; window.tCtx.lineWidth = 1; window.tCtx.beginPath(); voltSteps.forEach(v => { let yPos = midY - v * scaleY; window.tCtx.moveTo(0, yPos); window.tCtx.lineTo(800, yPos); }); window.tCtx.stroke();
     window.tCtx.fillStyle = '#ffffff'; window.tCtx.font = 'bold 12px Arial'; voltSteps.forEach(v => window.tCtx.fillText((v >= 0 ? "+" : "") + v.toFixed(1) + "V", 25, midY - v * scaleY + 4));
-    window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath(); window.tCtx.moveTo(0, midY - (rawSlice * scaleY)); for (let j = 1; j < rawSlice.length; j++) { window.tCtx.lineTo(j * (800 / (rawSlice.length - 1)), midY - (rawSlice[j] * scaleY)); } window.tCtx.stroke();
+    
+    // 🚀 🛠️ 終極修復：下標 [0] 100% 滿血補回！徹底打通時域波形渲染，告別 Canvas 死機！
+    window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath(); window.tCtx.moveTo(0, midY - (rawSlice[0] * scaleY)); 
+    for (let j = 1; j < rawSlice.length; j++) { window.tCtx.lineTo(j * (800 / (rawSlice.length - 1)), midY - (rawSlice[j] * scaleY)); } window.tCtx.stroke();
     window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + ((rawSlice.length / window.currentSampleRate) * 1000).toFixed(2) + " ms", 620, 380);
 
     // 渲染自適應頻域
     window.fCtx.clearRect(0, 0, 800, 400); window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400); window.fCtx.strokeStyle = '#333'; window.fCtx.beginPath(); for (let k = 0; k <= 4; k++) window.fCtx.moveTo(k * 200, 0), window.fCtx.lineTo(k * 200, 360); window.fCtx.stroke();
-    
     let htmlMaxFreq = parseFloat(document.getElementById('sinFreqSlider')?.max) || 5000;
     let maxDisplayFreq = finalViewFocusHz * 1.5; if (maxDisplayFreq < 200) maxDisplayFreq = 200; if (maxDisplayFreq > htmlMaxFreq) maxDisplayFreq = htmlMaxFreq;
     window.fCtx.fillStyle = '#ffffff'; for (let k = 0; k <= 4; k++) window.fCtx.fillText((((maxDisplayFreq / 4) * k) / 1000).toFixed(2) + " kHz", k * 200 + (k === 0 ? 15 : k === 4 ? -75 : -25), 385);
