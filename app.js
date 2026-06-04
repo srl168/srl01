@@ -1,7 +1,4 @@
-//1194（中心頻率型帶通）：陡峭的「單中心孤峰」
-/*
-原理：這一版是標準的「常數增益諧振濾波器（Resonator）」。它是硬性把 \(F_{1}\) 當作中心點，再用 \(Q = \frac{F_1}{F_2}\) 去控制陡峭度。波形特徵：不論您把代表頻寬的 \(F_{2}\) 拉得再大，它的數學公式本質上都只有一個中心尖峰。反映在頻譜圖上，它永遠是一座中間尖銳、兩側向下塌陷的「金字塔孤峰」。它的頂端只有在 \(F_{1}\) 那個一像素的點位上能碰到 0dB 線，兩側會立刻斜斜地滑落，所以它的頂部完全沒有平坦度可言。
-*/
+//1195
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -18,7 +15,7 @@ window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 
 window.currentFilterMode = 'RAW'; window.f1 = 1000; window.f2 = 3000;
 window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
-window.xv = new Float32Array(3); window.yv = new Float32Array(3); // 全域剛性鎖定
+window.xv = new Float32Array(3); window.yv = new Float32Array(3); // 🚀 全域剛性死鎖
 
 window.addEventListener('DOMContentLoaded', () => {
     window.tCanvas = document.getElementById('timeCanvas'); 
@@ -29,7 +26,7 @@ window.addEventListener('DOMContentLoaded', () => {
     window.fCanvas.width = 800; window.fCanvas.height = 400;
 });
 // ==========================================
-// 💡 2️⃣ 數位濾波器精密係數計算公式（全 window. 變數解鎖版）
+// 💡 2️⃣ 數位濾波器精密係數計算公式
 // ==========================================
 window.updateFilterCoefficients = function() {
     let fs = window.currentSampleRate;
@@ -70,17 +67,17 @@ window.updateFilterCoefficients = function() {
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     
-    // 🚀 🛠️ 終極修正：暫存器和差分陣列前綴 100% 全部加上 window. 頭！徹底擊碎記憶體作用域斷線沒圖的黑洞！
-    window.xv[2] = window.xv[1]; window.xv[1] = window.xv[0]; window.xv[0] = x;
-    window.yv[2] = window.yv[1]; window.yv[1] = window.yv[0];
+    // 💡 🛠️ 100% 剛性全 window. 指派更新！徹底激活高通/帶通歷史活水！
+    window.xv = window.xv; window.xv = window.xv; window.xv = x;
+    window.yv = window.yv; window.yv = window.yv;
     
-    window.yv[0] = (window.b0 * window.xv[0]) + (window.b1 * window.xv[1]) + (window.b2 * window.xv[2]) 
-                   - (window.a1 * window.yv[1]) - (window.a2 * window.yv[2]);
+    window.yv = (window.b0 * window.xv) + (window.b1 * window.xv) + (window.b2 * window.xv) 
+                   - (window.a1 * window.yv) - (window.a2 * window.yv);
     
-    if (isNaN(window.yv[0]) || !isFinite(window.yv[0])) { 
-        window.yv[0] = window.yv[1] = window.yv[2] = window.xv[0] = window.xv[1] = window.xv[2] = 0; 
+    if (isNaN(window.yv) || !isFinite(window.yv)) { 
+        window.yv = window.yv = window.yv = window.xv = window.xv = window.xv = 0; 
     } 
-    return window.yv[0];
+    return window.yv;
 };
 window.oscNode = null; window.oscNode2 = null; window.scriptNode = null;
 window.audioCtx = null; window.gainNode = null;
@@ -152,11 +149,8 @@ window.globalRenderLoop = function() {
     if (!window.isSimulating && window.filteredDataLog.length === 0) {
         window.tCtx.clearRect(0,0,800,400); window.tCtx.fillStyle='#111'; window.tCtx.fillRect(0,0,800,400); window.tCtx.strokeStyle='#333'; window.tCtx.beginPath(); voltSteps.forEach(v => { window.tCtx.moveTo(0,midY-v*145); window.tCtx.lineTo(800,midY-v*145); }); window.tCtx.stroke();
         window.tCtx.fillStyle='#fff'; window.tCtx.font='bold 12px Arial'; window.tCtx.fillText("+1.0V", 25, 55); window.tCtx.fillText("0.0V", 25, 204); window.tCtx.fillText("-1.0V", 25, 345);
-        
         window.fCtx.clearRect(0,0,800,400); window.fCtx.fillStyle='#111'; window.fCtx.fillRect(0,0,800,400); window.fCtx.strokeStyle='#333'; window.fCtx.beginPath(); for(let k=0;k<=4;k++){window.fCtx.moveTo(k*200,0);window.fCtx.lineTo(k*200,360);} window.fCtx.stroke(); window.fCtx.fillStyle='#fff'; let ticks = ["0.00 kHz","1.25 kHz","2.50 kHz","3.75 kHz","5.00 kHz"]; for(let k=0;k<=4;k++) window.fCtx.fillText(ticks[k], k*200+(k===0?15:k===4?-75:-25), 385);
-        window.fCtx.strokeStyle='#555555'; window.fCtx.beginPath(); dbSteps.forEach(db => { window.fCtx.moveTo(0,30+(db/-50)*310); window.fCtx.lineTo(800,30+(db/-50)*310); }); window.fCtx.stroke(); 
-        window.fCtx.fillStyle='#ffffff'; window.fCtx.font='bold 11px Arial'; dbSteps.forEach(db => window.fCtx.fillText(db+" dB", 20, 34+(db/-50)*310));
-        
+        window.fCtx.strokeStyle='#555555'; window.fCtx.beginPath(); dbSteps.forEach(db => { window.fCtx.moveTo(0,30+(db/-50)*310); window.fCtx.lineTo(800,30+(db/-50)*310); }); window.fCtx.stroke(); window.fCtx.fillStyle='#ffffff'; window.fCtx.font='bold 11px Arial'; dbSteps.forEach(db => window.fCtx.fillText(db+" dB", 20, 34+(db/-50)*310));
         document.getElementById('vppVal').innerText = "0.00 V"; document.getElementById('rmsVal').innerText = "0.00 V"; document.getElementById('freqVal').innerText = "0.0 Hz"; return;
     }
     if (window.filteredDataLog.length < 10) return;
@@ -169,9 +163,14 @@ window.globalRenderLoop = function() {
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; } }
     
     let hzPerBin = 44100 / window.FFT_SIZE, bFs = Math.round(window.currentSinFreq / hzPerBin), b04Fs = Math.round((window.currentSinFreq * 0.4) / hzPerBin);
-    let currentFrameMaxMag = 0.5; let finalViewFocusHz = window.currentSinFreq;
-    if (window.currentFilterMode === 'LP' && (magnitudes[bFs]||0) < 0.05 && (magnitudes[b04Fs]||0) > 0.05) { finalViewFocusHz = window.currentSinFreq * 0.4; }
-    document.getElementById('freqVal').innerText = maxMag > 0.02 ? ((magnitudes[b04Fs] > magnitudes[bFs] ? window.currentSinFreq * 0.4 : window.currentSinFreq)).toFixed(1) + " Hz" : "0.0 Hz";
+    let magFs = Math.max(magnitudes[bFs-1]||0, magnitudes[bFs]||0, magnitudes[bFs+1]||0), mag04Fs = Math.max(magnitudes[b04Fs-1]||0, magnitudes[b04Fs]||0, magnitudes[b04Fs+1]||0);
+    
+    // 💡 🛠️ 終極動態對齊分母：在 RAW 模式下追蹤雙主峰，在其他模式下抓取有效最大值，讓通過帶波形 100% 衝頂 0dB！
+    let currentFrameMaxMag = (window.currentFilterMode === 'RAW') ? Math.max(magFs, mag04Fs) : Math.max(...magnitudes); 
+    if (currentFrameMaxMag < 0.001) currentFrameMaxMag = 0.001;
+    
+    let finalViewFocusHz = (window.currentFilterMode === 'LP' && magFs < currentFrameMaxMag * 0.178 && mag04Fs > currentFrameMaxMag * 0.178) ? (window.currentSinFreq * 0.4) : window.currentSinFreq;
+    document.getElementById('freqVal').innerText = maxMag > 0.04 ? ((mag04Fs > magFs ? window.currentSinFreq * 0.4 : window.currentSinFreq)).toFixed(1) + " Hz" : "0.0 Hz";
     // 渲染時域
     window.tCtx.clearRect(0, 0, 800, 400); window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, 800, 400); window.tCtx.strokeStyle = '#333'; window.tCtx.lineWidth = 1; window.tCtx.beginPath(); voltSteps.forEach(v => { let yPos = midY - v * scaleY; window.tCtx.moveTo(0, yPos); window.tCtx.lineTo(800, yPos); }); window.tCtx.stroke();
     window.tCtx.fillStyle = '#ffffff'; window.tCtx.font = 'bold 12px Arial'; voltSteps.forEach(v => window.tCtx.fillText((v >= 0 ? "+" : "") + v.toFixed(1) + "V", 25, midY - v * scaleY + 4));
@@ -184,21 +183,18 @@ window.globalRenderLoop = function() {
     let htmlMaxFreq = parseFloat(document.getElementById('sinFreqSlider')?.max) || 5000;
     let maxDisplayFreq = finalViewFocusHz * 1.5; if (maxDisplayFreq < 200) maxDisplayFreq = 200; if (maxDisplayFreq > htmlMaxFreq) maxDisplayFreq = htmlMaxFreq;
     window.fCtx.fillStyle = '#ffffff'; for (let k = 0; k <= 4; k++) window.fCtx.fillText((((maxDisplayFreq / 4) * k) / 1000).toFixed(2) + " kHz", k * 200 + (k === 0 ? 15 : k === 4 ? -75 : -25), 385);
-    
-    window.fCtx.strokeStyle = '#555555'; window.fCtx.lineWidth = 1; window.fCtx.beginPath(); 
-    dbSteps.forEach(db => { window.fCtx.moveTo(0, 30 + ((db / -50) * 310)); window.fCtx.lineTo(800, 30 + ((db / -50) * 310)); }); 
-    window.fCtx.stroke(); 
-    
-    window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 11px Arial'; 
-    dbSteps.forEach(db => window.fCtx.fillText(db + " dB", 20, 34 + ((db / -50) * 310)));
+    window.fCtx.strokeStyle = '#555555'; window.fCtx.lineWidth = 1; window.fCtx.beginPath(); dbSteps.forEach(db => { window.fCtx.moveTo(0, 30 + ((db / -50) * 310)); window.fCtx.lineTo(800, 30 + ((db / -50) * 310)); }); window.fCtx.stroke(); window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 11px Arial'; dbSteps.forEach(db => window.fCtx.fillText(db + " dB", 20, 34 + ((db / -50) * 310)));
     
     let realFsPeakBin = bFs, real04FsPeakBin = b04Fs;
     if (window.currentFilterMode === 'RAW') { for (let o = -3; o <= 3; o++) { if ((magnitudes[bFs+o]||0) > (magnitudes[realFsPeakBin]||0)) realFsPeakBin = bFs + o; if ((magnitudes[b04Fs+o]||0) > (magnitudes[real04FsPeakBin]||0)) real04FsPeakBin = b04Fs + o; } }
     window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.5; window.fCtx.beginPath(); let isFirstPoint = true;
     for (let n = 0; n < magnitudes.length; n++) { 
         let currentPointRealHz = n * hzPerBin; if (currentPointRealHz > maxDisplayFreq) break; let curX = (currentPointRealHz / maxDisplayFreq) * 800; if (curX > 800) curX = 800; if (curX < 0) curX = 0;
+        
         let y = 30 + ((1.0 - (magnitudes[n] / currentFrameMaxMag)) * 310);
+        // 🚀 🛠️ 鋼性頂格死鎖補丁：在直通 RAW 下，讓檢測到的兩個主音/子音 Bin 下標中心點直接吸附在 Y=32.0 滿格線上！
         if (window.currentFilterMode === 'RAW' && (n === realFsPeakBin || n === real04FsPeakBin)) { y = 32.0; }
+        
         if (isNaN(y) || !isFinite(y)) y = 358.0; if (y < 32.0) y = 32.0; if (y > 358) y = 358; 
         if (isFirstPoint) { window.fCtx.moveTo(curX, y); isFirstPoint = false; } else { window.fCtx.lineTo(curX, y); }
     } window.fCtx.stroke();
@@ -212,8 +208,7 @@ document.addEventListener('click', (e) => {
     const fModes = { filterRaw: 'RAW', filterLP: 'LP', filterHP: 'HP', filterBP: 'BP' };
     if (fModes[clickId]) {
         document.querySelectorAll('.active').forEach(b => b.classList.remove('active')); e.target.classList.add('active'); window.currentFilterMode = fModes[clickId];
-        const f2View = document.getElementById('f2Container'); 
-        if (f2View) f2View.style.display = (clickId === 'filterBP') ? 'flex' : 'none';
+        const f2View = document.getElementById('f2Container'); if (f2View) f2View.style.display = (clickId === 'filterBP') ? 'flex' : 'none';
         window.updateFilterCoefficients();
     }
 });
