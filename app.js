@@ -16,7 +16,7 @@ window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 window.currentFilterMode = 'RAW'; window.f1 = 1000; window.f2 = 3000;
 window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 
-// 🚀 🛠️ 剛性將 xv 與 yv 鎖定在全域頂層陣列，確保 applyFilter 內部下標 100% 能跨作用域讀寫
+// 🚀 剛性鎖定全域 Float32Array 暫存器，確保 applyFilter 下標 100% 安全對齊
 window.xv = new Float32Array(3); window.yv = new Float32Array(3);
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -61,23 +61,27 @@ window.updateFilterCoefficients = function() {
     }
 };
 
+// 🔒 🚀 【永久解凍】100% 採用您最初指明、最健全的真．陣列下標移位公式！
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     
-    // 🚀 🛠️ 完璧歸趙！100% 鎖死您指定的最強下標移位！高通、帶通數據大解凍，高頻絕不斜切！
     window.xv[2] = window.xv[1]; window.xv[1] = window.xv[0]; window.xv[0] = x;
     window.yv[2] = window.yv[1]; window.yv[1] = window.yv[0];
     
-    window.yv[0] = (window.b0 * window.xv[0]) + (window.b1 * window.xv[1]) + (window.b2 * window.xv[2]) - (window.a1 * window.yv[1]) - (window.a2 * window.yv[2]);
-    if (isNaN(window.yv[0]) || !isFinite(window.yv[0])) { window.yv[0]=window.yv[1]=window.yv[2]=window.xv[0]=window.xv[1]=window.xv[2]=0; } 
+    window.yv[0] = (window.b0 * window.xv[0]) + (window.b1 * window.xv[1]) + (window.b2 * window.xv[2]) 
+                   - (window.a1 * window.yv[1]) - (window.a2 * window.yv[2]);
+    
+    if (isNaN(window.yv[0]) || !isFinite(window.yv[0])) { 
+        window.yv[0] = window.yv[1] = window.yv[2] = window.xv[0] = window.xv[1] = window.xv[2] = 0; 
+    } 
     return window.yv[0];
 };
 window.oscNode = null; window.oscNode2 = null; window.scriptNode = null;
 window.audioCtx = null; window.gainNode = null;
 
 window.initAudioGlobal = function() {
-    if (window.oscNode) { try { window.oscNode.stop(); } catch(e){} window.oscNode.disconnect(); window.oscNode = null; }
-    if (window.oscNode2) { try { window.oscNode2.stop(); } catch(e){} window.oscNode2.disconnect(); window.oscNode2 = null; }
+    if (window.oscNode) { try { window.oscNode.stop(); } catch(e){} window.oscNode = null; }
+    if (window.oscNode2) { try { window.oscNode2.stop(); } catch(e){} window.oscNode2 = null; }
     if (window.scriptNode) window.scriptNode.disconnect();
     
     if (!window.audioCtx) {
@@ -156,10 +160,11 @@ window.globalRenderLoop = function() {
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; } }
     
     let hzPerBin = 44100 / window.FFT_SIZE, bFs = Math.round(window.currentSinFreq / hzPerBin), b04Fs = Math.round((window.currentSinFreq * 0.4) / hzPerBin);
-    let magFs = Math.max(magnitudes[bFs-1]||0, magnitudes[bFs]||0, magnitudes[bFs+1]||0);
-    let mag04Fs = Math.max(magnitudes[b04Fs-1]||0, magnitudes[b04Fs]||0, magnitudes[b04Fs+1]||0);
+    let magFs = Math.max(magnitudes[bFs-1]||0, magnitudes[bFs]||0, magnitudes[bFs+1]||0), mag04Fs = Math.max(magnitudes[b04Fs-1]||0, magnitudes[b04Fs]||0, magnitudes[b04Fs+1]||0);
     
-    let currentFrameMaxMag = 0.5;
+    // 💡 🛠️ 盲抓全景最高物理能量點（Max Peak）作為歸一化分母！徹底粉碎 12dB 落差下陷與斜切！
+    let currentFrameMaxMag = Math.max(...magnitudes); if (currentFrameMaxMag < 0.001) currentFrameMaxMag = 0.001;
+    
     let finalViewFocusHz = (window.currentFilterMode === 'LP' && magFs < 0.05 && mag04Fs > 0.05) ? (window.currentSinFreq * 0.4) : window.currentSinFreq;
     document.getElementById('freqVal').innerText = maxMag > 0.02 ? ((magnitudes[b04Fs] > magnitudes[bFs] ? window.currentSinFreq * 0.4 : window.currentSinFreq)).toFixed(1) + " Hz" : "0.0 Hz";
 
@@ -174,21 +179,14 @@ window.globalRenderLoop = function() {
     window.fCtx.fillStyle = '#ffffff'; for (let k = 0; k <= 4; k++) window.fCtx.fillText((((maxDisplayFreq / 4) * k) / 1000).toFixed(2) + " kHz", k * 200 + (k === 0 ? 15 : k === 4 ? -75 : -25), 385);
     window.fCtx.strokeStyle = '#555555'; window.fCtx.lineWidth = 1; window.fCtx.beginPath(); dbSteps.forEach(db => { window.fCtx.moveTo(0, 30 + ((db / -50) * 310)); window.fCtx.lineTo(800, 30 + ((db / -50) * 310)); }); window.fCtx.stroke(); window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 11px Arial'; dbSteps.forEach(db => window.fCtx.fillText(db + " dB", 20, 34 + ((db / -50) * 310)));
     
-    let realFsPeakBin = bFs, real04FsPeakBin = b04Fs;
-    for (let o = -3; o <= 3; o++) { if ((magnitudes[bFs+o]||0) > (magnitudes[realFsPeakBin]||0)) realFsPeakBin = bFs + o; if ((magnitudes[b04Fs+o]||0) > (magnitudes[real04FsPeakBin]||0)) real04FsPeakBin = b04Fs + o; }
-    let localMaxPeak = Math.max(magnitudes[realFsPeakBin]||0, magnitudes[real04FsPeakBin]||0);
-    if (localMaxPeak < 0.005) localMaxPeak = 0.005;
-
     window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.5; window.fCtx.beginPath(); let isFirstPoint = true;
     for (let n = 0; n < magnitudes.length; n++) { 
         let currentPointRealHz = n * hzPerBin; if (currentPointRealHz > maxDisplayFreq) break; let curX = (currentPointRealHz / maxDisplayFreq) * 800;
-        let y = 30 + ((1.0 - (magnitudes[n] / localMaxPeak)) * 310);
-        if (magnitudes[n] === localMaxPeak || n === realFsPeakBin || n === real04FsPeakBin) { if (magnitudes[n] >= localMaxPeak * 0.9) y = 32.0; }
+        let y = 30 + ((1.0 - (magnitudes[n] / currentFrameMaxMag)) * 310);
         if (isNaN(y) || !isFinite(y)) y = 358.0; if (y < 32.0) y = 32.0; if (y > 358) y = 358; 
         if (isFirstPoint) { window.fCtx.moveTo(curX, y); isFirstPoint = false; } else { window.fCtx.lineTo(curX, y); }
     } window.fCtx.stroke();
 };
-// 💡 🛠️ 100% 找回最心愛的第一版高亮染色邏輯
 window.renderFilterButtonLights = function() {
     const btnIds = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
     Object.keys(btnIds).forEach(mode => {
