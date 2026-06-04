@@ -1,4 +1,7 @@
-//1192
+//1192（中心頻率型帶通）：陡峭的「單中心孤峰」
+/*
+原理：這一版是標準的「常數增益諧振濾波器（Resonator）」。它是硬性把 \(F_{1}\) 當作中心點，再用 \(Q = \frac{F_1}{F_2}\) 去控制陡峭度。波形特徵：不論您把代表頻寬的 \(F_{2}\) 拉得再大，它的數學公式本質上都只有一個中心尖峰。反映在頻譜圖上，它永遠是一座中間尖銳、兩側向下塌陷的「金字塔孤峰」。它的頂端只有在 \(F_{1}\) 那個一像素的點位上能碰到 0dB 線，兩側會立刻斜斜地滑落，所以它的頂部完全沒有平坦度可言。
+*/
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -46,8 +49,7 @@ window.updateFilterCoefficients = function() {
         window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - (o / qVal) + o * o) / c; 
     } 
     else if (window.currentFilterMode === 'BP') { 
-        // 🚀 🛠️ 世紀修復：帶通回歸正宗中心頻率（F1）與物理頻寬（F2）對齊架構！
-        // 徹底告別 F1 聽起來不像中心點的嚴重定義偏擺！
+        // 🚀 中心頻率（F1）與頻寬（F2）對齊架構
         let bandwidth = window.f2 > 0 ? window.f2 : 1.0;
         let qValBP = window.f1 / bandwidth;
         if (qValBP < 0.05) qValBP = 0.05; if (qValBP > 20.0) qValBP = 20.0;
@@ -66,12 +68,13 @@ window.updateFilterCoefficients = function() {
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     
-    xv = xv; xv = xv; xv = x;
-    yv = yv; yv = yv;
+    // 💡 🛠️ 您指明的最健全暫存器活水代碼，無損且完全正確地指派！
+    xv[2] = xv[1]; xv[1] = xv[0]; xv[0] = x;
+    yv[2] = yv[1]; yv[1] = yv[0];
     
-    yv = (window.b0 * xv) + (window.b1 * xv) + (window.b2 * xv) - (window.a1 * yv) - (window.a2 * yv);
-    if (isNaN(yv) || !isFinite(yv)) { yv=yv=yv=xv=xv=xv=0; } 
-    return yv;
+    yv[0] = (window.b0 * xv[0]) + (window.b1 * xv[1]) + (window.b2 * xv[2]) - (window.a1 * yv[1]) - (window.a2 * yv[2]);
+    if (isNaN(yv[0]) || !isFinite(yv[0])) { yv[0]=yv[1]=yv[2]=xv[0]=xv[1]=xv[2]=0; } 
+    return yv[0];
 };
 window.oscNode = null; window.oscNode2 = null; window.scriptNode = null;
 window.audioCtx = null; window.gainNode = null;
