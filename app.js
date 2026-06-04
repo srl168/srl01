@@ -5,7 +5,7 @@ window.isWritingLock = false;
 // ==========================================
 // 💡 1️⃣ 全域記憶體大腦池初始化
 // ==========================================
-window.currentSampleRate = 20000; window.currentSinFreq = 3000; 
+window.currentSampleRate = 20000; window.currentSinFreq = 2000; 
 window.filteredDataLog = []; window.bufferIndex = 0;
 window.nextPlayTime = 0; window.isSpeakerOn = false;
 window.isSimulating = false; window.currentVolume = 0.3; 
@@ -32,8 +32,9 @@ window.updateFilterCoefficients = function() {
     let fr = window.currentSampleRate / window.f1; if (fr < 2.01) fr = 2.01;
 //    let fr = window.f1 / window.currentSampleRate; if (fr < 2.01) fr = 2.01;
     let o = Math.tan(Math.PI / fr), 
-	q = 0.1 + (window.f2 / 5000.0) * 9.9; 
+//	q = 0.1 + (window.f2 / 5000.0) * 9.9; 
     if (q < 0.1) q = 0.1; if (q > 10.0) q = 10.0;
+	q = 0.707; 
 
     if (window.currentFilterMode === 'LP') { 
         let c = 1 + (o / q) + o * o; window.b0 = (o * o) / c; window.b1 = 2 * window.b0; window.b2 = window.b0; window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - (o / q) + o * o) / c; 
@@ -215,6 +216,7 @@ document.addEventListener('input', (e) => {
     //if (sliderId === "f2Slider") { window.f2 = parseInt(curVal); if (e.target.nextElementSibling) e.target.nextElementSibling.innerText = "Q: " + (0.1 + (curVal / 5000.0) * 9.9).toFixed(2); window.updateFilterCoefficients(); }
     if (sliderId === "volumeSlider") { window.currentVolume = curVal; if (e.target.nextElementSibling) e.target.nextElementSibling.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && window.isSpeakerOn) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); }
 	
-    if (e.target.nextElementSibling && sliderId !== "f2Slider" && sliderId !== "volumeSlider") e.target.nextElementSibling.innerText = curVal + " Hz";
+    if (e.target.nextElementSibling && sliderId !== "volumeSlider") e.target.nextElementSibling.innerText = curVal + " Hz";
+    //if (e.target.nextElementSibling && sliderId !== "f2Slider" && sliderId !== "volumeSlider") e.target.nextElementSibling.innerText = curVal + " Hz";
 });
 window.onload = function() { window.updateFilterCoefficients(); window.globalRenderLoop(); };
