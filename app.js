@@ -1,4 +1,4 @@
-//1182
+//11821
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -210,7 +210,7 @@ document.addEventListener('input', (e) => {
     if (sliderId === "sampleRateSlider") { window.currentSampleRate = parseInt(curVal); window.updateFilterCoefficients(); }
     if (sliderId === "sinFreqSlider") window.currentSinFreq = parseInt(curVal);
     if (sliderId === "f1Slider") { window.f1 = parseInt(curVal); window.updateFilterCoefficients(); }
-    if (sliderId === "f2Slider") { window.f2 = parseInt(curVal); window.updateFilterCoefficients(); }
+    if (sliderId === "f2Slider") { window.f2 = parseInt(curVal); if (e.target.nextElementSibling) e.target.nextElementSibling.innerText = "Q: " + (0.1 + (curVal / 5000.0) * 9.9).toFixed(2); window.updateFilterCoefficients(); }
     if (sliderId === "volumeSlider") { window.currentVolume = curVal; if (e.target.nextElementSibling) e.target.nextElementSibling.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && window.isSpeakerOn) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); }
     if (e.target.nextElementSibling && sliderId !== "f2Slider" && sliderId !== "volumeSlider") e.target.nextElementSibling.innerText = curVal + " Hz";
 });
