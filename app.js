@@ -1,8 +1,4 @@
-//1194-2 OK（中心頻率型帶通）：陡峭的「單中心孤峰」
-/*
-原理：這一版是標準的「常數增益諧振濾波器（Resonator）」。它是硬性把 \(F_{1}\) 當作中心點，再用 \(Q = \frac{F_1}{F_2}\) 去控制陡峭度。波形特徵：不論您把代表頻寬的 \(F_{2}\) 拉得再大，它的數學公式本質上都只有一個中心尖峰。反映在頻譜圖上，它永遠是一座中間尖銳、兩側向下塌陷的「金字塔孤峰」。它的頂端只有在 \(F_{1}\) 那個一像素的點位上能碰到 0dB 線，兩側會立刻斜斜地滑落，所以它的頂部完全沒有平坦度可言。
-*/
- 
+//120
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -48,15 +44,13 @@ window.updateFilterCoefficients = function() {
         window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - (o / qVal) + o * o) / c; 
     } 
     else if (window.currentFilterMode === 'BP') { 
-        // 🚀 🛠️ 正常版中心頻率流分流：F1 代表正中央頂格點，F2 代表物理寬度（Hz）
-        let bandwidth = window.f2 > 0 ? window.f2 : 1.0;
-        let qValBP = window.f1 / bandwidth;
-        if (qValBP < 0.05) qValBP = 0.05; if (qValBP > 20.0) qValBP = 20.0;
-        
-        // 執行最純粹的常數增益諧振濾波矩陣（尖峰頂頭）
-        let cBP = 1.0 + (o / qValBP) + o * o;
-        window.b0 = (o / qValBP) / cBP; window.b1 = 0.0; window.b2 = -window.b0;
-        window.a1 = 2.0 * (o * o - 1.0) / cBP; window.a2 = (1.0 - (o / qValBP) + o * o) / cBP;
+        let f2Correct = window.f2; if (f2Correct <= window.f1) f2Correct = window.f1 + 10;
+        let fr2 = fs / f2Correct; if (fr2 < 2.01) fr2 = 2.01;
+        let o2 = Math.tan(Math.PI / fr2);
+        let W = o2 - o; if (W < 0.001) W = 0.001; let C = o * o2; 
+        let cBP = 1.0 + W + C;
+        window.b0 = W / cBP; window.b1 = 0.0; window.b2 = -window.b0;
+        window.a1 = 2.0 * (C - 1.0) / cBP; window.a2 = (1.0 - W + C) / cBP;
     } 
     else { window.b0 = 1; window.b1 = window.b2 = window.a1 = window.a2 = 0; }
     
@@ -67,18 +61,14 @@ window.updateFilterCoefficients = function() {
 
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
-    
-    // 用最正確的全域下標移位法，疏通差分活水！
-    window.xv[2] = window.xv[1]; window.xv[1] = window.xv[0]; window.xv[0] = x;
-    window.yv[2] = window.yv[1]; window.yv[1] = window.yv[0];
-    
-    window.yv[0] = (window.b0 * window.xv[0]) + (window.b1 * window.xv[1]) + (window.b2 * window.xv[2]) 
-                   - (window.a1 * window.yv[1]) - (window.a2 * window.yv[2]);
-    
-    if (isNaN(window.yv[0]) || !isFinite(window.yv[0])) { 
-        window.yv[0] = window.yv[1] = window.yv[2] = window.xv[0] = window.xv[1] = window.xv[2] = 0; 
+    window.xv = window.xv; window.xv = window.xv; window.xv = x;
+    window.yv = window.yv; window.yv = window.yv;
+    window.yv = (window.b0 * window.xv) + (window.b1 * window.xv) + (window.b2 * window.xv) 
+                   - (window.a1 * window.yv) - (window.a2 * window.yv);
+    if (isNaN(window.yv) || !isFinite(window.yv)) { 
+        window.yv = window.yv = window.yv = window.xv = window.xv = window.xv = 0; 
     } 
-    return window.yv[0];
+    return window.yv;
 };
 window.oscNode = null; window.oscNode2 = null; window.scriptNode = null;
 window.audioCtx = null; window.gainNode = null;
@@ -171,13 +161,11 @@ window.globalRenderLoop = function() {
     let finalViewFocusHz = (window.currentFilterMode === 'LP' && magFs < 0.05 && mag04Fs > 0.05) ? (window.currentSinFreq * 0.4) : window.currentSinFreq;
     document.getElementById('freqVal').innerText = maxMag > 0.02 ? ((magnitudes[b04Fs] > magnitudes[bFs] ? window.currentSinFreq * 0.4 : window.currentSinFreq)).toFixed(1) + " Hz" : "0.0 Hz";
 
-    // 🚀 🛠️ 正常版時域繪圖（完美內嵌，大括號完全包覆！）
     window.tCtx.clearRect(0, 0, 800, 400); window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, 800, 400); window.tCtx.strokeStyle = '#333'; window.tCtx.lineWidth = 1; window.tCtx.beginPath(); voltSteps.forEach(v => { let yPos = midY - v * scaleY; window.tCtx.moveTo(0, yPos); window.tCtx.lineTo(800, yPos); }); window.tCtx.stroke();
     window.tCtx.fillStyle = '#ffffff'; window.tCtx.font = 'bold 12px Arial'; voltSteps.forEach(v => window.tCtx.fillText((v >= 0 ? "+" : "") + v.toFixed(1) + "V", 25, midY - v * scaleY + 4));
-    window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath(); window.tCtx.moveTo(0, midY - (rawSlice[0] * scaleY)); for (let j = 1; j < rawSlice.length; j++) { window.tCtx.lineTo(j * (800 / (rawSlice.length - 1)), midY - (rawSlice[j] * scaleY)); } window.tCtx.stroke();
+    window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath(); window.tCtx.moveTo(0, midY - (rawSlice * scaleY)); for (let j = 1; j < rawSlice.length; j++) { window.tCtx.lineTo(j * (800 / (rawSlice.length - 1)), midY - (rawSlice[j] * scaleY)); } window.tCtx.stroke();
     window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + ((rawSlice.length / window.currentSampleRate) * 1000).toFixed(2) + " ms", 620, 380);
 
-    // 🚀 🛠️ 正常版頻域繪圖
     window.fCtx.clearRect(0, 0, 800, 400); window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400); window.fCtx.strokeStyle = '#333'; window.fCtx.beginPath(); for (let k = 0; k <= 4; k++) window.fCtx.moveTo(k * 200, 0), window.fCtx.lineTo(k * 200, 360); window.fCtx.stroke();
     let htmlMaxFreq = parseFloat(document.getElementById('sinFreqSlider')?.max) || 5000;
     let maxDisplayFreq = finalViewFocusHz * 1.5; if (maxDisplayFreq < 200) maxDisplayFreq = 200; if (maxDisplayFreq > htmlMaxFreq) maxDisplayFreq = htmlMaxFreq;
@@ -193,23 +181,47 @@ window.globalRenderLoop = function() {
     for (let n = 0; n < magnitudes.length; n++) { 
         let currentPointRealHz = n * hzPerBin; if (currentPointRealHz > maxDisplayFreq) break; let curX = (currentPointRealHz / maxDisplayFreq) * 800; if (curX > 800) curX = 800; if (curX < 0) curX = 0;
         let y = 30 + ((1.0 - (magnitudes[n] / localMaxPeak)) * 310);
-        
-        // 🚀 🛠️ 全模式統一主波峰、子波峰 100% 動態頂格死鎖防線！
         if (magnitudes[n] === localMaxPeak || n === realFsPeakBin || n === real04FsPeakBin) { if (magnitudes[n] >= localMaxPeak * 0.9) y = 32.0; }
         if (isNaN(y) || !isFinite(y)) y = 358.0; if (y < 32.0) y = 32.0; if (y > 358) y = 358; 
         if (isFirstPoint) { window.fCtx.moveTo(curX, y); isFirstPoint = false; } else { window.fCtx.lineTo(curX, y); }
     } window.fCtx.stroke();
-}; // 🚀 🛠️ 大括號在第四段最末尾 100% 完璧閉合！globalRenderLoop 宣告完美通關！
+};
+// 💡 🛠️ 儀表按鈕高對比燈號同步渲染函數：讓被選中的按鈕發出極光霓虹色，未選中的退回暗灰色
+window.renderFilterButtonLights = function() {
+    const btnIds = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
+    Object.keys(btnIds).forEach(mode => {
+        let btnEl = document.getElementById(btnIds[mode]);
+        if (!btnEl) return;
+        if (window.currentFilterMode === mode) {
+            // 🚀 被選中的按鈕：背景亮綠、黑字、外加 3 層賽博龐克極光擴散霓虹發光！
+            btnEl.style.backgroundColor = '#00ff66';
+            btnEl.style.color = '#111111';
+            btnEl.style.fontWeight = 'bold';
+            btnEl.style.boxShadow = '0 0 10px #00ff66, 0 0 20px #00ff66, inset 0 0 5px #ffffff';
+            btnEl.style.borderColor = '#ffffff';
+        } else {
+            // 深暗灰背景、白字、發光全面熄滅，界線分明
+            btnEl.style.backgroundColor = '#2A2A2A';
+            btnEl.style.color = '#ffffff';
+            btnEl.style.fontWeight = 'normal';
+            btnEl.style.boxShadow = 'none';
+            btnEl.style.borderColor = '#444444';
+        }
+    });
+};
+
 document.getElementById('simBtn')?.addEventListener('click', () => { window.isSimulating = !window.isSimulating; document.getElementById('simBtn').innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試"; window.initAudioGlobal(); });
 document.addEventListener('click', (e) => {
     if (!e.target || !e.target.id) return;
     let clickId = e.target.id;
     if (clickId === 'speakerBtn') { window.isSpeakerOn = !window.isSpeakerOn; document.getElementById('speakerBtn').innerText = window.isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉"; if (window.gainNode) window.gainNode.gain.setValueAtTime(window.isSpeakerOn ? window.currentVolume : 0.0, window.audioCtx.currentTime); }
+    
     const fModes = { filterRaw: 'RAW', filterLP: 'LP', filterHP: 'HP', filterBP: 'BP' };
     if (fModes[clickId]) {
-        document.querySelectorAll('.active').forEach(b => b.classList.remove('active')); e.target.classList.add('active'); window.currentFilterMode = fModes[clickId];
+        window.currentFilterMode = fModes[clickId];
         const f2View = document.getElementById('f2Container'); if (f2View) f2View.style.display = (clickId === 'filterBP') ? 'flex' : 'none';
         window.updateFilterCoefficients();
+        window.renderFilterButtonLights(); // 🚀 點擊時即時觸發物理彩色燈號刷新！
     }
 });
 document.addEventListener('input', (e) => {
@@ -225,4 +237,4 @@ document.addEventListener('input', (e) => {
     if (sliderId === "volumeSlider") { window.currentVolume = curVal; if (e.target.nextElementSibling) e.target.nextElementSibling.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && window.isSpeakerOn) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); }
     if (e.target.nextElementSibling && sliderId !== "f2Slider" && sliderId !== "volumeSlider") e.target.nextElementSibling.innerText = curVal + " Hz";
 });
-window.onload = function() { window.updateFilterCoefficients(); window.globalRenderLoop(); };
+window.onload = function() { window.updateFilterCoefficients(); window.renderFilterButtonLights(); window.globalRenderLoop(); }; // 🚀 網頁一開啟立刻自動初始化預選按鈕高亮！
