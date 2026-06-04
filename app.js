@@ -187,25 +187,28 @@ window.globalRenderLoop = function() {
     } window.fCtx.stroke();
 };
 // 💡 🛠️ 儀表按鈕高對比燈號同步渲染函數：讓被選中的按鈕發出極光霓虹色，未選中的退回暗灰色
+// ==========================================
+// 💡 🛠️ 終極修復：換裝最高權限 setProperty("...", "...", "important") 強踩防線！
+// ==========================================
 window.renderFilterButtonLights = function() {
     const btnIds = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
     Object.keys(btnIds).forEach(mode => {
         let btnEl = document.getElementById(btnIds[mode]);
         if (!btnEl) return;
         if (window.currentFilterMode === mode) {
-            // 🚀 被選中的按鈕：背景亮綠、黑字、外加 3 層賽博龐克極光擴散霓虹發光！
-            btnEl.style.backgroundColor = '#00ff66';
-            btnEl.style.color = '#111111';
-            btnEl.style.fontWeight = 'bold';
-            btnEl.style.boxShadow = '0 0 10px #00ff66, 0 0 20px #00ff66, inset 0 0 5px #ffffff';
-            btnEl.style.borderColor = '#ffffff';
+            // 🚀 被選中的按鈕：用最高權限強行染成亮綠色、黑字、並注入大範圍霓虹發光！
+            btnEl.style.setProperty("background-color", "#00ff66", "important");
+            btnEl.style.setProperty("color", "#111111", "important");
+            btnEl.style.setProperty("font-weight", "bold", "important");
+            btnEl.style.setProperty("box-shadow", "0 0 12px #00ff66, 0 0 25px #00ff66, inset 0 0 5px #ffffff", "important");
+            btnEl.style.setProperty("border-color", "#ffffff", "important");
         } else {
-            // 深暗灰背景、白字、發光全面熄滅，界線分明
-            btnEl.style.backgroundColor = '#2A2A2A';
-            btnEl.style.color = '#ffffff';
-            btnEl.style.fontWeight = 'normal';
-            btnEl.style.boxShadow = 'none';
-            btnEl.style.borderColor = '#444444';
+            // 未被選中的按鈕：用最高權限退回沉穩暗灰色、白字、熄滅發光
+            btnEl.style.setProperty("background-color", "#2A2A2A", "important");
+            btnEl.style.setProperty("color", "#ffffff", "important");
+            btnEl.style.setProperty("font-weight", "normal", "important");
+            btnEl.style.setProperty("box-shadow", "none", "important");
+            btnEl.style.setProperty("border-color", "#444444", "important");
         }
     });
 };
