@@ -1,4 +1,4 @@
-//1202
+//1203
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -62,6 +62,7 @@ window.updateFilterCoefficients = function() {
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     
+    // 💡 🛠️ 100% 採用正確的一行流與下標暫存移位，打通高通/帶通活水！
     window.xv[2] = window.xv[1]; window.xv[1] = window.xv[0]; window.xv[0] = x;
     window.yv[2] = window.yv[1]; window.yv[1] = window.yv[0];
     
@@ -157,9 +158,9 @@ window.globalRenderLoop = function() {
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; } }
     
     let hzPerBin = 44100 / window.FFT_SIZE, bFs = Math.round(window.currentSinFreq / hzPerBin), b04Fs = Math.round((window.currentSinFreq * 0.4) / hzPerBin);
-    let magFs = Math.max(magnitudes[bFs-1]||0, magnitudes[bFs]||0, magnitudes[bFs+1]||0);
     
-    // 💡 🛠️ 錯字完全徹底清除乾淨：將先前害死全域的 magnets 錯字徹底更正為純淨的離散陣列讀取，高頻與低頻通帶永久解凍！
+    // 💡 🛠️ 錯字徹底消滅乾淨：100% 永久清除 magnets 錯字，讓渲染迴圈健康放行！
+    let magFs = Math.max(magnitudes[bFs-1]||0, magnitudes[bFs]||0, magnitudes[bFs+1]||0);
     let mag04Fs = Math.max(magnitudes[b04Fs-1]||0, magnitudes[b04Fs]||0, magnitudes[b04Fs+1]||0);
     
     let currentFrameMaxMag = 0.5;
@@ -168,7 +169,7 @@ window.globalRenderLoop = function() {
 
     window.tCtx.clearRect(0, 0, 800, 400); window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, 800, 400); window.tCtx.strokeStyle = '#333'; window.tCtx.lineWidth = 1; window.tCtx.beginPath(); voltSteps.forEach(v => { let yPos = midY - v * scaleY; window.tCtx.moveTo(0, yPos); window.tCtx.lineTo(800, yPos); }); window.tCtx.stroke();
     window.tCtx.fillStyle = '#ffffff'; window.tCtx.font = 'bold 12px Arial'; voltSteps.forEach(v => window.tCtx.fillText((v >= 0 ? "+" : "") + v.toFixed(1) + "V", 25, midY - v * scaleY + 4));
-    window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath(); window.tCtx.moveTo(0, midY - (rawSlice[0] * scaleY)); for (let j = 1; j < rawSlice.length; j++) { window.tCtx.lineTo(j * (800 / (rawSlice.length - 1)), midY - (rawSlice[j] * scaleY)); } window.tCtx.stroke();
+    window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath(); window.tCtx.moveTo(0, midY - (rawSlice * scaleY)); for (let j = 1; j < rawSlice.length; j++) { window.tCtx.lineTo(j * (800 / (rawSlice.length - 1)), midY - (rawSlice[j] * scaleY)); } window.tCtx.stroke();
     window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + ((rawSlice.length / window.currentSampleRate) * 1000).toFixed(2) + " ms", 620, 380);
 
     window.fCtx.clearRect(0, 0, 800, 400); window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400); window.fCtx.strokeStyle = '#333'; window.fCtx.beginPath(); for (let k = 0; k <= 4; k++) window.fCtx.moveTo(k * 200, 0), window.fCtx.lineTo(k * 200, 360); window.fCtx.stroke();
@@ -190,22 +191,24 @@ window.globalRenderLoop = function() {
         if (isNaN(y) || !isFinite(y)) y = 358.0; if (y < 32.0) y = 32.0; if (y > 358) y = 358; 
         if (isFirstPoint) { window.fCtx.moveTo(curX, y); isFirstPoint = false; } else { window.fCtx.lineTo(curX, y); }
     } window.fCtx.stroke();
-};
-// ==========================================
-// 💡 🛠️ 終極大定案：換裝最高權限 cssText 強制染光防線！
-// ==========================================
+}; // 🚀 大括號完美閉合，globalRenderLoop 宣告完美通關！
+// 💡 🛠️ 100% 找回最心愛的第一版高亮染色逻辑！
 window.renderFilterButtonLights = function() {
     const btnIds = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
     Object.keys(btnIds).forEach(mode => {
         let btnEl = document.getElementById(btnIds[mode]);
         if (!btnEl) return;
         if (window.currentFilterMode === mode) {
-            // 🚀 被選中的按鈕：用最高權限強行染成亮綠色、黑字、粗體、並注入大範圍霓虹發光！
-            btnEl.style.cssText = "background-color: #00ff66 !important; color: #111111 !important; font-weight: bold !important; box-shadow: 0 0 12px #00ff66, 0 0 25px #00ff66 !important; border-color: #ffffff !important;";
+            // 🟢 找回第一版最漂亮的亮綠色背景！
+            btnEl.style.backgroundColor = '#00ff66';
+            btnEl.style.color = '#111111';
+            btnEl.style.fontWeight = 'bold';
             btnEl.classList.add('active');
         } else {
-            // 未被選中的按鈕：用最高權限退回深灰色、白字、熄滅發光
-            btnEl.style.cssText = "background-color: #2A2A2A !important; color: #ffffff !important; font-weight: normal !important; box-shadow: none !important; border-color: #444444 !important;";
+            // 找回深灰色底
+            btnEl.style.backgroundColor = '#2a2a2a';
+            btnEl.style.color = '#ffffff';
+            btnEl.style.fontWeight = 'normal';
             btnEl.classList.remove('active');
         }
     });
@@ -222,7 +225,7 @@ document.addEventListener('click', (e) => {
         window.currentFilterMode = fModes[clickId];
         const f2View = document.getElementById('f2Container'); if (f2View) f2View.style.display = (clickId === 'filterBP') ? 'flex' : 'none';
         window.updateFilterCoefficients();
-        window.renderFilterButtonLights(); // 🚀 點擊時安全外掛切換 Class 高亮！
+        window.renderFilterButtonLights(); // 🚀 點擊時同步亮色！
     }
 });
 document.addEventListener('input', (e) => {
