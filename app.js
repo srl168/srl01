@@ -1,4 +1,4 @@
-//1198
+//1199
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -154,11 +154,11 @@ window.globalRenderLoop = function() {
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; } }
     
     let hzPerBin = 44100 / window.FFT_SIZE, bFs = Math.round(window.currentSinFreq / hzPerBin), b04Fs = Math.round((window.currentSinFreq * 0.4) / hzPerBin);
-    let magFs = Math.max(magnitudes[bFs-1]||0, magnitudes[bFs]||0, magnitudes[bFs+1]||0), mag04Fs = Math.max(magnitudes[b04Fs-1]||0, magnets = magnitudes[b04Fs]||0, magnitudes[b04Fs+1]||0);
+    let magFs = Math.max(magnitudes[bFs-1]||0, magnitudes[bFs]||0, magnitudes[bFs+1]||0);
+    // 💡 🛠️ 錯字徹底消滅：將原先壞掉的 magnets = 錯字徹底更正為純淨的 magnitudes，迴圈永久安全放行！
+    let mag04Fs = Math.max(magnitudes[b04Fs-1]||0, magnitudes[b04Fs]||0, magnitudes[b04Fs+1]||0);
     
-    // 💡 🛠️ 剛性恆定分母：100% 永久死鎖常數基準 0.5（雙音最高理論能量），徹底粉碎所有導致 HP/BP 沒圖沒波形的幾何超限黑洞！
     let currentFrameMaxMag = 0.5;
-    
     let finalViewFocusHz = (window.currentFilterMode === 'LP' && magFs < 0.05 && mag04Fs > 0.05) ? (window.currentSinFreq * 0.4) : window.currentSinFreq;
     document.getElementById('freqVal').innerText = maxMag > 0.02 ? ((magnitudes[b04Fs] > magnitudes[bFs] ? window.currentSinFreq * 0.4 : window.currentSinFreq)).toFixed(1) + " Hz" : "0.0 Hz";
     // 渲染時域
@@ -175,14 +175,12 @@ window.globalRenderLoop = function() {
     window.fCtx.fillStyle = '#ffffff'; for (let k = 0; k <= 4; k++) window.fCtx.fillText((((maxDisplayFreq / 4) * k) / 1000).toFixed(2) + " kHz", k * 200 + (k === 0 ? 15 : k === 4 ? -75 : -25), 385);
     window.fCtx.strokeStyle = '#555555'; window.fCtx.lineWidth = 1; window.fCtx.beginPath(); dbSteps.forEach(db => { window.fCtx.moveTo(0, 30 + ((db / -50) * 310)); window.fCtx.lineTo(800, 30 + ((db / -50) * 310)); }); window.fCtx.stroke(); window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 11px Arial'; dbSteps.forEach(db => window.fCtx.fillText(db + " dB", 20, 34 + ((db / -50) * 310)));
     
-    // 💡 🛠️ 剛性雙主峰 Bin 動態定位
     let realFsPeakBin = bFs, real04FsPeakBin = b04Fs;
     for (let o = -3; o <= 3; o++) { 
         if ((magnitudes[bFs+o]||0) > (magnitudes[realFsPeakBin]||0)) realFsPeakBin = bFs + o; 
         if ((magnitudes[b04Fs+o]||0) > (magnitudes[real04FsPeakBin]||0)) real04FsPeakBin = b04Fs + o; 
     }
     
-    // 💡 🛠️ 動態尋找當前景格在放行帶內「能量最高的那根實體針尖」，作為動態頂格吸附指標
     let localMaxPeak = Math.max(magnitudes[realFsPeakBin]||0, magnitudes[real04FsPeakBin]||0);
     if (localMaxPeak < 0.005) localMaxPeak = 0.005;
 
@@ -190,10 +188,7 @@ window.globalRenderLoop = function() {
     for (let n = 0; n < magnitudes.length; n++) { 
         let currentPointRealHz = n * hzPerBin; if (currentPointRealHz > maxDisplayFreq) break; let curX = (currentPointRealHz / maxDisplayFreq) * 800; if (curX > 800) curX = 800; if (curX < 0) curX = 0;
         
-        // 🚀 🛠️ 全模式共享常數投影基準，幾何座標永不溢出！HP/BP 模式 100% 流暢出圖出波形！
         let y = 30 + ((1.0 - (magnitudes[n] / localMaxPeak)) * 310);
-        
-        // 🚀 🛠️ 剛性 0dB 頂格防線：不論在 RAW/LP/HP/BP 下，只要該點是當前景格的有效最高主峰點，100% 原地強制死鎖吸附在 Y=32px（0dB 線）！高度絕對切平、永不塌陷、也絕對不超框！
         if (magnitudes[n] === localMaxPeak || n === realFsPeakBin || n === real04FsPeakBin) {
             if (magnitudes[n] >= localMaxPeak * 0.9) y = 32.0;
         }
