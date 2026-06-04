@@ -33,7 +33,7 @@ window.updateFilterCoefficients = function() {
 //    let fr = window.f1 / window.currentSampleRate; if (fr < 2.01) fr = 2.01;
     let o = Math.tan(Math.PI / fr), 
 //	q = 0.1 + (window.f2 / 5000.0) * 9.9; 
-    if (q < 0.1) q = 0.1; if (q > 10.0) q = 10.0;
+//  if (q < 0.1) q = 0.1; if (q > 10.0) q = 10.0;
 	q = 0.707; 
 
     if (window.currentFilterMode === 'LP') { 
