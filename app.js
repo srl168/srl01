@@ -1,4 +1,4 @@
-//1201
+//1202
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -61,14 +61,17 @@ window.updateFilterCoefficients = function() {
 
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
-    window.xv = window.xv; window.xv = window.xv; window.xv = x;
-    window.yv = window.yv; window.yv = window.yv;
-    window.yv = (window.b0 * window.xv) + (window.b1 * window.xv) + (window.b2 * window.xv) 
-                   - (window.a1 * window.yv) - (window.a2 * window.yv);
-    if (isNaN(window.yv) || !isFinite(window.yv)) { 
-        window.yv = window.yv = window.yv = window.xv = window.xv = window.xv = 0; 
+    
+    window.xv[2] = window.xv[1]; window.xv[1] = window.xv[0]; window.xv[0] = x;
+    window.yv[2] = window.yv[1]; window.yv[1] = window.yv[0];
+    
+    window.yv[0] = (window.b0 * window.xv[0]) + (window.b1 * window.xv[1]) + (window.b2 * window.xv[2]) 
+                   - (window.a1 * window.yv[1]) - (window.a2 * window.yv[2]);
+    
+    if (isNaN(window.yv[0]) || !isFinite(window.yv[0])) { 
+        window.yv[0] = window.yv[1] = window.yv[2] = window.xv[0] = window.xv[1] = window.xv[2] = 0; 
     } 
-    return window.yv;
+    return window.yv[0];
 };
 window.oscNode = null; window.oscNode2 = null; window.scriptNode = null;
 window.audioCtx = null; window.gainNode = null;
@@ -155,6 +158,8 @@ window.globalRenderLoop = function() {
     
     let hzPerBin = 44100 / window.FFT_SIZE, bFs = Math.round(window.currentSinFreq / hzPerBin), b04Fs = Math.round((window.currentSinFreq * 0.4) / hzPerBin);
     let magFs = Math.max(magnitudes[bFs-1]||0, magnitudes[bFs]||0, magnitudes[bFs+1]||0);
+    
+    // 💡 🛠️ 錯字完全徹底清除乾淨：將先前害死全域的 magnets 錯字徹底更正為純淨的離散陣列讀取，高頻與低頻通帶永久解凍！
     let mag04Fs = Math.max(magnitudes[b04Fs-1]||0, magnitudes[b04Fs]||0, magnitudes[b04Fs+1]||0);
     
     let currentFrameMaxMag = 0.5;
@@ -163,7 +168,7 @@ window.globalRenderLoop = function() {
 
     window.tCtx.clearRect(0, 0, 800, 400); window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, 800, 400); window.tCtx.strokeStyle = '#333'; window.tCtx.lineWidth = 1; window.tCtx.beginPath(); voltSteps.forEach(v => { let yPos = midY - v * scaleY; window.tCtx.moveTo(0, yPos); window.tCtx.lineTo(800, yPos); }); window.tCtx.stroke();
     window.tCtx.fillStyle = '#ffffff'; window.tCtx.font = 'bold 12px Arial'; voltSteps.forEach(v => window.tCtx.fillText((v >= 0 ? "+" : "") + v.toFixed(1) + "V", 25, midY - v * scaleY + 4));
-    window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath(); window.tCtx.moveTo(0, midY - (rawSlice * scaleY)); for (let j = 1; j < rawSlice.length; j++) { window.tCtx.lineTo(j * (800 / (rawSlice.length - 1)), midY - (rawSlice[j] * scaleY)); } window.tCtx.stroke();
+    window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath(); window.tCtx.moveTo(0, midY - (rawSlice[0] * scaleY)); for (let j = 1; j < rawSlice.length; j++) { window.tCtx.lineTo(j * (800 / (rawSlice.length - 1)), midY - (rawSlice[j] * scaleY)); } window.tCtx.stroke();
     window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + ((rawSlice.length / window.currentSampleRate) * 1000).toFixed(2) + " ms", 620, 380);
 
     window.fCtx.clearRect(0, 0, 800, 400); window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400); window.fCtx.strokeStyle = '#333'; window.fCtx.beginPath(); for (let k = 0; k <= 4; k++) window.fCtx.moveTo(k * 200, 0), window.fCtx.lineTo(k * 200, 360); window.fCtx.stroke();
@@ -211,7 +216,7 @@ document.addEventListener('click', (e) => {
         window.currentFilterMode = fModes[clickId];
         const f2View = document.getElementById('f2Container'); if (f2View) f2View.style.display = (clickId === 'filterBP') ? 'flex' : 'none';
         window.updateFilterCoefficients();
-        window.renderFilterButtonLights(); // 🚀 點擊時安全刷新選取高亮！
+        window.renderFilterButtonLights(); // 🚀 點擊時安全外掛切換 Class 高亮！
     }
 });
 document.addEventListener('input', (e) => {
