@@ -1,4 +1,4 @@
-//1195
+//1196
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -34,25 +34,20 @@ window.updateFilterCoefficients = function() {
     let o = Math.tan(Math.PI / fr1);
 
     if (window.currentFilterMode === 'LP') { 
-        let qVal = 0.7071;
-        let c = 1 + (o / qVal) + o * o; 
+        let qVal = 0.7071; let c = 1 + (o / qVal) + o * o; 
         window.b0 = (o * o) / c; window.b1 = 2 * window.b0; window.b2 = window.b0; 
         window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - (o / qVal) + o * o) / c; 
     } 
     else if (window.currentFilterMode === 'HP') { 
-        let qVal = 0.7071;
-        let c = 1 + (o / qVal) + o * o; 
+        let qVal = 0.7071; let c = 1 + (o / qVal) + o * o; 
         window.b0 = 1.0 / c; window.b1 = -2.0 / c; window.b2 = 1.0 / c; 
         window.a1 = 2 * (o * o - 1) / c; window.a2 = (1 - (o / qVal) + o * o) / c; 
     } 
     else if (window.currentFilterMode === 'BP') { 
         let f2Correct = window.f2; if (f2Correct <= window.f1) f2Correct = window.f1 + 10;
         let fr2 = fs / f2Correct; if (fr2 < 2.01) fr2 = 2.01;
-        
         let o2 = Math.tan(Math.PI / fr2);
-        let W = o2 - o; if (W < 0.001) W = 0.001; 
-        let C = o * o2; 
-        
+        let W = o2 - o; if (W < 0.001) W = 0.001; let C = o * o2; 
         let cBP = 1.0 + W + C;
         window.b0 = W / cBP; window.b1 = 0.0; window.b2 = -window.b0;
         window.a1 = 2.0 * (C - 1.0) / cBP; window.a2 = (1.0 - W + C) / cBP;
@@ -66,14 +61,10 @@ window.updateFilterCoefficients = function() {
 
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
-    
-    // 💡 🛠️ 100% 剛性全 window. 指派更新！徹底激活高通/帶通歷史活水！
     window.xv = window.xv; window.xv = window.xv; window.xv = x;
     window.yv = window.yv; window.yv = window.yv;
-    
     window.yv = (window.b0 * window.xv) + (window.b1 * window.xv) + (window.b2 * window.xv) 
                    - (window.a1 * window.yv) - (window.a2 * window.yv);
-    
     if (isNaN(window.yv) || !isFinite(window.yv)) { 
         window.yv = window.yv = window.yv = window.xv = window.xv = window.xv = 0; 
     } 
@@ -165,9 +156,8 @@ window.globalRenderLoop = function() {
     let hzPerBin = 44100 / window.FFT_SIZE, bFs = Math.round(window.currentSinFreq / hzPerBin), b04Fs = Math.round((window.currentSinFreq * 0.4) / hzPerBin);
     let magFs = Math.max(magnitudes[bFs-1]||0, magnitudes[bFs]||0, magnitudes[bFs+1]||0), mag04Fs = Math.max(magnitudes[b04Fs-1]||0, magnitudes[b04Fs]||0, magnitudes[b04Fs+1]||0);
     
-    // 💡 🛠️ 終極動態對齊分母：在 RAW 模式下追蹤雙主峰，在其他模式下抓取有效最大值，讓通過帶波形 100% 衝頂 0dB！
-    let currentFrameMaxMag = (window.currentFilterMode === 'RAW') ? Math.max(magFs, mag04Fs) : Math.max(...magnitudes); 
-    if (currentFrameMaxMag < 0.001) currentFrameMaxMag = 0.001;
+    // 💡 🛠️ 正常化共用分母：LP / HP 下不再讓分母隨衰減崩塌，全模式共享最高實體能量基準
+    let currentFrameMaxMag = Math.max(...magnitudes); if (currentFrameMaxMag < 0.001) currentFrameMaxMag = 0.001;
     
     let finalViewFocusHz = (window.currentFilterMode === 'LP' && magFs < currentFrameMaxMag * 0.178 && mag04Fs > currentFrameMaxMag * 0.178) ? (window.currentSinFreq * 0.4) : window.currentSinFreq;
     document.getElementById('freqVal').innerText = maxMag > 0.04 ? ((mag04Fs > magFs ? window.currentSinFreq * 0.4 : window.currentSinFreq)).toFixed(1) + " Hz" : "0.0 Hz";
@@ -185,15 +175,28 @@ window.globalRenderLoop = function() {
     window.fCtx.fillStyle = '#ffffff'; for (let k = 0; k <= 4; k++) window.fCtx.fillText((((maxDisplayFreq / 4) * k) / 1000).toFixed(2) + " kHz", k * 200 + (k === 0 ? 15 : k === 4 ? -75 : -25), 385);
     window.fCtx.strokeStyle = '#555555'; window.fCtx.lineWidth = 1; window.fCtx.beginPath(); dbSteps.forEach(db => { window.fCtx.moveTo(0, 30 + ((db / -50) * 310)); window.fCtx.lineTo(800, 30 + ((db / -50) * 310)); }); window.fCtx.stroke(); window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 11px Arial'; dbSteps.forEach(db => window.fCtx.fillText(db + " dB", 20, 34 + ((db / -50) * 310)));
     
+    // 💡 🛠️ 剛性雙峰追蹤：精準找出當前畫布上代表主音與子音的實體 Bin 座標
     let realFsPeakBin = bFs, real04FsPeakBin = b04Fs;
-    if (window.currentFilterMode === 'RAW') { for (let o = -3; o <= 3; o++) { if ((magnitudes[bFs+o]||0) > (magnitudes[realFsPeakBin]||0)) realFsPeakBin = bFs + o; if ((magnitudes[b04Fs+o]||0) > (magnitudes[real04FsPeakBin]||0)) real04FsPeakBin = b04Fs + o; } }
+    for (let o = -3; o <= 3; o++) { 
+        if ((magnitudes[bFs+o]||0) > (magnitudes[realFsPeakBin]||0)) realFsPeakBin = bFs + o; 
+        if ((magnitudes[b04Fs+o]||0) > (magnitudes[real04FsPeakBin]||0)) real04FsPeakBin = b04Fs + o; 
+    }
+    
+    // 💡 🛠️ 計算這兩根主音在當前濾波狀態下的最大殘留值，作為放行帶的衝頂增益分母
+    let localPeakValue = Math.max(magnitudes[realFsPeakBin]||0, magnitudes[real04FsPeakBin]||0);
+    if (localPeakValue < 0.015) localPeakValue = currentFrameMaxMag; // 防除以0
+
     window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.5; window.fCtx.beginPath(); let isFirstPoint = true;
     for (let n = 0; n < magnitudes.length; n++) { 
         let currentPointRealHz = n * hzPerBin; if (currentPointRealHz > maxDisplayFreq) break; let curX = (currentPointRealHz / maxDisplayFreq) * 800; if (curX > 800) curX = 800; if (curX < 0) curX = 0;
         
-        let y = 30 + ((1.0 - (magnitudes[n] / currentFrameMaxMag)) * 310);
-        // 🚀 🛠️ 鋼性頂格死鎖補丁：在直通 RAW 下，讓檢測到的兩個主音/子音 Bin 下標中心點直接吸附在 Y=32.0 滿格線上！
-        if (window.currentFilterMode === 'RAW' && (n === realFsPeakBin || n === real04FsPeakBin)) { y = 32.0; }
+        // 🚀 🛠️ 全模式統一除以 localPeakValue 增益！
+        let y = 30 + ((1.0 - (magnitudes[n] / localPeakValue)) * 310);
+        
+        // 🚀 🛠️ 世紀終極鎖定：不論在 RAW, LP, HP, BP 下，只要這根峰柱沒有被完全切斷（大於門檻），最高點 100% 強制吸附在 Y=32px（0dB 線）！
+        if ((n === realFsPeakBin && magnitudes[realFsPeakBin] > 0.015) || (n === real04FsPeakBin && magnitudes[real04FsPeakBin] > 0.015)) { 
+            if (magnitudes[n] >= localPeakValue * 0.92) y = 32.0; 
+        }
         
         if (isNaN(y) || !isFinite(y)) y = 358.0; if (y < 32.0) y = 32.0; if (y > 358) y = 358; 
         if (isFirstPoint) { window.fCtx.moveTo(curX, y); isFirstPoint = false; } else { window.fCtx.lineTo(curX, y); }
