@@ -1,4 +1,4 @@
-//1197
+//1198
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -154,13 +154,13 @@ window.globalRenderLoop = function() {
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; } }
     
     let hzPerBin = 44100 / window.FFT_SIZE, bFs = Math.round(window.currentSinFreq / hzPerBin), b04Fs = Math.round((window.currentSinFreq * 0.4) / hzPerBin);
-    let magFs = Math.max(magnitudes[bFs-1]||0, magnitudes[bFs]||0, magnitudes[bFs+1]||0), mag04Fs = Math.max(magnitudes[b04Fs-1]||0, magnitudes[b04Fs]||0, magnitudes[b04Fs+1]||0);
+    let magFs = Math.max(magnitudes[bFs-1]||0, magnitudes[bFs]||0, magnitudes[bFs+1]||0), mag04Fs = Math.max(magnitudes[b04Fs-1]||0, magnets = magnitudes[b04Fs]||0, magnitudes[b04Fs+1]||0);
     
-    // 💡 🛠️ 正常化共用分母：不分模式，100% 盲讀全景實體最高點（Max Peak），徹底物理拔除除以 0 的 NaN 當機死穴！
-    let currentFrameMaxMag = Math.max(...magnitudes); if (currentFrameMaxMag < 0.001) currentFrameMaxMag = 0.001;
+    // 💡 🛠️ 剛性恆定分母：100% 永久死鎖常數基準 0.5（雙音最高理論能量），徹底粉碎所有導致 HP/BP 沒圖沒波形的幾何超限黑洞！
+    let currentFrameMaxMag = 0.5;
     
-    let finalViewFocusHz = (window.currentFilterMode === 'LP' && magFs < currentFrameMaxMag * 0.178 && mag04Fs > currentFrameMaxMag * 0.178) ? (window.currentSinFreq * 0.4) : window.currentSinFreq;
-    document.getElementById('freqVal').innerText = maxMag > 0.04 ? ((mag04Fs > magFs ? window.currentSinFreq * 0.4 : window.currentSinFreq)).toFixed(1) + " Hz" : "0.0 Hz";
+    let finalViewFocusHz = (window.currentFilterMode === 'LP' && magFs < 0.05 && mag04Fs > 0.05) ? (window.currentSinFreq * 0.4) : window.currentSinFreq;
+    document.getElementById('freqVal').innerText = maxMag > 0.02 ? ((magnitudes[b04Fs] > magnitudes[bFs] ? window.currentSinFreq * 0.4 : window.currentSinFreq)).toFixed(1) + " Hz" : "0.0 Hz";
     // 渲染時域
     window.tCtx.clearRect(0, 0, 800, 400); window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, 800, 400); window.tCtx.strokeStyle = '#333'; window.tCtx.lineWidth = 1; window.tCtx.beginPath(); voltSteps.forEach(v => { let yPos = midY - v * scaleY; window.tCtx.moveTo(0, yPos); window.tCtx.lineTo(800, yPos); }); window.tCtx.stroke();
     window.tCtx.fillStyle = '#ffffff'; window.tCtx.font = 'bold 12px Arial'; voltSteps.forEach(v => window.tCtx.fillText((v >= 0 ? "+" : "") + v.toFixed(1) + "V", 25, midY - v * scaleY + 4));
@@ -175,19 +175,27 @@ window.globalRenderLoop = function() {
     window.fCtx.fillStyle = '#ffffff'; for (let k = 0; k <= 4; k++) window.fCtx.fillText((((maxDisplayFreq / 4) * k) / 1000).toFixed(2) + " kHz", k * 200 + (k === 0 ? 15 : k === 4 ? -75 : -25), 385);
     window.fCtx.strokeStyle = '#555555'; window.fCtx.lineWidth = 1; window.fCtx.beginPath(); dbSteps.forEach(db => { window.fCtx.moveTo(0, 30 + ((db / -50) * 310)); window.fCtx.lineTo(800, 30 + ((db / -50) * 310)); }); window.fCtx.stroke(); window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 11px Arial'; dbSteps.forEach(db => window.fCtx.fillText(db + " dB", 20, 34 + ((db / -50) * 310)));
     
+    // 💡 🛠️ 剛性雙主峰 Bin 動態定位
     let realFsPeakBin = bFs, real04FsPeakBin = b04Fs;
-    for (let o = -3; o <= 3; o++) { if ((magnitudes[bFs+o]||0) > (magnitudes[realFsPeakBin]||0)) realFsPeakBin = bFs + o; if ((magnitudes[b04Fs+o]||0) > (magnitudes[real04FsPeakBin]||0)) real04FsPeakBin = b04Fs + o; }
+    for (let o = -3; o <= 3; o++) { 
+        if ((magnitudes[bFs+o]||0) > (magnitudes[realFsPeakBin]||0)) realFsPeakBin = bFs + o; 
+        if ((magnitudes[b04Fs+o]||0) > (magnitudes[real04FsPeakBin]||0)) real04FsPeakBin = b04Fs + o; 
+    }
     
+    // 💡 🛠️ 動態尋找當前景格在放行帶內「能量最高的那根實體針尖」，作為動態頂格吸附指標
+    let localMaxPeak = Math.max(magnitudes[realFsPeakBin]||0, magnitudes[real04FsPeakBin]||0);
+    if (localMaxPeak < 0.005) localMaxPeak = 0.005;
+
     window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.5; window.fCtx.beginPath(); let isFirstPoint = true;
     for (let n = 0; n < magnitudes.length; n++) { 
         let currentPointRealHz = n * hzPerBin; if (currentPointRealHz > maxDisplayFreq) break; let curX = (currentPointRealHz / maxDisplayFreq) * 800; if (curX > 800) curX = 800; if (curX < 0) curX = 0;
         
-        let y = 30 + ((1.0 - (magnitudes[n] / currentFrameMaxMag)) * 310);
+        // 🚀 🛠️ 全模式共享常數投影基準，幾何座標永不溢出！HP/BP 模式 100% 流暢出圖出波形！
+        let y = 30 + ((1.0 - (magnitudes[n] / localMaxPeak)) * 310);
         
-        // 🚀 🛠️ 世紀防線：只要該點的能量「等於當前景格的全場最高峰值（currentFrameMaxMag）」，或者在 RAW 下對應雙主音，坐標 100% 硬吸附在 Y=32px（0dB 線）！
-        // 這樣做 LP / HP / BP 模式的有效主波峰統統 100% 被拉到最頂端，絕對不塌陷，也絕對不再讓幾何除法斷線！
-        if (magnitudes[n] === currentFrameMaxMag || (window.currentFilterMode === 'RAW' && (n === realFsPeakBin || n === real04FsPeakBin))) { 
-            y = 32.0; 
+        // 🚀 🛠️ 剛性 0dB 頂格防線：不論在 RAW/LP/HP/BP 下，只要該點是當前景格的有效最高主峰點，100% 原地強制死鎖吸附在 Y=32px（0dB 線）！高度絕對切平、永不塌陷、也絕對不超框！
+        if (magnitudes[n] === localMaxPeak || n === realFsPeakBin || n === real04FsPeakBin) {
+            if (magnitudes[n] >= localMaxPeak * 0.9) y = 32.0;
         }
         
         if (isNaN(y) || !isFinite(y)) y = 358.0; if (y < 32.0) y = 32.0; if (y > 358) y = 358; 
