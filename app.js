@@ -191,16 +191,22 @@ window.globalRenderLoop = function() {
         if (isFirstPoint) { window.fCtx.moveTo(curX, y); isFirstPoint = false; } else { window.fCtx.lineTo(curX, y); }
     } window.fCtx.stroke();
 };
-// 💡 🛠️ 正宗零風險 Class 切換函數：只動 classList，0 風險、0 崩潰凸顯選取按鈕！
+// ==========================================
+// 💡 🛠️ 終極大定案：換裝最高權限 cssText 強制染光防線！
+// ==========================================
 window.renderFilterButtonLights = function() {
     const btnIds = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
     Object.keys(btnIds).forEach(mode => {
         let btnEl = document.getElementById(btnIds[mode]);
         if (!btnEl) return;
         if (window.currentFilterMode === mode) {
-            btnEl.classList.add('active'); // 🚀 剛性激活原本前端定義的選取凸顯高亮！
+            // 🚀 被選中的按鈕：用最高權限強行染成亮綠色、黑字、粗體、並注入大範圍霓虹發光！
+            btnEl.style.cssText = "background-color: #00ff66 !important; color: #111111 !important; font-weight: bold !important; box-shadow: 0 0 12px #00ff66, 0 0 25px #00ff66 !important; border-color: #ffffff !important;";
+            btnEl.classList.add('active');
         } else {
-            btnEl.classList.remove('active'); // 剛性褪色暗化未選中按鈕
+            // 未被選中的按鈕：用最高權限退回深灰色、白字、熄滅發光
+            btnEl.style.cssText = "background-color: #2A2A2A !important; color: #ffffff !important; font-weight: normal !important; box-shadow: none !important; border-color: #444444 !important;";
+            btnEl.classList.remove('active');
         }
     });
 };
