@@ -31,7 +31,8 @@ window.addEventListener('DOMContentLoaded', () => {
 window.updateFilterCoefficients = function() {
     let fr = window.currentSampleRate / window.f1; if (fr < 2.01) fr = 2.01;
 //    let fr = window.f1 / window.currentSampleRate; if (fr < 2.01) fr = 2.01;
-    let o = Math.tan(Math.PI / fr), q = 0.1 + (window.f2 / 5000.0) * 9.9; 
+    let o = Math.tan(Math.PI / fr), 
+	q = 0.1 + (window.f2 / 5000.0) * 9.9; 
     if (q < 0.1) q = 0.1; if (q > 10.0) q = 10.0;
 
     if (window.currentFilterMode === 'LP') { 
@@ -210,8 +211,10 @@ document.addEventListener('input', (e) => {
     if (sliderId === "sampleRateSlider") { window.currentSampleRate = parseInt(curVal); window.updateFilterCoefficients(); }
     if (sliderId === "sinFreqSlider") window.currentSinFreq = parseInt(curVal);
     if (sliderId === "f1Slider") { window.f1 = parseInt(curVal); window.updateFilterCoefficients(); }
-    if (sliderId === "f2Slider") { window.f2 = parseInt(curVal); if (e.target.nextElementSibling) e.target.nextElementSibling.innerText = "Q: " + (0.1 + (curVal / 5000.0) * 9.9).toFixed(2); window.updateFilterCoefficients(); }
+    if (sliderId === "f2Slider") { window.f2 = parseInt(curVal); window.updateFilterCoefficients(); }
+    //if (sliderId === "f2Slider") { window.f2 = parseInt(curVal); if (e.target.nextElementSibling) e.target.nextElementSibling.innerText = "Q: " + (0.1 + (curVal / 5000.0) * 9.9).toFixed(2); window.updateFilterCoefficients(); }
     if (sliderId === "volumeSlider") { window.currentVolume = curVal; if (e.target.nextElementSibling) e.target.nextElementSibling.innerText = Math.round(curVal * 100) + "%"; if (window.gainNode && window.isSpeakerOn) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); }
+	
     if (e.target.nextElementSibling && sliderId !== "f2Slider" && sliderId !== "volumeSlider") e.target.nextElementSibling.innerText = curVal + " Hz";
 });
 window.onload = function() { window.updateFilterCoefficients(); window.globalRenderLoop(); };
