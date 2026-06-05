@@ -1,4 +1,4 @@
-//1216
+//1217
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -16,7 +16,7 @@ window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 window.currentFilterMode = 'RAW'; window.f1 = 1000; window.f2 = 3000;
 window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 
-// 🚀 剛性宣告全域頂層 window.xv 與 window.yv 陣列
+// 🚀 🔒 頂層全域暫存器 Float32Array 卡死
 window.xv = new Float32Array(3); window.yv = new Float32Array(3);
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -61,7 +61,7 @@ window.updateFilterCoefficients = function() {
     }
 };
 
-// 🔒 🚀 【核心禁區】100% 絕對是有 window. 前綴、且帶有 [0],[1],[2] 中括號下標的原始移位代碼！
+// 🔒 🚀 【核心禁區鎖死】100% 保持有 window. 前綴、且帶有中括號下標 [0], [1], [2] 的真原始更新！
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     
@@ -102,7 +102,7 @@ window.initAudioGlobal = function() {
             for (let sample = 0; sample < audioProcessingEvent.inputBuffer.length; sample++) {
                 let step1 = 2.0 * Math.PI * (window.currentSinFreq / 44100), step2 = 2.0 * Math.PI * ((window.currentSinFreq * 0.4) / 44100);
                 
-                // 🔒 🚀 原裝 0.5 雙音發聲增益死鎖！
+                // 🔒 原裝 0.5 雙音混合，不做任何多餘猜測變動
                 let rawVal = (Math.sin(window.simPhase) + Math.sin(window.simPhase2)) * 0.5;
                 window.simPhase = (window.simPhase + step1) % (2 * Math.PI); window.simPhase2 = (window.simPhase2 + step2) % (2 * Math.PI);
                 
@@ -122,8 +122,6 @@ window.consumeRawBuffer = function(rawDataView) {
         window.analysisBuffer[window.bufferIndex] = fVal; window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
     }
 };
-// 🚀 🛠️ 實務科研級 localFFT 革命：拋棄一切有累積截斷誤差的 w * wlen 連續疊乘！
-// 旋轉因子完全改由三角函數根據當前格點 (j) 與層數 (len) 精確即時換算。從物理根源徹底抹平 1830Hz 複數平切！
 function localFFT(re, im) {
     const n = re.length; let bits = 0; while ((1 << bits) < n) bits++;
     for (let i = 0; i < n; i++) {
@@ -131,17 +129,13 @@ function localFFT(re, im) {
         if (rev > i) { let tr = re[i]; re[i] = re[rev]; re[rev] = tr; let ti = im[i]; im[i] = im[rev]; im[rev] = ti; }
     }
     for (let len = 2; len <= n; len <<= 1) {
-        let ang = 2 * Math.PI / len * -1;
+        let ang = 2 * Math.PI / len * -1, wlen_r = Math.cos(ang), wlen_i = Math.sin(ang);
         for (let i = 0; i < n; i += len) {
+            let w_r = 1, w_i = 0;
             for (let j = 0; j < len / 2; j++) {
-                // 🔒 🚀 消除截斷誤差核心：每一點的複數相位因子，100% 現場剛性計算，杜絕任何微觀相消死鎖！
-                let w_r = Math.cos(ang * j);
-                let w_i = Math.sin(ang * j);
-                
-                let u_r = re[i+j], u_i = im[i+j];
-                let v_r = re[i+j+len/2]*w_r - im[i+j+len/2]*w_i;
-                let v_i = re[i+j+len/2]*w_i + im[i+j+len/2]*w_r;
+                let u_r = re[i+j], u_i = im[i+j], v_r = re[i+j+len/2]*w_r - im[i+j+len/2]*w_i, v_i = re[i+j+len/2]*w_i + im[i+j+len/2]*w_r;
                 re[i+j] = u_r + v_r; im[i+j] = u_i + v_i; re[i+j+len/2] = u_r - v_r; im[i+j+len/2] = u_i - v_i;
+                let next_w_r = w_r * wlen_r - w_i * wlen_i; w_i = w_r * wlen_i + w_i * wlen_r; w_r = next_w_r;
             }
         }
     }
@@ -154,7 +148,7 @@ window.globalRenderLoop = function() {
     if (!window.isSimulating && window.filteredDataLog.length === 0) {
         window.tCtx.clearRect(0,0,800,400); window.tCtx.fillStyle='#111'; window.tCtx.fillRect(0,0,800,400); window.tCtx.strokeStyle='#333'; window.tCtx.beginPath(); voltSteps.forEach(v => { window.tCtx.moveTo(0,midY-v*145); window.tCtx.lineTo(800,midY-v*145); }); window.tCtx.stroke();
         window.tCtx.fillStyle='#fff'; window.tCtx.font='bold 12px Arial'; window.tCtx.fillText("+1.0V", 25, 55); window.tCtx.fillText("0.0V", 25, 204); window.tCtx.fillText("-1.0V", 25, 345);
-        window.fCanvas.getContext('2d').clearRect(0,0,800,400); window.fCtx.fillStyle='#111'; window.fCtx.fillRect(0,0,800,400); window.fCtx.strokeStyle='#333'; window.fCtx.beginPath(); for(let k=0;k<=4;k++){window.fCtx.moveTo(k*200,0);window.fCtx.lineTo(k*200,360);} window.fCtx.stroke(); window.fCtx.fillStyle='#fff'; let ticks = ["0.00 kHz","1.25 kHz","2.50 kHz","3.75 kHz","5.00 kHz"]; for(let k=0;k<=4;k++) window.fCtx.fillText(ticks[k], k*200+(k===0?15:k===4?-75:-25), 385);
+        window.fCtx.clearRect(0,0,800,400); window.fCtx.fillStyle='#111'; window.fCtx.fillRect(0,0,800,400); window.fCtx.strokeStyle='#333'; window.fCtx.beginPath(); for(let k=0;k<=4;k++){window.fCtx.moveTo(k*200,0);window.fCtx.lineTo(k*200,360);} window.fCtx.stroke(); window.fCtx.fillStyle='#fff'; let ticks = ["0.00 kHz","1.25 kHz","2.50 kHz","3.75 kHz","5.00 kHz"]; for(let k=0;k<=4;k++) window.fCtx.fillText(ticks[k], k*200+(k===0?15:k===4?-75:-25), 385);
         window.fCtx.strokeStyle='#555555'; window.fCtx.beginPath(); dbSteps.forEach(db => { window.fCtx.moveTo(0,30+(db/-50)*310); window.fCtx.lineTo(800,30+(db/-50)*310); }); window.fCtx.stroke(); window.fCtx.fillStyle='#ffffff'; window.fCtx.font='bold 11px Arial'; dbSteps.forEach(db => window.fCtx.fillText(db+" dB", 20, 34+(db/-50)*310));
         document.getElementById('vppVal').innerText = "0.00 V"; document.getElementById('rmsVal').innerText = "0.00 V"; document.getElementById('freqVal').innerText = "0.0 Hz"; return;
     }
@@ -164,9 +158,8 @@ window.globalRenderLoop = function() {
     document.getElementById('vppVal').innerText = (max - min).toFixed(2) + " V"; document.getElementById('rmsVal').innerText = Math.sqrt(sq / rawSlice.length).toFixed(2) + " V";
     
     let re = new Float32Array(window.FFT_SIZE), im = new Float32Array(window.FFT_SIZE);
-    for (let k = 0; k < window.FFT_SIZE; k++) { re[k] = window.analysisBuffer[(window.bufferIndex + k) % window.FFT_SIZE]; }
-    localFFT(re, im);
-    let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0;
+    for (let k = 0; k < window.FFT_SIZE; k++) re[k] = window.analysisBuffer[(window.bufferIndex + k) % window.FFT_SIZE];
+    localFFT(re, im); let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0;
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; } }
     
     let hzPerBin = 44100 / window.FFT_SIZE;
@@ -175,20 +168,22 @@ window.globalRenderLoop = function() {
     if (maxDisplayFreq < 200) maxDisplayFreq = 200; if (maxDisplayFreq > htmlMaxFreq) maxDisplayFreq = htmlMaxFreq;
     
     let currentFrameMaxMag = Math.max(...magnitudes); if (currentFrameMaxMag < 0.001) currentFrameMaxMag = 0.001;
-    document.getElementById('freqVal').innerText = maxMag > 0.02 ? ((magnitudes[Math.round((window.currentSinFreq*0.4)/hzPerBin)] > magnitudes[Math.round(window.currentSinFreq/hzPerBin)] ? window.currentSinFreq * 0.4 : window.currentSinFreq)).toFixed(1) + " Hz" : "0.0 Hz";
+    document.getElementById('freqVal').innerText = maxMag > 0.02 ? (maxMag * (window.FFT_SIZE / 2) * hzPerBin).toFixed(1) + " Hz" : "0.0 Hz";
 
     window.tCtx.clearRect(0, 0, 800, 400); window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, 800, 400); window.tCtx.strokeStyle = '#333'; window.tCtx.lineWidth = 1; window.tCtx.beginPath(); voltSteps.forEach(v => { let yPos = midY - v * scaleY; window.tCtx.moveTo(0, yPos); window.tCtx.lineTo(800, yPos); }); window.tCtx.stroke();
     window.tCtx.fillStyle = '#ffffff'; window.tCtx.font = 'bold 12px Arial'; voltSteps.forEach(v => window.tCtx.fillText((v >= 0 ? "+" : "") + v.toFixed(1) + "V", 25, midY - v * scaleY + 4));
     window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath(); window.tCtx.moveTo(0, midY - (rawSlice * scaleY)); for (let j = 1; j < rawSlice.length; j++) { window.tCtx.lineTo(j * (800 / (rawSlice.length - 1)), midY - (rawSlice[j] * scaleY)); } window.tCtx.stroke();
     window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + ((rawSlice.length / 44100) * 1000).toFixed(2) + " ms", 620, 380);
 
-    window.fCtx.clearRect(0, 0, 800, 400); window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400); window.fCtx.strokeStyle = '#333'; window.fCtx.beginPath(); for(let k = 0; k <= 4; k++) window.fCtx.moveTo(k * 200, 0), window.fCtx.lineTo(k * 200, 360); window.fCtx.stroke();
+    window.fCtx.clearRect(0, 0, 800, 400); window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400); window.fCtx.strokeStyle = '#333'; window.fCtx.beginPath(); for (let k = 0; k <= 4; k++) window.fCtx.moveTo(k * 200, 0), window.fCtx.lineTo(k * 200, 360); window.fCtx.stroke();
     window.fCtx.fillStyle = '#ffffff'; for (let k = 0; k <= 4; k++) window.fCtx.fillText((((maxDisplayFreq / 4) * k) / 1000).toFixed(2) + " kHz", k * 200 + (k === 0 ? 15 : k === 4 ? -75 : -25), 385);
     window.fCtx.strokeStyle = '#555555'; window.fCtx.lineWidth = 1; window.fCtx.beginPath(); dbSteps.forEach(db => { window.fCtx.moveTo(0, 30 + ((db / -50) * 310)); window.fCtx.lineTo(800, 30 + ((db / -50) * 310)); }); window.fCtx.stroke(); window.fCtx.fillStyle = '#ffffff'; window.fCtx.font = 'bold 11px Arial'; dbSteps.forEach(db => window.fCtx.fillText(db + " dB", 20, 34 + ((db / -50) * 310)));
     
     window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.5; window.fCtx.beginPath(); let isFirstPoint = true;
     for (let n = 0; n < magnitudes.length; n++) { 
         let currentPointRealHz = n * hzPerBin; if (currentPointRealHz > maxDisplayFreq) break; let curX = (currentPointRealHz / maxDisplayFreq) * 800;
+        
+        // 🔒 Pure 幾何除法，徹底淨化。不附加任何關於頻率或吸附的 if 判斷
         let y = 30 + ((1.0 - (magnitudes[n] / currentFrameMaxMag)) * 310);
         
         if (isNaN(y) || !isFinite(y)) y = 358.0; if (y < 32.0) y = 32.0; if (y > 358) y = 358; 
