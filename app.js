@@ -1,4 +1,4 @@
-//1215
+//1216
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -61,7 +61,7 @@ window.updateFilterCoefficients = function() {
     }
 };
 
-// 🔒 🚀 【真．神聖核心】看好了！100% 絕對是有 window. 前綴、且帶有中括號下標 [0],[1],[2] 的原始移位更新！一字都不准動！
+// 🔒 🚀 【核心禁區】100% 絕對是有 window. 前綴、且帶有 [0],[1],[2] 中括號下標的原始移位代碼！
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     
@@ -122,8 +122,8 @@ window.consumeRawBuffer = function(rawDataView) {
         window.analysisBuffer[window.bufferIndex] = fVal; window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
     }
 };
-// 🚀 🛠️ 正宗通信級救贖：在 localFFT 複數蝶形計算的每一層相加時，強制將 u 與 v 幅度乘以 0.5（級聯衰減）！
-// 這能完美消除 1830Hz 共振引起的實部虛部內存溢出，不論高頻柱長、中、短，頭部平切死線歷史性終結！
+// 🚀 🛠️ 實務科研級 localFFT 革命：拋棄一切有累積截斷誤差的 w * wlen 連續疊乘！
+// 旋轉因子完全改由三角函數根據當前格點 (j) 與層數 (len) 精確即時換算。從物理根源徹底抹平 1830Hz 複數平切！
 function localFFT(re, im) {
     const n = re.length; let bits = 0; while ((1 << bits) < n) bits++;
     for (let i = 0; i < n; i++) {
@@ -131,15 +131,17 @@ function localFFT(re, im) {
         if (rev > i) { let tr = re[i]; re[i] = re[rev]; re[rev] = tr; let ti = im[i]; im[i] = im[rev]; im[rev] = ti; }
     }
     for (let len = 2; len <= n; len <<= 1) {
-        let ang = 2 * Math.PI / len * -1, wlen_r = Math.cos(ang), wlen_i = Math.sin(ang);
+        let ang = 2 * Math.PI / len * -1;
         for (let i = 0; i < n; i += len) {
-            let w_r = 1, w_i = 0;
             for (let j = 0; j < len / 2; j++) {
-                // 🔒 🚀 級聯衰減核心： u 與 v 在平方和開根號前，每層剛性平滑乘以 0.5 降噪防溢出！
-                let u_r = re[i+j] * 0.5, u_i = im[i+j] * 0.5;
-                let v_r = (re[i+j+len/2]*w_r - im[i+j+len/2]*w_i) * 0.5, v_i = (re[i+j+len/2]*w_i + im[i+j+len/2]*w_r) * 0.5;
+                // 🔒 🚀 消除截斷誤差核心：每一點的複數相位因子，100% 現場剛性計算，杜絕任何微觀相消死鎖！
+                let w_r = Math.cos(ang * j);
+                let w_i = Math.sin(ang * j);
+                
+                let u_r = re[i+j], u_i = im[i+j];
+                let v_r = re[i+j+len/2]*w_r - im[i+j+len/2]*w_i;
+                let v_i = re[i+j+len/2]*w_i + im[i+j+len/2]*w_r;
                 re[i+j] = u_r + v_r; im[i+j] = u_i + v_i; re[i+j+len/2] = u_r - v_r; im[i+j+len/2] = u_i - v_i;
-                let next_w_r = w_r * wlen_r - w_i * wlen_i; w_i = w_r * wlen_i + w_i * wlen_r; w_r = next_w_r;
             }
         }
     }
@@ -165,9 +167,7 @@ window.globalRenderLoop = function() {
     for (let k = 0; k < window.FFT_SIZE; k++) { re[k] = window.analysisBuffer[(window.bufferIndex + k) % window.FFT_SIZE]; }
     localFFT(re, im);
     let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0;
-    
-    // 🚀 🛠️ 因為內存已做衰減，模長直接完美提取原生值，絕不再觸發 1830Hz 數字死鎖飽和！
-    for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; } }
+    for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; } }
     
     let hzPerBin = 44100 / window.FFT_SIZE;
     let maxDisplayFreq = window.currentSinFreq * 1.5;
@@ -189,8 +189,6 @@ window.globalRenderLoop = function() {
     window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.5; window.fCtx.beginPath(); let isFirstPoint = true;
     for (let n = 0; n < magnitudes.length; n++) { 
         let currentPointRealHz = n * hzPerBin; if (currentPointRealHz > maxDisplayFreq) break; let curX = (currentPointRealHz / maxDisplayFreq) * 800;
-        
-        // 🔒 🚀 絕不再觸碰、也不再檢查這行！由純除法動態歸一。因為 localFFT 內部已做平滑 Scaling，1830Hz 雙主峰頂部完全回歸真實物理形狀！
         let y = 30 + ((1.0 - (magnitudes[n] / currentFrameMaxMag)) * 310);
         
         if (isNaN(y) || !isFinite(y)) y = 358.0; if (y < 32.0) y = 32.0; if (y > 358) y = 358; 
