@@ -1,23 +1,23 @@
-//1225
+//12251
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
 // ==========================================
 // 💡 1️⃣ 全域記憶體大腦池初始化
 // ==========================================
-window.currentSampleRate = 20000; window.currentSinFreq = 3000; 
+window.currentSampleRate = 20000; window.currentSinFreq = 1830; 
 window.filteredDataLog = []; window.bufferIndex = 0;
 window.nextPlayTime = 0; window.isSpeakerOn = false;
 window.isSimulating = false; window.currentVolume = 0.3; 
 window.simPhase = 0; window.simPhase2 = 0;             
 window.FFT_SIZE = 1024; window.renderFrameCounter = 0; 
-window.analysisBuffer = new Float32Array(window.FFT_SIZE);
+window.analysisBuffer = new Float64Array(window.FFT_SIZE);
 
 window.currentFilterMode = 'RAW'; window.f1 = 1000; window.f2 = 3000;
 window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 
 // 🚀 🔒 全域頂層 window.xv 與 window.yv 陣列死鎖綁定，確保下標讀寫安全
-window.xv = new Float32Array(3); window.yv = new Float32Array(3);
+window.xv = new Float64Array(3); window.yv = new Float64Array(3);
 
 window.addEventListener('DOMContentLoaded', () => {
     window.tCanvas = document.getElementById('timeCanvas'); 
@@ -99,7 +99,7 @@ window.initAudioGlobal = function() {
         window.scriptNode = window.audioCtx.createScriptProcessor(1024, 1, 1);
         window.scriptNode.onaudioprocess = function(audioProcessingEvent) {
             let outputData = audioProcessingEvent.outputBuffer.getChannelData(0);
-            let inputBlock = new Float32Array(audioProcessingEvent.inputBuffer.length);
+            let inputBlock = new Float64Array(audioProcessingEvent.inputBuffer.length);
             
             for (let sample = 0; sample < audioProcessingEvent.inputBuffer.length; sample++) {
                 let step1 = 2.0 * Math.PI * (window.currentSinFreq / 44100), step2 = 2.0 * Math.PI * ((window.currentSinFreq * 0.4) / 44100);
@@ -110,10 +110,10 @@ window.initAudioGlobal = function() {
             
             // 🚀 🛠️ 零相位（filtfilt）實務校準：前向濾波一次，再翻轉進行反向濾波一次！
             // 這能將群延遲剛性歸零，1830Hz 下引發的 732Hz 低頻相位畸變將被前後對稱抵消，斜切削波徹底永久消失！
-            let forwardBlock = new Float32Array(inputBlock.length);
+            let forwardBlock = new Float64Array(inputBlock.length);
             for(let j=0; j<inputBlock.length; j++) forwardBlock[j] = window.applyFilter ? window.applyFilter(inputBlock[j]) : inputBlock[j];
             
-            let backwardBlock = new Float32Array(forwardBlock.length);
+            let backwardBlock = new Float64Array(forwardBlock.length);
             for(let j=forwardBlock.length-1; j>=0; j--) {
                 let fVal = window.applyFilter ? window.applyFilter(forwardBlock[j]) : forwardBlock[j];
                 backwardBlock[j] = fVal;
@@ -174,9 +174,9 @@ window.globalRenderLoop = function() {
     let scaleY = 145.0; let max = Math.max(...rawSlice), min = Math.min(...rawSlice), sq = 0; rawSlice.forEach(v => sq += v * v);
     document.getElementById('vppVal').innerText = (max - min).toFixed(2) + " V"; document.getElementById('rmsVal').innerText = Math.sqrt(sq / rawSlice.length).toFixed(2) + " V";
     
-    let re = new Float32Array(window.FFT_SIZE), im = new Float32Array(window.FFT_SIZE);
+    let re = new Float64Array(window.FFT_SIZE), im = new Float64Array(window.FFT_SIZE);
     for (let k = 0; k < window.FFT_SIZE; k++) re[k] = window.analysisBuffer[(window.bufferIndex + k) % window.FFT_SIZE];
-    localFFT(re, im); let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0;
+    localFFT(re, im); let magnitudes = new Float64Array(window.FFT_SIZE / 2), maxMag = 0;
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; } }
     
     let hzPerBin = 44100 / window.FFT_SIZE;
