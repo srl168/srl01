@@ -5,7 +5,7 @@ window.isWritingLock = false;
 // ==========================================
 // 💡 1️⃣ 全域記憶體大腦池初始化
 // ==========================================
-window.currentSampleRate = 20000; window.currentSinFreq = 3000; 
+window.currentSampleRate = 20000; window.currentSinFreq = 1830; 
 window.filteredDataLog = []; window.bufferIndex = 0;
 window.nextPlayTime = 0; window.isSpeakerOn = false;
 window.isSimulating = false; window.currentVolume = 0.3; 
