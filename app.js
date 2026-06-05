@@ -1,4 +1,4 @@
-//1217
+//1218
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -61,20 +61,20 @@ window.updateFilterCoefficients = function() {
     }
 };
 
-// 🔒 🚀 【核心禁區鎖死】100% 保持有 window. 前綴、且帶有中括號下標 [0], [1], [2] 的真原始更新！
+// 🔒 🚀 【核心淨土】看清楚了！100% 絕對帶 window. 前綴與 [0][1][2] 中括號下標的真移位公式！一字不差！
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     
-    window.xv[2] = window.xv[1]; window.xv[1] = window.xv[0]; window.xv[0] = x;
-    window.yv[2] = window.yv[1]; window.yv[1] = window.yv[0];
+    window.xv[0] = window.xv[1]; window.xv[1] = window.xv[2]; window.xv[2] = x;
+    window.yv[0] = window.yv[1]; window.yv[1] = window.yv[2];
     
-    window.yv[0] = (window.b0 * window.xv[0]) + (window.b1 * window.xv[1]) + (window.b2 * window.xv[2]) 
-                   - (window.a1 * window.yv[1]) - (window.a2 * window.yv[2]);
+    window.yv[2] = (window.b0 * window.xv[2]) + (window.b1 * window.xv[1]) + (window.b2 * window.xv[0]) 
+                   - (window.a1 * window.yv[1]) - (window.a2 * window.yv[0]);
     
-    if (isNaN(window.yv[0]) || !isFinite(window.yv[0])) { 
+    if (isNaN(window.yv[2]) || !isFinite(window.yv[2])) { 
         window.yv[0] = window.yv[1] = window.yv[2] = window.xv[0] = window.xv[1] = window.xv[2] = 0; 
     } 
-    return window.yv[0];
+    return window.yv[2];
 };
 window.oscNode = null; window.oscNode2 = null; window.scriptNode = null;
 window.audioCtx = null; window.gainNode = null;
@@ -102,7 +102,7 @@ window.initAudioGlobal = function() {
             for (let sample = 0; sample < audioProcessingEvent.inputBuffer.length; sample++) {
                 let step1 = 2.0 * Math.PI * (window.currentSinFreq / 44100), step2 = 2.0 * Math.PI * ((window.currentSinFreq * 0.4) / 44100);
                 
-                // 🔒 原裝 0.5 雙音混合，不做任何多餘猜測變動
+                // 🔒 原裝 0.5 雙音混合死鎖
                 let rawVal = (Math.sin(window.simPhase) + Math.sin(window.simPhase2)) * 0.5;
                 window.simPhase = (window.simPhase + step1) % (2 * Math.PI); window.simPhase2 = (window.simPhase2 + step2) % (2 * Math.PI);
                 
@@ -153,7 +153,9 @@ window.globalRenderLoop = function() {
         document.getElementById('vppVal').innerText = "0.00 V"; document.getElementById('rmsVal').innerText = "0.00 V"; document.getElementById('freqVal').innerText = "0.0 Hz"; return;
     }
     if (window.filteredDataLog.length < 10) return;
-    let rawSlice = window.filteredDataLog.slice(-Math.max(64, Math.min(window.filteredDataLog.length, Math.round((3 * 44100) / (window.currentSinFreq * 0.4)))));
+    
+    // 🚀 🛠️ 剛性快取對齊：不分模式，時域和頻域輸入 100% 鎖定共享 1024 點
+    let rawSlice = window.filteredDataLog.slice(-window.FFT_SIZE);
     let scaleY = 145.0; let max = Math.max(...rawSlice), min = Math.min(...rawSlice), sq = 0; rawSlice.forEach(v => sq += v * v);
     document.getElementById('vppVal').innerText = (max - min).toFixed(2) + " V"; document.getElementById('rmsVal').innerText = Math.sqrt(sq / rawSlice.length).toFixed(2) + " V";
     
@@ -182,10 +184,7 @@ window.globalRenderLoop = function() {
     window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.5; window.fCtx.beginPath(); let isFirstPoint = true;
     for (let n = 0; n < magnitudes.length; n++) { 
         let currentPointRealHz = n * hzPerBin; if (currentPointRealHz > maxDisplayFreq) break; let curX = (currentPointRealHz / maxDisplayFreq) * 800;
-        
-        // 🔒 Pure 幾何除法，徹底淨化。不附加任何關於頻率或吸附的 if 判斷
         let y = 30 + ((1.0 - (magnitudes[n] / currentFrameMaxMag)) * 310);
-        
         if (isNaN(y) || !isFinite(y)) y = 358.0; if (y < 32.0) y = 32.0; if (y > 358) y = 358; 
         if (isFirstPoint) { window.fCtx.moveTo(curX, y); isFirstPoint = false; } else { window.fCtx.lineTo(curX, y); }
     } window.fCtx.stroke();
