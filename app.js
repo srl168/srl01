@@ -1,4 +1,4 @@
-//1223
+//1224
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
