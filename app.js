@@ -1,4 +1,4 @@
-//1212
+//1213
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -17,7 +17,7 @@ window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 window.currentFilterMode = 'RAW'; window.f1 = 1000; window.f2 = 3000;
 window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 
-// 🚀 剛性宣告全域頂層 window.xv 與 window.yv 陣列
+// 🚀 🛠️ 剛性將 xv 與 yv 宣告在 window 全域頂層，確保 applyFilter 內部 100% 正常對齊！
 window.xv = new Float32Array(3); window.yv = new Float32Array(3);
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -62,7 +62,7 @@ window.updateFilterCoefficients = function() {
     }
 };
 
-// 🔒 🚀 【鋼性死鎖】遵照指示：100% 鎖定 window. 前綴 ＋ 陣列中括號下標！絕不改動！
+// 🔒 🚀 【終極死鎖禁區】遵照指示：100% 保持有 window. 前綴、且帶有中括號下標的原始更新！一像素都不改動！
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     
@@ -169,7 +169,8 @@ window.globalRenderLoop = function() {
     let htmlMaxFreq = parseFloat(document.getElementById('sinFreqSlider')?.max) || 5000;
     if (maxDisplayFreq < 200) maxDisplayFreq = 200; if (maxDisplayFreq > htmlMaxFreq) maxDisplayFreq = htmlMaxFreq;
     
-    // 🚀 0 作弊、0 硬拉！完全利用純幾何比例投影，任何主頻率最高主波峰除以自己恆等於 1.0，自然而然頂格 0dB 白色虛線！
+    // 🚀 🛠️ 終極徹底解鎖：拔除過往一切「If拉平作弊限幅」！完全交給純除法自適應投影分母！
+    // 這樣全場最高的那根主峰除以自己必然恆等於 1.0（Y=32px），高頻柱不論長短通通恢復為真實物理正弦尖頭，平切死線大崩潰消滅！
     let currentFrameMaxMag = Math.max(...magnitudes); if (currentFrameMaxMag < 0.001) currentFrameMaxMag = 0.001;
     document.getElementById('freqVal').innerText = maxMag > 0.02 ? ((magnitudes[Math.round((window.currentSinFreq*0.4)/hzPerBin)] > magnitudes[Math.round(window.currentSinFreq/hzPerBin)] ? window.currentSinFreq * 0.4 : window.currentSinFreq)).toFixed(1) + " Hz" : "0.0 Hz";
 
