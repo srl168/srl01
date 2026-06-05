@@ -1,4 +1,4 @@
-//1224
+//12241 currentSampleRate + Float64Array
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -11,13 +11,13 @@ window.nextPlayTime = 0; window.isSpeakerOn = false;
 window.isSimulating = false; window.currentVolume = 0.3; 
 window.simPhase = 0; window.simPhase2 = 0;             
 window.FFT_SIZE = 1024; window.renderFrameCounter = 0; 
-window.analysisBuffer = new Float32Array(window.FFT_SIZE);
+window.analysisBuffer = new Float64Array(window.FFT_SIZE);
 
 window.currentFilterMode = 'RAW'; window.f1 = 1000; window.f2 = 3000;
 window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 
 // 🚀 🔒 全域頂層 window.xv 與 window.yv 陣列死鎖綁定，確保下標安全讀寫
-window.xv = new Float32Array(3); window.yv = new Float32Array(3);
+window.xv = new Float64Array(3); window.yv = new Float64Array(3);
 
 window.addEventListener('DOMContentLoaded', () => {
     window.tCanvas = document.getElementById('timeCanvas'); 
@@ -162,9 +162,9 @@ window.globalRenderLoop = function() {
     let scaleY = 145.0; let max = Math.max(...rawSlice), min = Math.min(...rawSlice), sq = 0; rawSlice.forEach(v => sq += v * v);
     document.getElementById('vppVal').innerText = (max - min).toFixed(2) + " V"; document.getElementById('rmsVal').innerText = Math.sqrt(sq / rawSlice.length).toFixed(2) + " V";
     
-    let re = new Float32Array(window.FFT_SIZE), im = new Float32Array(window.FFT_SIZE);
+    let re = new Float64Array(window.FFT_SIZE), im = new Float64Array(window.FFT_SIZE);
     for (let k = 0; k < window.FFT_SIZE; k++) re[k] = window.analysisBuffer[(window.bufferIndex + k) % window.FFT_SIZE];
-    localFFT(re, im); let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0;
+    localFFT(re, im); let magnitudes = new Float64Array(window.FFT_SIZE / 2), maxMag = 0;
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; } }
     
     // 🚀 🛠️ 網格解析度步長直接連動全域實時拉桿值 window.currentSampleRate
