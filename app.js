@@ -1,4 +1,4 @@
-//1221
+//1222
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -11,12 +11,14 @@ window.nextPlayTime = 0; window.isSpeakerOn = false;
 window.isSimulating = false; window.currentVolume = 0.3; 
 window.simPhase = 0; window.simPhase2 = 0;             
 window.FFT_SIZE = 1024; window.renderFrameCounter = 0; 
-window.analysisBuffer = new Float32Array(window.FFT_SIZE);
+
+// 🚀 🛠️ 實務科研級救贖：全面廢除Float32Array，換裝常規浮點陣列
+window.analysisBuffer = new Array(window.FFT_SIZE).fill(0);
 
 window.currentFilterMode = 'RAW'; window.f1 = 1000; window.f2 = 3000;
 window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 
-// 🚀 🔒 頂層全域暫存器 Float32Array 卡死
+// 🚀 🔒 全域頂層 window.xv 與 window.yv 陣列死鎖綁定，確保下標與前綴作用域安全
 window.xv = new Float32Array(3); window.yv = new Float32Array(3);
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -61,20 +63,20 @@ window.updateFilterCoefficients = function() {
     }
 };
 
-// 🔒 🚀 【真．核心淨土】看清楚了！中括號 [0][1][2] 與 window. 前綴完璧歸趙，100% 絕對雷打不動！
+// 🔒 🚀 【真．核心淨土】看清楚了！中括號下標[0][1][2]與 window. 前綴完璧歸趙，100% 絕對雷打不動！
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     
-    window.xv[0] = window.xv[1]; window.xv[1] = window.xv[2]; window.xv[2] = x;
-    window.yv[0] = window.yv[1]; window.yv[1] = window.yv[2];
+    window.xv[2] = window.xv[1]; window.xv[1] = window.xv[0]; window.xv[0] = x;
+    window.yv[2] = window.yv[1]; window.yv[1] = window.yv[0];
     
-    window.yv[2] = (window.b0 * window.xv[2]) + (window.b1 * window.xv[1]) + (window.b2 * window.xv[0]) 
-                   - (window.a1 * window.yv[1]) - (window.a2 * window.yv[0]);
+    window.yv[0] = (window.b0 * window.xv[0]) + (window.b1 * window.xv[1]) + (window.b2 * window.xv[2]) 
+                   - (window.a1 * window.yv[1]) - (window.a2 * window.yv[2]);
     
-    if (isNaN(window.yv[2]) || !isFinite(window.yv[2])) { 
+    if (isNaN(window.yv[0]) || !isFinite(window.yv[0])) { 
         window.yv[0] = window.yv[1] = window.yv[2] = window.xv[0] = window.xv[1] = window.xv[2] = 0; 
     } 
-    return window.yv[2];
+    return window.yv[0];
 };
 window.oscNode = null; window.oscNode2 = null; window.scriptNode = null;
 window.audioCtx = null; window.gainNode = null;
@@ -102,16 +104,10 @@ window.initAudioGlobal = function() {
             for (let sample = 0; sample < audioProcessingEvent.inputBuffer.length; sample++) {
                 let step1 = 2.0 * Math.PI * (window.currentSinFreq / 44100), step2 = 2.0 * Math.PI * ((window.currentSinFreq * 0.4) / 44100);
                 
-                // 🔒 原裝 0.5 雙音發聲增益死鎖
                 let rawVal = (Math.sin(window.simPhase) + Math.sin(window.simPhase2)) * 0.5;
                 window.simPhase = (window.simPhase + step1) % (2 * Math.PI); window.simPhase2 = (window.simPhase2 + step2) % (2 * Math.PI);
                 
-                // 🚀 🛠️ 實務隨機噪訊：注入微量物理高斯雜訊底噪（幅值 0.002），瞬間擊碎 1830Hz 網格的純數學相消！
-                let u1 = Math.random(), u2 = Math.random(); if (u1 === 0) u1 = 0.0001;
-                let gaussianNoise = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2) * 0.002;
-                let noisyVal = rawVal + gaussianNoise;
-                
-                let fVal = window.applyFilter ? window.applyFilter(noisyVal) : noisyVal; outputData[sample] = fVal;
+                let fVal = window.applyFilter ? window.applyFilter(rawVal) : rawVal; outputData[sample] = fVal;
                 window.filteredDataLog.push(fVal); window.analysisBuffer[window.bufferIndex] = fVal; window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
             }
             if (window.filteredDataLog.length > 4000) window.filteredDataLog = window.filteredDataLog.slice(-3000);
