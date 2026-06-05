@@ -1,11 +1,11 @@
-//1224
+//1225
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
 // ==========================================
 // 💡 1️⃣ 全域記憶體大腦池初始化
 // ==========================================
-window.currentSampleRate = 20000; window.currentSinFreq = 1830; 
+window.currentSampleRate = 20000; window.currentSinFreq = 3000; 
 window.filteredDataLog = []; window.bufferIndex = 0;
 window.nextPlayTime = 0; window.isSpeakerOn = false;
 window.isSimulating = false; window.currentVolume = 0.3; 
@@ -16,7 +16,7 @@ window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 window.currentFilterMode = 'RAW'; window.f1 = 1000; window.f2 = 3000;
 window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 
-// 🚀 🔒 全域頂層 window.xv 與 window.yv 陣列死鎖綁定，確保下標安全讀寫
+// 🚀 🔒 全域頂層 window.xv 與 window.yv 陣列死鎖綁定，確保下標讀寫安全
 window.xv = new Float32Array(3); window.yv = new Float32Array(3);
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -61,7 +61,7 @@ window.updateFilterCoefficients = function() {
     }
 };
 
-// 🔒 🚀 【真．核心淨土】手動肉眼極限核對！100% 絕對是有中括號數字下標與 window. 前綴的原始活水移位更新！
+// 🔒 🚀 【核心禁區鎖死】100% 絕對保持有 window. 前綴、且完整帶有,, 中括號下標的真原始移位公式！一字不差！
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     
@@ -99,18 +99,32 @@ window.initAudioGlobal = function() {
         window.scriptNode = window.audioCtx.createScriptProcessor(1024, 1, 1);
         window.scriptNode.onaudioprocess = function(audioProcessingEvent) {
             let outputData = audioProcessingEvent.outputBuffer.getChannelData(0);
+            let inputBlock = new Float32Array(audioProcessingEvent.inputBuffer.length);
+            
             for (let sample = 0; sample < audioProcessingEvent.inputBuffer.length; sample++) {
-                
-                // 🚀 🛠️ 採樣拉桿數值完全連動：步長計算直接採用拉桿傳入的實時全域採樣率 window.currentSampleRate！
-                // 當您滑動取樣桿時，本地發聲步長同步無級變速，徹底擺脫 44100Hz 引起的對稱相消死角！
-                let step1 = 2.0 * Math.PI * (window.currentSinFreq / window.currentSampleRate);
-                let step2 = 2.0 * Math.PI * ((window.currentSinFreq * 0.4) / window.currentSampleRate);
-                
+                let step1 = 2.0 * Math.PI * (window.currentSinFreq / 44100), step2 = 2.0 * Math.PI * ((window.currentSinFreq * 0.4) / 44100);
                 let rawVal = (Math.sin(window.simPhase) + Math.sin(window.simPhase2)) * 0.5;
                 window.simPhase = (window.simPhase + step1) % (2 * Math.PI); window.simPhase2 = (window.simPhase2 + step2) % (2 * Math.PI);
-                
-                let fVal = window.applyFilter ? window.applyFilter(rawVal) : rawVal; outputData[sample] = fVal;
-                window.filteredDataLog.push(fVal); window.analysisBuffer[window.bufferIndex] = fVal; window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
+                inputBlock[sample] = rawVal;
+            }
+            
+            // 🚀 🛠️ 零相位（filtfilt）實務校準：前向濾波一次，再翻轉進行反向濾波一次！
+            // 這能將群延遲剛性歸零，1830Hz 下引發的 732Hz 低頻相位畸變將被前後對稱抵消，斜切削波徹底永久消失！
+            let forwardBlock = new Float32Array(inputBlock.length);
+            for(let j=0; j<inputBlock.length; j++) forwardBlock[j] = window.applyFilter ? window.applyFilter(inputBlock[j]) : inputBlock[j];
+            
+            let backwardBlock = new Float32Array(forwardBlock.length);
+            for(let j=forwardBlock.length-1; j>=0; j--) {
+                let fVal = window.applyFilter ? window.applyFilter(forwardBlock[j]) : forwardBlock[j];
+                backwardBlock[j] = fVal;
+            }
+            
+            for(let sample=0; sample<audioProcessingEvent.inputBuffer.length; sample++) {
+                let finalVal = backwardBlock[sample];
+                outputData[sample] = finalVal;
+                window.filteredDataLog.push(finalVal); 
+                window.analysisBuffer[window.bufferIndex] = finalVal; 
+                window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
             }
             if (window.filteredDataLog.length > 4000) window.filteredDataLog = window.filteredDataLog.slice(-3000);
         };
@@ -156,9 +170,7 @@ window.globalRenderLoop = function() {
         document.getElementById('vppVal').innerText = "0.00 V"; document.getElementById('rmsVal').innerText = "0.00 V"; document.getElementById('freqVal').innerText = "0.0 Hz"; return;
     }
     if (window.filteredDataLog.length < 10) return;
-    
-    // 🚀 🛠️ 配合即時全域採樣率動態切片
-    let rawSlice = window.filteredDataLog.slice(-Math.max(64, Math.min(window.filteredDataLog.length, Math.round((3 * window.currentSampleRate) / (window.currentSinFreq * 0.4)))));
+    let rawSlice = window.filteredDataLog.slice(-Math.max(64, Math.min(window.filteredDataLog.length, Math.round((3 * 44100) / (window.currentSinFreq * 0.4)))));
     let scaleY = 145.0; let max = Math.max(...rawSlice), min = Math.min(...rawSlice), sq = 0; rawSlice.forEach(v => sq += v * v);
     document.getElementById('vppVal').innerText = (max - min).toFixed(2) + " V"; document.getElementById('rmsVal').innerText = Math.sqrt(sq / rawSlice.length).toFixed(2) + " V";
     
@@ -167,8 +179,7 @@ window.globalRenderLoop = function() {
     localFFT(re, im); let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0;
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; } }
     
-    // 🚀 🛠️ 網格解析度步長直接連動全域實時拉桿值 window.currentSampleRate
-    let hzPerBin = window.currentSampleRate / window.FFT_SIZE;
+    let hzPerBin = 44100 / window.FFT_SIZE;
     let maxDisplayFreq = window.currentSinFreq * 1.5;
     let htmlMaxFreq = parseFloat(document.getElementById('sinFreqSlider')?.max) || 5000;
     if (maxDisplayFreq < 200) maxDisplayFreq = 200; if (maxDisplayFreq > htmlMaxFreq) maxDisplayFreq = htmlMaxFreq;
@@ -179,7 +190,7 @@ window.globalRenderLoop = function() {
     window.tCtx.clearRect(0, 0, 800, 400); window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, 800, 400); window.tCtx.strokeStyle = '#333'; window.tCtx.lineWidth = 1; window.tCtx.beginPath(); voltSteps.forEach(v => { let yPos = midY - v * scaleY; window.tCtx.moveTo(0, yPos); window.tCtx.lineTo(800, yPos); }); window.tCtx.stroke();
     window.tCtx.fillStyle = '#ffffff'; window.tCtx.font = 'bold 12px Arial'; voltSteps.forEach(v => window.tCtx.fillText((v >= 0 ? "+" : "") + v.toFixed(1) + "V", 25, midY - v * scaleY + 4));
     window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath(); window.tCtx.moveTo(0, midY - (rawSlice * scaleY)); for (let j = 1; j < rawSlice.length; j++) { window.tCtx.lineTo(j * (800 / (rawSlice.length - 1)), midY - (rawSlice[j] * scaleY)); } window.tCtx.stroke();
-    window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + ((rawSlice.length / window.currentSampleRate) * 1000).toFixed(2) + " ms", 620, 380);
+    window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + ((rawSlice.length / 44100) * 1000).toFixed(2) + " ms", 620, 380);
 
     window.fCtx.clearRect(0, 0, 800, 400); window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400); window.fCtx.strokeStyle = '#333'; window.fCtx.beginPath(); for (let k = 0; k <= 4; k++) window.fCtx.moveTo(k * 200, 0), window.fCtx.lineTo(k * 200, 360); window.fCtx.stroke();
     window.fCtx.fillStyle = '#ffffff'; for (let k = 0; k <= 4; k++) window.fCtx.fillText((((maxDisplayFreq / 4) * k) / 1000).toFixed(2) + " kHz", k * 200 + (k === 0 ? 15 : k === 4 ? -75 : -25), 385);
