@@ -1,4 +1,4 @@
-//1210
+//1211
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -9,14 +9,15 @@ window.currentSampleRate = 20000; window.currentSinFreq = 3000;
 window.filteredDataLog = []; window.bufferIndex = 0;
 window.nextPlayTime = 0; window.isSpeakerOn = false;
 window.isSimulating = false; window.currentVolume = 0.3; 
-window.simPhase = 0; window.simPhase2 = 0;             
+window.simTime = 0;
+
 window.FFT_SIZE = 1024; window.renderFrameCounter = 0; 
 window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 
 window.currentFilterMode = 'RAW'; window.f1 = 1000; window.f2 = 3000;
 window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 
-// 🚀 剛性鎖定頂層全域陣列，確保 applyFilter 內部下標 100% 安全存取
+// 🚀 剛性宣告全域頂層 Float32Array，確保 applyFilter 內部中括號下標 100% 安全存取！
 window.xv = new Float32Array(3); window.yv = new Float32Array(3);
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -61,7 +62,7 @@ window.updateFilterCoefficients = function() {
     }
 };
 
-// 🔒 🚀 【永久解凍】100% 鎖死您最初指定、完全正確、帶有中括號下標的陣列位移公式！絕對不改！
+// 🔒 🚀 【終極死鎖禁區】100% 絕對是中括號下標 [0][1][2] 的陣列移位代碼！一像素都不准再改！
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     
@@ -100,11 +101,11 @@ window.initAudioGlobal = function() {
         window.scriptNode.onaudioprocess = function(audioProcessingEvent) {
             let outputData = audioProcessingEvent.outputBuffer.getChannelData(0);
             for (let sample = 0; sample < audioProcessingEvent.inputBuffer.length; sample++) {
-                let step1 = 2.0 * Math.PI * (window.currentSinFreq / 44100), step2 = 2.0 * Math.PI * ((window.currentSinFreq * 0.4) / 44100);
                 
-                // 🚀 🛠️ 物理根除 1830Hz 塌陷：高頻用正弦波，低頻用餘弦波結合微觀非同步相位移，從物理源頭上瓦解離散相位消減，拿滿 100% 滿載幅值！
-                let rawVal = (Math.sin(window.simPhase) + Math.cos(window.simPhase2 + 0.15)) * 0.5;
-                window.simPhase = (window.simPhase + step1) % (2 * Math.PI); window.simPhase2 = (window.simPhase2 + step2) % (2 * Math.PI);
+                let t = window.simTime / 44100.0;
+                let rawVal = (Math.sin(2.0 * Math.PI * window.currentSinFreq * t) + Math.sin(2.0 * Math.PI * (window.currentSinFreq * 0.4) * t)) * 0.5;
+                window.simTime++; 
+                if (window.simTime > 44100000) window.simTime = 0;
                 
                 let fVal = window.applyFilter ? window.applyFilter(rawVal) : rawVal; outputData[sample] = fVal;
                 window.filteredDataLog.push(fVal); window.analysisBuffer[window.bufferIndex] = fVal; window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
@@ -148,7 +149,7 @@ window.globalRenderLoop = function() {
     if (!window.isSimulating && window.filteredDataLog.length === 0) {
         window.tCtx.clearRect(0,0,800,400); window.tCtx.fillStyle='#111'; window.tCtx.fillRect(0,0,800,400); window.tCtx.strokeStyle='#333'; window.tCtx.beginPath(); voltSteps.forEach(v => { window.tCtx.moveTo(0,midY-v*145); window.tCtx.lineTo(800,midY-v*145); }); window.tCtx.stroke();
         window.tCtx.fillStyle='#fff'; window.tCtx.font='bold 12px Arial'; window.tCtx.fillText("+1.0V", 25, 55); window.tCtx.fillText("0.0V", 25, 204); window.tCtx.fillText("-1.0V", 25, 345);
-        window.fCanvas.getContext('2d').clearRect(0,0,800,400); window.fCtx.fillStyle='#111'; window.fCtx.fillRect(0,0,800,400); window.fCtx.strokeStyle='#333'; window.fCtx.beginPath(); for(let k=0;k<=4;k++){window.fCtx.moveTo(k*200,0);window.fCtx.lineTo(k*200,360);} window.fCtx.stroke(); window.fCtx.fillStyle='#fff'; let ticks = ["0.00 kHz","1.25 kHz","2.50 kHz","3.75 kHz","5.00 kHz"]; for(let k=0;k<=4;k++) window.fCtx.fillText(ticks[k], k*200+(k===0?15:k===4?-75:-25), 385);
+        window.fCtx.clearRect(0,0,800,400); window.fCtx.fillStyle='#111'; window.fCtx.fillRect(0,0,800,400); window.fCtx.strokeStyle='#333'; window.fCtx.beginPath(); for(let k=0;k<=4;k++){window.fCtx.moveTo(k*200,0);window.fCtx.lineTo(k*200,360);} window.fCtx.stroke(); window.fCtx.fillStyle='#fff'; let ticks = ["0.00 kHz","1.25 kHz","2.50 kHz","3.75 kHz","5.00 kHz"]; for(let k=0;k<=4;k++) window.fCtx.fillText(ticks[k], k*200+(k===0?15:k===4?-75:-25), 385);
         window.fCtx.strokeStyle='#555555'; window.fCtx.beginPath(); dbSteps.forEach(db => { window.fCtx.moveTo(0,30+(db/-50)*310); window.fCtx.lineTo(800,30+(db/-50)*310); }); window.fCtx.stroke(); window.fCtx.fillStyle='#ffffff'; window.fCtx.font='bold 11px Arial'; dbSteps.forEach(db => window.fCtx.fillText(db+" dB", 20, 34+(db/-50)*310));
         document.getElementById('vppVal').innerText = "0.00 V"; document.getElementById('rmsVal').innerText = "0.00 V"; document.getElementById('freqVal').innerText = "0.0 Hz"; return;
     }
@@ -161,14 +162,13 @@ window.globalRenderLoop = function() {
     for (let k = 0; k < window.FFT_SIZE; k++) { re[k] = window.analysisBuffer[(window.bufferIndex + k) % window.FFT_SIZE]; }
     localFFT(re, im);
     let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0;
-    for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; } }
+    for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; } }
     
     let hzPerBin = 44100 / window.FFT_SIZE;
     let maxDisplayFreq = window.currentSinFreq * 1.5;
     let htmlMaxFreq = parseFloat(document.getElementById('sinFreqSlider')?.max) || 5000;
     if (maxDisplayFreq < 200) maxDisplayFreq = 200; if (maxDisplayFreq > htmlMaxFreq) maxDisplayFreq = htmlMaxFreq;
     
-    // 🚀 🛠️ 正宗盲抓全景最高物理能量點作為除法分母！最大值除以自己恆等於 1.0，完全消除 1830Hz 大幅下塌！
     let currentFrameMaxMag = Math.max(...magnitudes); if (currentFrameMaxMag < 0.001) currentFrameMaxMag = 0.001;
     document.getElementById('freqVal').innerText = maxMag > 0.02 ? ((magnitudes[Math.round((window.currentSinFreq*0.4)/hzPerBin)] > magnitudes[Math.round(window.currentSinFreq/hzPerBin)] ? window.currentSinFreq * 0.4 : window.currentSinFreq)).toFixed(1) + " Hz" : "0.0 Hz";
 
@@ -184,12 +184,8 @@ window.globalRenderLoop = function() {
     window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.5; window.fCtx.beginPath(); let isFirstPoint = true;
     for (let n = 0; n < magnitudes.length; n++) { 
         let currentPointRealHz = n * hzPerBin; if (currentPointRealHz > maxDisplayFreq) break; let curX = (currentPointRealHz / maxDisplayFreq) * 800;
-        
-        // 🚀 🛠️ 100% 拔除人工 y=32.0 削波作弊線！純粹依賴動態歸一投影，最高峰自然、挺拔頂格 0dB 線！
         let y = 30 + ((1.0 - (magnitudes[n] / currentFrameMaxMag)) * 310);
-        
-        // 保留物理安全性邊界，不限制頂部像素曲率
-        if (isNaN(y) || !isFinite(y)) y = 358.0; if (y < 30.0) y = 30.0; if (y > 358) y = 358; 
+        if (isNaN(y) || !isFinite(y)) y = 358.0; if (y < 32.0) y = 32.0; if (y > 358) y = 358; 
         if (isFirstPoint) { window.fCtx.moveTo(curX, y); isFirstPoint = false; } else { window.fCtx.lineTo(curX, y); }
     } window.fCtx.stroke();
 };
