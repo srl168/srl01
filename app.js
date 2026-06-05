@@ -1,4 +1,4 @@
-//1225
+//12251
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -11,13 +11,13 @@ window.nextPlayTime = 0; window.isSpeakerOn = false;
 window.isSimulating = false; window.currentVolume = 0.3; 
 window.simPhase = 0; window.simPhase2 = 0;             
 window.FFT_SIZE = 1024; window.renderFrameCounter = 0; 
-window.analysisBuffer = new Float32Array(window.FFT_SIZE);
+window.analysisBuffer = new Float64Array(window.FFT_SIZE);
 
 window.currentFilterMode = 'RAW'; window.f1 = 1000; window.f2 = 3000;
 window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 
 // 🚀 🔒 全域頂層 window.xv 與 window.yv 陣列死鎖綁定，確保下標讀寫安全
-window.xv = new Float32Array(3); window.yv = new Float32Array(3);
+window.xv = new Float64Array(3); window.yv = new Float64Array(3);
 
 window.addEventListener('DOMContentLoaded', () => {
     window.tCanvas = document.getElementById('timeCanvas'); 
@@ -99,10 +99,10 @@ window.initAudioGlobal = function() {
         window.scriptNode = window.audioCtx.createScriptProcessor(1024, 1, 1);
         window.scriptNode.onaudioprocess = function(audioProcessingEvent) {
             let outputData = audioProcessingEvent.outputBuffer.getChannelData(0);
-            let inputBlock = new Float32Array(audioProcessingEvent.inputBuffer.length);
+            let inputBlock = new Float64Array(audioProcessingEvent.inputBuffer.length);
             
             for (let sample = 0; sample < audioProcessingEvent.inputBuffer.length; sample++) {
-                let step1 = 2.0 * Math.PI * (window.currentSinFreq / 44100), step2 = 2.0 * Math.PI * ((window.currentSinFreq * 0.4) / 44100);
+                let step1 = 2.0 * Math.PI * (window.currentSinFreq / window.currentSampleRate), step2 = 2.0 * Math.PI * ((window.currentSinFreq * 0.4) / window.currentSampleRate);
                 let rawVal = (Math.sin(window.simPhase) + Math.sin(window.simPhase2)) * 0.5;
                 window.simPhase = (window.simPhase + step1) % (2 * Math.PI); window.simPhase2 = (window.simPhase2 + step2) % (2 * Math.PI);
                 inputBlock[sample] = rawVal;
@@ -110,10 +110,10 @@ window.initAudioGlobal = function() {
             
             // 🚀 🛠️ 零相位（filtfilt）實務校準：前向濾波一次，再翻轉進行反向濾波一次！
             // 這能將群延遲剛性歸零，1830Hz 下引發的 732Hz 低頻相位畸變將被前後對稱抵消，斜切削波徹底永久消失！
-            let forwardBlock = new Float32Array(inputBlock.length);
+            let forwardBlock = new Float64Array(inputBlock.length);
             for(let j=0; j<inputBlock.length; j++) forwardBlock[j] = window.applyFilter ? window.applyFilter(inputBlock[j]) : inputBlock[j];
             
-            let backwardBlock = new Float32Array(forwardBlock.length);
+            let backwardBlock = new Float64Array(forwardBlock.length);
             for(let j=forwardBlock.length-1; j>=0; j--) {
                 let fVal = window.applyFilter ? window.applyFilter(forwardBlock[j]) : forwardBlock[j];
                 backwardBlock[j] = fVal;
@@ -170,16 +170,16 @@ window.globalRenderLoop = function() {
         document.getElementById('vppVal').innerText = "0.00 V"; document.getElementById('rmsVal').innerText = "0.00 V"; document.getElementById('freqVal').innerText = "0.0 Hz"; return;
     }
     if (window.filteredDataLog.length < 10) return;
-    let rawSlice = window.filteredDataLog.slice(-Math.max(64, Math.min(window.filteredDataLog.length, Math.round((3 * 44100) / (window.currentSinFreq * 0.4)))));
+    let rawSlice = window.filteredDataLog.slice(-Math.max(64, Math.min(window.filteredDataLog.length, Math.round((3 * window.currentSampleRate) / (window.currentSinFreq * 0.4)))));
     let scaleY = 145.0; let max = Math.max(...rawSlice), min = Math.min(...rawSlice), sq = 0; rawSlice.forEach(v => sq += v * v);
     document.getElementById('vppVal').innerText = (max - min).toFixed(2) + " V"; document.getElementById('rmsVal').innerText = Math.sqrt(sq / rawSlice.length).toFixed(2) + " V";
     
-    let re = new Float32Array(window.FFT_SIZE), im = new Float32Array(window.FFT_SIZE);
+    let re = new Float64Array(window.FFT_SIZE), im = new Float64Array(window.FFT_SIZE);
     for (let k = 0; k < window.FFT_SIZE; k++) re[k] = window.analysisBuffer[(window.bufferIndex + k) % window.FFT_SIZE];
-    localFFT(re, im); let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0;
+    localFFT(re, im); let magnitudes = new Float64Array(window.FFT_SIZE / 2), maxMag = 0;
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; } }
     
-    let hzPerBin = 44100 / window.FFT_SIZE;
+    let hzPerBin = window.currentSampleRate / window.FFT_SIZE;
     let maxDisplayFreq = window.currentSinFreq * 1.5;
     let htmlMaxFreq = parseFloat(document.getElementById('sinFreqSlider')?.max) || 5000;
     if (maxDisplayFreq < 200) maxDisplayFreq = 200; if (maxDisplayFreq > htmlMaxFreq) maxDisplayFreq = htmlMaxFreq;
@@ -190,7 +190,7 @@ window.globalRenderLoop = function() {
     window.tCtx.clearRect(0, 0, 800, 400); window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, 800, 400); window.tCtx.strokeStyle = '#333'; window.tCtx.lineWidth = 1; window.tCtx.beginPath(); voltSteps.forEach(v => { let yPos = midY - v * scaleY; window.tCtx.moveTo(0, yPos); window.tCtx.lineTo(800, yPos); }); window.tCtx.stroke();
     window.tCtx.fillStyle = '#ffffff'; window.tCtx.font = 'bold 12px Arial'; voltSteps.forEach(v => window.tCtx.fillText((v >= 0 ? "+" : "") + v.toFixed(1) + "V", 25, midY - v * scaleY + 4));
     window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath(); window.tCtx.moveTo(0, midY - (rawSlice * scaleY)); for (let j = 1; j < rawSlice.length; j++) { window.tCtx.lineTo(j * (800 / (rawSlice.length - 1)), midY - (rawSlice[j] * scaleY)); } window.tCtx.stroke();
-    window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + ((rawSlice.length / 44100) * 1000).toFixed(2) + " ms", 620, 380);
+    window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + ((rawSlice.length / window.currentSampleRate) * 1000).toFixed(2) + " ms", 620, 380);
 
     window.fCtx.clearRect(0, 0, 800, 400); window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400); window.fCtx.strokeStyle = '#333'; window.fCtx.beginPath(); for (let k = 0; k <= 4; k++) window.fCtx.moveTo(k * 200, 0), window.fCtx.lineTo(k * 200, 360); window.fCtx.stroke();
     window.fCtx.fillStyle = '#ffffff'; for (let k = 0; k <= 4; k++) window.fCtx.fillText((((maxDisplayFreq / 4) * k) / 1000).toFixed(2) + " kHz", k * 200 + (k === 0 ? 15 : k === 4 ? -75 : -25), 385);
