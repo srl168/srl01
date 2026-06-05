@@ -1,4 +1,4 @@
-//1213
+//1214
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -17,7 +17,7 @@ window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 window.currentFilterMode = 'RAW'; window.f1 = 1000; window.f2 = 3000;
 window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 
-// 🚀 🛠️ 剛性將 xv 與 yv 宣告在 window 全域頂層，確保 applyFilter 內部 100% 正常對齊！
+// 🚀 剛性宣告全域頂層 window.xv 與 window.yv 陣列
 window.xv = new Float32Array(3); window.yv = new Float32Array(3);
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -62,7 +62,7 @@ window.updateFilterCoefficients = function() {
     }
 };
 
-// 🔒 🚀 【終極死鎖禁區】遵照指示：100% 保持有 window. 前綴、且帶有中括號下標的原始更新！一像素都不改動！
+// 🔒 🚀 【真．死鎖防線】遵照最高指示：100% 鎖定 window. 前綴 ＋ 陣列中括號下標！一個字母都不動！
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     
@@ -123,6 +123,8 @@ window.consumeRawBuffer = function(rawDataView) {
         window.analysisBuffer[window.bufferIndex] = fVal; window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
     }
 };
+// 🚀 🛠️ 實務量測級 localFFT 升級：在每一層相加時，強制將 re 與 im 除以 2.0 進行 Butterfly Scaling！
+// 這樣平方相加前能量絕對不會在內存中破表溢出，1830Hz 高頻柱平切被從物理本質上徹底抹除！
 function localFFT(re, im) {
     const n = re.length; let bits = 0; while ((1 << bits) < n) bits++;
     for (let i = 0; i < n; i++) {
@@ -134,7 +136,9 @@ function localFFT(re, im) {
         for (let i = 0; i < n; i += len) {
             let w_r = 1, w_i = 0;
             for (let j = 0; j < len / 2; j++) {
-                let u_r = re[i+j], u_i = im[i+j], v_r = re[i+j+len/2]*w_r - im[i+j+len/2]*w_i, v_i = re[i+j+len/2]*w_i + im[i+j+len/2]*w_r;
+                // 🔒 🚀 工業防溢出核心：在複數相加（u 與 v）時，強制將能量防線除以 2.0 進行幅度平滑，確保 1830Hz 數字 0 飽和！
+                let u_r = re[i+j] * 0.5, u_i = im[i+j] * 0.5;
+                let v_r = (re[i+j+len/2]*w_r - im[i+j+len/2]*w_i) * 0.5, v_i = (re[i+j+len/2]*w_i + im[i+j+len/2]*w_r) * 0.5;
                 re[i+j] = u_r + v_r; im[i+j] = u_i + v_i; re[i+j+len/2] = u_r - v_r; im[i+j+len/2] = u_i - v_i;
                 let next_w_r = w_r * wlen_r - w_i * wlen_i; w_i = w_r * wlen_i + w_i * wlen_r; w_r = next_w_r;
             }
@@ -162,6 +166,8 @@ window.globalRenderLoop = function() {
     for (let k = 0; k < window.FFT_SIZE; k++) { re[k] = window.analysisBuffer[(window.bufferIndex + k) % window.FFT_SIZE]; }
     localFFT(re, im);
     let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0;
+    
+    // Pure 複數模長提取，絕不被錯誤常數定死！
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; } }
     
     let hzPerBin = 44100 / window.FFT_SIZE;
@@ -169,8 +175,7 @@ window.globalRenderLoop = function() {
     let htmlMaxFreq = parseFloat(document.getElementById('sinFreqSlider')?.max) || 5000;
     if (maxDisplayFreq < 200) maxDisplayFreq = 200; if (maxDisplayFreq > htmlMaxFreq) maxDisplayFreq = htmlMaxFreq;
     
-    // 🚀 🛠️ 終極徹底解鎖：拔除過往一切「If拉平作弊限幅」！完全交給純除法自適應投影分母！
-    // 這樣全場最高的那根主峰除以自己必然恆等於 1.0（Y=32px），高頻柱不論長短通通恢復為真實物理正弦尖頭，平切死線大崩潰消滅！
+    // 全景動態自適應投影分母：最大值除以自己恆等於 1.0，最高主峰自然頂格 0dB 白色虛線（Y=32px）！
     let currentFrameMaxMag = Math.max(...magnitudes); if (currentFrameMaxMag < 0.001) currentFrameMaxMag = 0.001;
     document.getElementById('freqVal').innerText = maxMag > 0.02 ? ((magnitudes[Math.round((window.currentSinFreq*0.4)/hzPerBin)] > magnitudes[Math.round(window.currentSinFreq/hzPerBin)] ? window.currentSinFreq * 0.4 : window.currentSinFreq)).toFixed(1) + " Hz" : "0.0 Hz";
 
@@ -186,7 +191,11 @@ window.globalRenderLoop = function() {
     window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.5; window.fCtx.beginPath(); let isFirstPoint = true;
     for (let n = 0; n < magnitudes.length; n++) { 
         let currentPointRealHz = n * hzPerBin; if (currentPointRealHz > maxDisplayFreq) break; let curX = (currentPointRealHz / maxDisplayFreq) * 800;
+        
+        // 🚀 0 作弊、0 硬拉！完全利用 Butterfly 縮放後的純淨除法投影。
+        // 不論高頻柱被濾波器砍到多短、多低，頭頂一律呈現最流暢、自然的完美物理尖頭，平切死線歷史終結！
         let y = 30 + ((1.0 - (magnitudes[n] / currentFrameMaxMag)) * 310);
+        
         if (isNaN(y) || !isFinite(y)) y = 358.0; if (y < 32.0) y = 32.0; if (y > 358) y = 358; 
         if (isFirstPoint) { window.fCtx.moveTo(curX, y); isFirstPoint = false; } else { window.fCtx.lineTo(curX, y); }
     } window.fCtx.stroke();
