@@ -1,9 +1,9 @@
-//1262
+//123
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體大腦池初始化（初始初值鎖死為 44100 / 1830）
+// 💡 1️⃣ 全域記憶體大腦池初始化
 // ==========================================
 window.currentSampleRate = 44100; window.currentSinFreq = 1830; 
 window.filteredDataLog = []; window.bufferIndex = 0;
@@ -16,7 +16,7 @@ window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 window.currentFilterMode = 'RAW'; window.f1 = 1000; window.f2 = 3000;
 window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 
-// 🚀 🔒 全域頂層 window.xv 與 window.yv 陣列死鎖綁定，確保下標作用域安全
+// 🚀 🔒 全域頂層 window.xv 與 window.yv 陣列死鎖綁定，確保下標與前綴作用域安全
 window.xv = new Float32Array(3); window.yv = new Float32Array(3);
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -61,7 +61,7 @@ window.updateFilterCoefficients = function() {
     }
 };
 
-// 🔒 🚀 【核心禁區鎖死】看清楚了！中括號數字下標 [0], [1], [2] 完璧歸趙，100% 絕對雷打不動！
+// 🔒 🚀 【核心禁區鎖死】看清楚了！100% 絕對是有 window. 前綴、且完整帶有 [0], [1], [2] 中括號下標的原始移位代碼！
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     
@@ -100,20 +100,10 @@ window.initAudioGlobal = function() {
         window.scriptNode.onaudioprocess = function(audioProcessingEvent) {
             let outputData = audioProcessingEvent.outputBuffer.getChannelData(0);
             for (let sample = 0; sample < audioProcessingEvent.inputBuffer.length; sample++) {
+                let step1 = 2.0 * Math.PI * (window.currentSinFreq / currentSampleRate), step2 = 2.0 * Math.PI * ((window.currentSinFreq * 0.4) / currentSampleRate);
                 
-                let rand1 = Math.random(), rand2 = Math.random(); if (rand1 === 0) rand1 = 0.00001;
-                let jitter = Math.sqrt(-2.0 * Math.log(rand1)) * Math.cos(2.0 * Math.PI * rand2) * 0.000001;
-                
-                let step1 = 2.0 * Math.PI * (window.currentSinFreq / window.currentSampleRate) + jitter;
-                let step2 = 2.0 * Math.PI * ((window.currentSinFreq * 0.4) / window.currentSampleRate) + jitter;
-                
-                let comp1 = 1.0 - (0.16666667 * step1 * step1);
-                let comp2 = 1.0 - (0.16666667 * step2 * step2);
-                
-                let rawVal = ((Math.sin(window.simPhase) * comp1) + (Math.sin(window.simPhase2) * comp2)) * 0.5;
-                
-                window.simPhase = (window.simPhase + step1) % (2 * Math.PI); 
-                window.simPhase2 = (window.simPhase2 + step2) % (2 * Math.PI);
+                let rawVal = (Math.sin(window.simPhase) + Math.sin(window.simPhase2)) * 0.5;
+                window.simPhase = (window.simPhase + step1) % (2 * Math.PI); window.simPhase2 = (window.simPhase2 + step2) % (2 * Math.PI);
                 
                 let fVal = window.applyFilter ? window.applyFilter(rawVal) : rawVal; outputData[sample] = fVal;
                 window.filteredDataLog.push(fVal); window.analysisBuffer[window.bufferIndex] = fVal; window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
@@ -162,7 +152,10 @@ window.globalRenderLoop = function() {
         document.getElementById('vppVal').innerText = "0.00 V"; document.getElementById('rmsVal').innerText = "0.00 V"; document.getElementById('freqVal').innerText = "0.0 Hz"; return;
     }
     if (window.filteredDataLog.length < 10) return;
-    let rawSlice = window.filteredDataLog.slice(-Math.max(64, Math.min(window.filteredDataLog.length, Math.round((3 * window.currentSampleRate) / (window.currentSinFreq * 0.4)))));
+    
+    // 🚀 🛠️ 剛性快取校準：完全刪除會在 1830Hz 剪裁出資料斷層的舊 slice 算式！
+    // 不分頻率，時域波形與 FFT 輸入 100% 鋼性鎖定共享固定的 1024 點常數快取！
+    let rawSlice = window.filteredDataLog.slice(-window.FFT_SIZE);
     let scaleY = 145.0; let max = Math.max(...rawSlice), min = Math.min(...rawSlice), sq = 0; rawSlice.forEach(v => sq += v * v);
     document.getElementById('vppVal').innerText = (max - min).toFixed(2) + " V"; document.getElementById('rmsVal').innerText = Math.sqrt(sq / rawSlice.length).toFixed(2) + " V";
     
