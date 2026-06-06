@@ -95,7 +95,6 @@ window.updateFilterCoefficients = function() {
     window.a1R = 2.0 * (C2 - 1.0) / cBP2;
     window.a2R = (1.0 - W2 + C2) / cBP2;
     
-    // 安全性異常防禦覆核
     if (isNaN(window.b0) || !isFinite(window.b0)) {
         window.b0 = 1; window.b1 = window.b2 = window.a1 = window.a2 = 0;
     }
@@ -104,11 +103,11 @@ window.updateFilterCoefficients = function() {
     }
 };
 
-// 🔒 🚀 【🚨 左通道八階帶通核心絕對鎖死】中括號數字下標 [0],[1],[2] 完美回歸大通電！🔒
+// 🔒 🚀 【🚨 左耳獨立八階穩健巴特沃斯帶通核心絕對大死鎖】中括號下標 [0],[1],[2] 完美通電大歸位！🔒
 window.applyFilterLeft = function(x) {
     if (window.currentFilterMode === 'RAW') return x;
     
-    // 左通道 Stage 1
+    // 🛑 左通道 Stage 1
     window.xv[2] = window.xv[1]; 
     window.xv[1] = window.xv[0]; 
     window.xv[0] = x;
@@ -118,7 +117,7 @@ window.applyFilterLeft = function(x) {
                       - (window.a1 * window.yv[1]) - (window.a2 * window.yv[2]);
     if (isNaN(window.yv[0]) || !isFinite(window.yv[0])) window.yv[0] = 0;
     
-    // 左通道 Stage 2
+    // 🛑 左通道 Stage 2
     window.xv2[2] = window.xv2[1]; 
     window.xv2[1] = window.xv2[0]; 
     window.xv2[0] = window.yv[0];
@@ -128,7 +127,7 @@ window.applyFilterLeft = function(x) {
                        - (window.a1 * window.yv2[1]) - (window.a2 * window.yv2[2]);
     if (isNaN(window.yv2[0]) || !isFinite(window.yv2[0])) window.yv2[0] = 0;
     
-    // 左通道 Stage 3
+    // 🛑 左通道 Stage 3
     window.xv3[2] = window.xv3[1]; 
     window.xv3[1] = window.xv3[0]; 
     window.xv3[0] = window.yv2[0];
@@ -138,7 +137,7 @@ window.applyFilterLeft = function(x) {
                        - (window.a1 * window.yv3[1]) - (window.a2 * window.yv3[2]);
     if (isNaN(window.yv3[0]) || !isFinite(window.yv3[0])) window.yv3[0] = 0;
     
-    // 左通道 Stage 4（8階 0~F1 帶通完畢）
+    // 🛑 左通道 Stage 4（8階 0~F1 帶通大收官）
     window.xv4[2] = window.xv4[1]; 
     window.xv4[1] = window.xv4[0]; 
     window.xv4[0] = window.yv3[0];
@@ -156,11 +155,11 @@ window.applyFilterLeft = function(x) {
     return window.yv4[0];
 };
 
-// 🔒 🚀 【🚨 右通道八階帶通核心絕對鎖死】中括號數字下標 [0],[1],[2] 完美回歸大通電！🔒
+// 🔒 🚀 【🚨 右耳獨立八階穩健巴特沃斯帶通核心絕對大死鎖】中括號下標 [0],[1],[2] 完美通電大歸位！🔒
 window.applyFilterRight = function(x) {
     if (window.currentFilterMode === 'RAW') return x;
     
-    // 右通道 Stage 1
+    // 🛑 右通道 Stage 1
     window.xvR[2] = window.xvR[1]; 
     window.xvR[1] = window.xvR[0]; 
     window.xvR[0] = x;
@@ -170,7 +169,7 @@ window.applyFilterRight = function(x) {
                        - (window.a1R * window.yvR[1]) - (window.a2R * window.yvR[2]);
     if (isNaN(window.yvR[0]) || !isFinite(window.yvR[0])) window.yvR[0] = 0;
     
-    // 右通道 Stage 2
+    // 🛑 右通道 Stage 2
     window.xvR2[2] = window.xvR2[1]; 
     window.xvR2[1] = window.xvR2[0]; 
     window.xvR2[0] = window.yvR[0];
@@ -180,7 +179,7 @@ window.applyFilterRight = function(x) {
                         - (window.a1R * window.yvR2[1]) - (window.a2R * window.yvR2[2]);
     if (isNaN(window.yvR2[0]) || !isFinite(window.yvR2[0])) window.yvR2[0] = 0;
     
-    // 右通道 Stage 3
+    // 🛑 右通道 Stage 3
     window.xvR3[2] = window.xvR3[1]; 
     window.xvR3[1] = window.xvR3[0]; 
     window.xvR3[0] = window.yvR2[0];
@@ -190,7 +189,7 @@ window.applyFilterRight = function(x) {
                         - (window.a1R * window.yvR3[1]) - (window.a2R * window.yvR3[2]);
     if (isNaN(window.yvR3[0]) || !isFinite(window.yvR3[0])) window.yvR3[0] = 0;
     
-    // 右通道 Stage 4（8階 F1~F2 帶通完畢）
+    // 🛑 右通道 Stage 4（8階 F1~F2 帶通大收官）
     window.xvR4[2] = window.xvR4[1]; 
     window.xvR4[1] = window.xvR4[0]; 
     window.xvR4[0] = window.yvR3[0];
@@ -254,13 +253,14 @@ window.initAudioGlobal = function() {
                 leftOutput[sample] = leftVal;
                 rightOutput[sample] = rightVal;
                 
-                let mixPlot = (leftVal + rightVal) * 0.5;
-                window.filteredDataLog.push(mixPlot); 
-                window.analysisBuffer[window.bufferIndex] = mixPlot; 
-                window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
-            }
-            if (window.filteredDataLog.length > 10000) {
-window.filteredDataLog = window.filteredDataLog.slice(-8000);}};window.oscNode.connect(window.scriptNode);window.oscNode2.connect(window.scriptNode);window.scriptNode.connect(window.gainNode);window.oscNode.start();window.oscNode2.start();}};window.consumeRawBuffer = function(rawDataView) {let byteLen = rawDataView.byteLength;for (let i = 0; i < byteLen; i++) {let rawVal = (rawDataView.getUint8(i) / 127.5) - 1.0;let leftVal = window.applyFilterLeft(rawVal);let rightVal = window.applyFilterRight(rawVal);let mixPlot = (leftVal + rightVal) * 0.5;window.filteredDataLog.push(mixPlot);if (window.filteredDataLog.length > 10000) window.filteredDataLog.shift();window.analysisBuffer[window.bufferIndex] = mixPlot;window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;}};
+                // 🚀 🔒 【真．立體分流示波器動態監控點】
+                let plotVal = leftVal;
+                if (window.currentFilterMode === 'HP' || window.currentFilterMode === 'BP') {
+                    plotVal = rightVal; // 👈 HP/BP 時，儀表畫布 100% 獨立切換到右耳通道
+                } else if (window.currentFilterMode === 'RAW') {
+plotVal = rawVal;   // 👈 RAW 時看原始混合波}
+window.filteredDataLog.push(plotVal);window.analysisBuffer[window.bufferIndex] = plotVal;window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;}if (window.filteredDataLog.length > 10000) {window.filteredDataLog = window.filteredDataLog.slice(-8000);}};window.oscNode.connect(window.scriptNode);window.oscNode2.connect(window.scriptNode);window.scriptNode.connect(window.gainNode);window.oscNode.start();window.oscNode2.start();}};window.consumeRawBuffer = function(rawDataView) {let byteLen = rawDataView.byteLength;for (let i = 0; i < byteLen; i++) {let rawVal = (rawDataView.getUint8(i) / 127.5) - 1.0;let leftVal = window.applyFilterLeft(rawVal);let rightVal = window.applyFilterRight(rawVal);let plotVal = leftVal;if (window.currentFilterMode === 'HP' || window.currentFilterMode === 'BP') {plotVal = rightVal;} else if (window.currentFilterMode === 'RAW') {plotVal = rawVal;}window.filteredDataLog.push(plotVal);if (window.filteredDataLog.length > 10000) window.filteredDataLog.shift();window.analysisBuffer[window.bufferIndex] = plotVal;window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;}};
+
 
 // ==========================================
 // 💡 4️⃣ 快速傅立葉變換與真對數分貝標尺（dB LOG）渲染大腦
