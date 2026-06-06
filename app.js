@@ -103,26 +103,30 @@ window.initAudioGlobal = function() {
             for (let sample = 0; sample < audioProcessingEvent.inputBuffer.length; sample++) {
                 
                 let step1 = (window.currentSinFreq * window.SIN_LUT_SIZE) / window.currentSampleRate;
-                //let step2 = ((window.currentSinFreq * 0.4) * window.SIN_LUT_SIZE) / window.currentSampleRate;
+                let step2 = ((window.currentSinFreq * 0.4) * window.SIN_LUT_SIZE) / window.currentSampleRate;
                 
                 let idx1 = Math.floor(window.simPhase) % window.SIN_LUT_SIZE;
-                //let idx2 = Math.floor(window.simPhase2) % window.SIN_LUT_SIZE;
+                let idx2 = Math.floor(window.simPhase2) % window.SIN_LUT_SIZE;
                 
                 let s1 = window.sinTable[idx1];
-                //let s2 = window.sinTable[idx2];
+                let s2 = window.sinTable[idx2];
                 
                 //let rawVal = (s1 + s2) * 0.5;
                 let rawVal = s1 ;
                 
                 window.simPhase = (window.simPhase + step1) % window.SIN_LUT_SIZE;
-                //window.simPhase2 = (window.simPhase2 + step2) % window.SIN_LUT_SIZE;
+                window.simPhase2 = (window.simPhase2 + step2) % window.SIN_LUT_SIZE;
                 
                 let fVal = window.applyFilter ? window.applyFilter(rawVal) : rawVal; outputData[sample] = fVal;
                 window.filteredDataLog.push(fVal); window.analysisBuffer[window.bufferIndex] = fVal; window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
             }
             if (window.filteredDataLog.length > 4000) window.filteredDataLog = window.filteredDataLog.slice(-3000);
         };
-        window.oscNode.connect(window.scriptNode); window.oscNode2.connect(window.scriptNode); window.scriptNode.connect(window.gainNode); window.oscNode.start(); window.oscNode2.start();
+        window.oscNode.connect(window.scriptNode); 
+		window.oscNode2.connect(window.scriptNode);
+		window.scriptNode.connect(window.gainNode); 
+		window.oscNode.start(); 
+		//window.oscNode2.start();
     }
 };
 
