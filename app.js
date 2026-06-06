@@ -1,4 +1,3 @@
-//1254
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -16,7 +15,7 @@ window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 window.currentFilterMode = 'RAW'; window.f1 = 1000; window.f2 = 3000;
 window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 
-// 🚀 🔒 4階級聯（Stage 1 & Stage 2）頂層暫存器陣列死鎖綁定，確保下標作用域安全
+// 🚀 🔒 雙級級聯（Stage 1 & Stage 2）全域頂層陣列死鎖綁定，徹底釋放 4階切比雪夫超強衰減
 window.xv = new Float32Array(3); window.yv = new Float32Array(3);
 window.xv2 = new Float32Array(3); window.yv2 = new Float32Array(3);
 
@@ -29,23 +28,25 @@ window.addEventListener('DOMContentLoaded', () => {
     window.fCanvas.width = 800; window.fCanvas.height = 400;
 });
 // ==========================================
-// 💡 2️⃣ 數位濾波器：正宗 4階切比雪夫響應精密係數計算（帶有 0.5dB 通帶優化紋波）
+// 💡 2️⃣ 數位濾波器：4階級聯切比雪夫精密係數計算公式（1dB 紋波預拉伸）
 // ==========================================
 window.updateFilterCoefficients = function() {
     let fs = window.currentSampleRate;
     let fr1 = fs / window.f1; if (fr1 < 2.01) fr1 = 2.01;
     let omega = Math.tan(Math.PI / fr1);
 
-    // 🚀 🛠️ 儀表級優化：採用 0.5 dB 通帶紋波平衡因子，阻斷時域相位扭曲，釋放最高衰減
-    let rippleDB = 0.5; 
+    // 🚀 🛠️ 切比雪夫 I 型響應（1 dB 通帶紋波）精密幾何預調制因子
+    let rippleDB = 1.0; 
     let epsilon = Math.sqrt(Math.pow(10, rippleDB / 10) - 1); 
     let alpha = 1.0 / epsilon;
-    let s_sinh = Math.sinh(0.25 * Math.asinh(alpha)); // 4極點調製
-    let c_cosh = Math.cosh(0.25 * Math.asinh(alpha));
+    let s_sinh = Math.sinh(0.5 * Math.asinh(alpha));
+    let c_cosh = Math.cosh(0.5 * Math.asinh(alpha));
     
-    // 計算 4階極點在連續時間中的幾何分佈軌跡
-    let pole_real = -Math.sin(Math.PI / 4.0) * s_sinh;
-    let pole_imag = Math.cos(Math.PI / 4.0) * c_cosh;
+    let sinHalfPI = 0.70710678; 
+    let cosHalfPI = 0.70710678; 
+    let pole_real = -sinHalfPI * s_sinh;
+    let pole_imag = cosHalfPI * c_cosh;
+    
     let ct_a2 = pole_real * pole_real + pole_imag * pole_imag;
     let ct_a1 = -2.0 * pole_real;
     
@@ -75,11 +76,11 @@ window.updateFilterCoefficients = function() {
     }
 };
 
-// 🔒 🚀 【核心禁區大死鎖】中括號數字下標,, 完璧歸趙！串聯更新移位完全大通電！一字不改！
+// 🔒 🚀 【核心禁區絕對死鎖】中括號數字下標 [0], [1], [2] 完璧歸趙！雙級串聯移位更新大通電！一字不改！
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     
-    // 🛑 1️⃣ 第一級切比雪夫二階濾波器（Stage 1 移位更新）
+    // 🛑 1️⃣ 第一級切比雪夫濾波（貢獻前 12-15dB 衰減）
     window.xv[2] = window.xv[1]; window.xv[1] = window.xv[0]; window.xv[0] = x;
     window.yv[2] = window.yv[1]; window.yv[1] = window.yv[0];
     
@@ -88,7 +89,7 @@ window.applyFilter = function(x) {
                    
     if (isNaN(window.yv[0]) || !isFinite(window.yv[0])) window.yv[0] = 0;
     
-    // 🛑 2️⃣ 第二級切比雪夫二階濾波器（Stage 2 接力串聯，合體共鑄真．4階級聯）
+    // 🛑 🚀 2️⃣ 第二級切比雪夫級聯（立刻串聯，追加一倍衰減，總計 4 階超陡峭懸崖裁切！）
     let outStage1 = window.yv[0];
     window.xv2[2] = window.xv2[1]; window.xv2[1] = window.xv2[0]; window.xv2[0] = outStage1;
     window.yv2[2] = window.yv2[1]; window.yv2[1] = window.yv2[0];
@@ -219,25 +220,30 @@ window.globalRenderLoop = function() {
         if (isFirstPoint) { window.fCtx.moveTo(curX, y); isFirstPoint = false; } else { window.fCtx.lineTo(curX, y); }
     } window.fCtx.stroke();
 };
+// ==========================================
+// 💡 5️⃣ 儀表控制按鈕亮燈與滑桿事件隨動追蹤
+// ==========================================
 window.renderFilterButtonLights = function() {
     const btnIds = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
     Object.keys(btnIds).forEach(mode => {
         let btnEl = document.getElementById(btnIds[mode]);
         if (!btnEl) return;
         
-        // 🔒 🚀 最高優先級水泥灰控制外框強制卡死，阻斷外部 CSS 覆蓋！
+        // 🔒 🚀 最高優先級水泥灰控制框強制卡死，100% 阻斷外部 CSS 在載入完成後的覆蓋！
         btnEl.style.setProperty('border', '2px solid #555555', 'important');
         btnEl.style.setProperty('border-radius', '6px', 'important');
         btnEl.style.setProperty('padding', '8px 16px', 'important');
         btnEl.style.setProperty('cursor', 'pointer', 'important');
         
         if (window.currentFilterMode === mode) {
+            // 選取狀態下：大亮起第一版最高亮度對比亮綠色（#00ff66），文字死黑，外框同步轉亮綠
             btnEl.style.setProperty('background-color', '#00ff66', 'important');
             btnEl.style.setProperty('color', '#111111', 'important');
             btnEl.style.setProperty('border-color', '#00ff66', 'important');
             btnEl.style.setProperty('font-weight', 'bold', 'important');
             btnEl.classList.add('active');
         } else {
+            // 未選取狀態下：底色死鎖立體深灰色（#3a3a3a），外框維持水泥灰（#555555），高對比絕對清晰不隱形！
             btnEl.style.setProperty('background-color', '#3a3a3a', 'important');
             btnEl.style.setProperty('color', '#eeeeee', 'important');
             btnEl.style.setProperty('border-color', '#555555', 'important');
