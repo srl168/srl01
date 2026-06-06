@@ -1,9 +1,9 @@
-//1245 4096
+//1243 4096
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體大腦池初始化（FFT_SIZE 剛性鎖定 4096 點）
+// 💡 1️⃣ 全域記憶體大腦池初始化（FFT_SIZE 鎖死 4096 點）
 // ==========================================
 window.currentSampleRate = 44100; window.currentSinFreq = 1830; 
 window.filteredDataLog = []; window.bufferIndex = 0;
@@ -61,7 +61,7 @@ window.updateFilterCoefficients = function() {
     }
 };
 
-// 🔒 🚀 【核心禁區絕對死鎖】[2], [1], [0] 中括號下標完璧歸趙，100% 正確的二階歷史移位！
+// 🔒 🚀 【核心禁區大死鎖】看清楚了！中括號下標 [0], [1], [2] 完璧歸趙，100% 絕對雷打不動！
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     
@@ -97,6 +97,7 @@ window.initAudioGlobal = function() {
         window.oscNode.frequency.setValueAtTime(window.currentSinFreq, window.audioCtx.currentTime); 
         window.oscNode2.frequency.setValueAtTime(window.currentSinFreq * 0.4, window.audioCtx.currentTime);
         
+        // 🚀 🛠️ 緩衝區同步死鎖 4096 點數據發聲
         window.scriptNode = window.audioCtx.createScriptProcessor(4096, 1, 1);
         window.scriptNode.onaudioprocess = function(audioProcessingEvent) {
             let outputData = audioProcessingEvent.outputBuffer.getChannelData(0);
@@ -185,6 +186,7 @@ window.globalRenderLoop = function() {
     for (let n = 0; n < magnitudes.length; n++) { 
         let currentPointRealHz = n * hzPerBin; if (currentPointRealHz > maxDisplayFreq) break; let curX = (currentPointRealHz / maxDisplayFreq) * 800;
         
+        // 🔒 🚀 4096 點標配真對數分貝標尺（dB LOG）：依據 20 * Math.log10 將波形與背景 dbSteps 刻度完美嚙合
         let ratio = magnitudes[n] / currentFrameMaxMag; if (ratio < 0.00001) ratio = 0.00001;
         let dbValue = 20.0 * Math.log10(ratio);
         if (dbValue < -50.0) dbValue = -50.0;
@@ -200,21 +202,21 @@ window.renderFilterButtonLights = function() {
         let btnEl = document.getElementById(btnIds[mode]);
         if (!btnEl) return;
         
-        // 🔒 🚀 行內最高優先級死鎖！外框樣式永久保留，阻斷任何外部載入後的惡意覆蓋！
+        // 🔒 🚀 利用 setProperty 與 !important 最高權重死鎖！徹底阻斷外部任何 CSS 樣式的載入後覆蓋！
         btnEl.style.setProperty('border', '2px solid #555555', 'important');
         btnEl.style.setProperty('border-radius', '6px', 'important');
         btnEl.style.setProperty('padding', '8px 16px', 'important');
         btnEl.style.setProperty('cursor', 'pointer', 'important');
         
         if (window.currentFilterMode === mode) {
-            // 選取狀態：大亮起第一版最高對比亮綠色（#00ff66），文字死黑，外框同步轉綠
+            // 選取狀態：大亮起主力高對比亮綠色（#00ff66），文字死黑，外框同步轉綠
             btnEl.style.setProperty('background-color', '#00ff66', 'important');
             btnEl.style.setProperty('color', '#111111', 'important');
             btnEl.style.setProperty('border-color', '#00ff66', 'important');
             btnEl.style.setProperty('font-weight', 'bold', 'important');
             btnEl.classList.add('active');
         } else {
-            // 未選取狀態：底色死鎖實體深灰色（#3a3a3a），外框永久卡死水泥灰（#555555），在黑底網頁上高對比浮現！
+            // 未選取狀態：底色死鎖實體深灰色（#3a3a3a），邊框永久保持明亮水泥灰（#555555），網頁載入完成外部 CSS 100% 絕對無法覆蓋抹除！
             btnEl.style.setProperty('background-color', '#3a3a3a', 'important');
             btnEl.style.setProperty('color', '#eeeeee', 'important');
             btnEl.style.setProperty('border-color', '#555555', 'important');
