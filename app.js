@@ -1,9 +1,9 @@
-//11261
+//1262
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體大腦池初始化
+// 💡 1️⃣ 全域記憶體大腦池初始化（初始初值鎖死為 44100 / 1830）
 // ==========================================
 window.currentSampleRate = 44100; window.currentSinFreq = 1830; 
 window.filteredDataLog = []; window.bufferIndex = 0;
@@ -61,7 +61,7 @@ window.updateFilterCoefficients = function() {
     }
 };
 
-// 🔒 🚀 【核心禁區鎖死】中括號下標與 window. 前綴完璧歸趙，100% 絕對雷打不動！
+// 🔒 🚀 【核心禁區鎖死】看清楚了！中括號數字下標 [0], [1], [2] 完璧歸趙，100% 絕對雷打不動！
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     
@@ -101,16 +101,19 @@ window.initAudioGlobal = function() {
             let outputData = audioProcessingEvent.outputBuffer.getChannelData(0);
             for (let sample = 0; sample < audioProcessingEvent.inputBuffer.length; sample++) {
                 
-                // 🚀 🛠️ 儀表級時域破關關鍵：引進高斯隨機相位微擾（Phase Jittering Control）
-                // 每個離散採樣點引入 10 的負 6 次方微幅晃動，從源頭打碎 44100 取樣率下 1830Hz 引起的時域等高畸變平台！
-                let r1 = Math.random(), r2 = Math.random(); if(r1 === 0) r1 = 0.00001;
-                let jitter = Math.sqrt(-2.0 * Math.log(r1)) * Math.cos(2.0 * Math.PI * r2) * 0.000001;
+                let rand1 = Math.random(), rand2 = Math.random(); if (rand1 === 0) rand1 = 0.00001;
+                let jitter = Math.sqrt(-2.0 * Math.log(rand1)) * Math.cos(2.0 * Math.PI * rand2) * 0.000001;
                 
-                let step1 = 2.0 * Math.PI * (window.currentSinFreq / currentSampleRate) + jitter;
-                let step2 = 2.0 * Math.PI * ((window.currentSinFreq * 0.4) / currentSampleRate) + jitter;
+                let step1 = 2.0 * Math.PI * (window.currentSinFreq / window.currentSampleRate) + jitter;
+                let step2 = 2.0 * Math.PI * ((window.currentSinFreq * 0.4) / window.currentSampleRate) + jitter;
                 
-                let rawVal = (Math.sin(window.simPhase) + Math.sin(window.simPhase2)) * 0.5;
-                window.simPhase = (window.simPhase + step1) % (2 * Math.PI); window.simPhase2 = (window.simPhase2 + step2) % (2 * Math.PI);
+                let comp1 = 1.0 - (0.16666667 * step1 * step1);
+                let comp2 = 1.0 - (0.16666667 * step2 * step2);
+                
+                let rawVal = ((Math.sin(window.simPhase) * comp1) + (Math.sin(window.simPhase2) * comp2)) * 0.5;
+                
+                window.simPhase = (window.simPhase + step1) % (2 * Math.PI); 
+                window.simPhase2 = (window.simPhase2 + step2) % (2 * Math.PI);
                 
                 let fVal = window.applyFilter ? window.applyFilter(rawVal) : rawVal; outputData[sample] = fVal;
                 window.filteredDataLog.push(fVal); window.analysisBuffer[window.bufferIndex] = fVal; window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
@@ -159,7 +162,7 @@ window.globalRenderLoop = function() {
         document.getElementById('vppVal').innerText = "0.00 V"; document.getElementById('rmsVal').innerText = "0.00 V"; document.getElementById('freqVal').innerText = "0.0 Hz"; return;
     }
     if (window.filteredDataLog.length < 10) return;
-    let rawSlice = window.filteredDataLog.slice(-Math.max(64, Math.min(window.filteredDataLog.length, Math.round((3 * currentSampleRate) / (window.currentSinFreq * 0.4)))));
+    let rawSlice = window.filteredDataLog.slice(-Math.max(64, Math.min(window.filteredDataLog.length, Math.round((3 * window.currentSampleRate) / (window.currentSinFreq * 0.4)))));
     let scaleY = 145.0; let max = Math.max(...rawSlice), min = Math.min(...rawSlice), sq = 0; rawSlice.forEach(v => sq += v * v);
     document.getElementById('vppVal').innerText = (max - min).toFixed(2) + " V"; document.getElementById('rmsVal').innerText = Math.sqrt(sq / rawSlice.length).toFixed(2) + " V";
     
@@ -168,7 +171,7 @@ window.globalRenderLoop = function() {
     localFFT(re, im); let magnitudes = new Float32Array(window.FFT_SIZE / 2), maxMag = 0;
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; } }
     
-    let hzPerBin = currentSampleRate / window.FFT_SIZE;
+    let hzPerBin = window.currentSampleRate / window.FFT_SIZE;
     let maxDisplayFreq = window.currentSinFreq * 1.5;
     let htmlMaxFreq = parseFloat(document.getElementById('sinFreqSlider')?.max) || 5000;
     if (maxDisplayFreq < 200) maxDisplayFreq = 200; if (maxDisplayFreq > htmlMaxFreq) maxDisplayFreq = htmlMaxFreq;
@@ -179,7 +182,7 @@ window.globalRenderLoop = function() {
     window.tCtx.clearRect(0, 0, 800, 400); window.tCtx.fillStyle = '#111'; window.tCtx.fillRect(0, 0, 800, 400); window.tCtx.strokeStyle = '#333'; window.tCtx.lineWidth = 1; window.tCtx.beginPath(); voltSteps.forEach(v => { let yPos = midY - v * scaleY; window.tCtx.moveTo(0, yPos); window.tCtx.lineTo(800, yPos); }); window.tCtx.stroke();
     window.tCtx.fillStyle = '#ffffff'; window.tCtx.font = 'bold 12px Arial'; voltSteps.forEach(v => window.tCtx.fillText((v >= 0 ? "+" : "") + v.toFixed(1) + "V", 25, midY - v * scaleY + 4));
     window.tCtx.strokeStyle = '#00ff66'; window.tCtx.lineWidth = 2.5; window.tCtx.beginPath(); window.tCtx.moveTo(0, midY - (rawSlice * scaleY)); for (let j = 1; j < rawSlice.length; j++) { window.tCtx.lineTo(j * (800 / (rawSlice.length - 1)), midY - (rawSlice[j] * scaleY)); } window.tCtx.stroke();
-    window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + ((rawSlice.length / currentSampleRate) * 1000).toFixed(2) + " ms", 620, 380);
+    window.tCtx.fillStyle = '#00ff66'; window.tCtx.fillText("全幅時間: " + ((rawSlice.length / window.currentSampleRate) * 1000).toFixed(2) + " ms", 620, 380);
 
     window.fCtx.clearRect(0, 0, 800, 400); window.fCtx.fillStyle = '#111'; window.fCtx.fillRect(0, 0, 800, 400); window.fCtx.strokeStyle = '#333'; window.fCtx.beginPath(); for (let k = 0; k <= 4; k++) window.fCtx.moveTo(k * 200, 0), window.fCtx.lineTo(k * 200, 360); window.fCtx.stroke();
     window.fCtx.fillStyle = '#ffffff'; for (let k = 0; k <= 4; k++) window.fCtx.fillText((((maxDisplayFreq / 4) * k) / 1000).toFixed(2) + " kHz", k * 200 + (k === 0 ? 15 : k === 4 ? -75 : -25), 385);
