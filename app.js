@@ -114,7 +114,8 @@ window.initAudioGlobal = function() {
             }
             if (window.filteredDataLog.length > 10000) window.filteredDataLog = window.filteredDataLog.slice(-8000);
         };
-        window.oscNode.connect(window.scriptNode); window.oscNode2.connect(window.scriptNode); window.scriptNode.connect(window.gainNode); window.oscNode.start(); window.oscNode2.start();
+        window.oscNode.connect(window.scriptNode); window.oscNode2.connect(window.scriptNode); window.scriptNode.connect(window.gainNode); window.oscNode.start(); 
+		//window.oscNode2.start();
     }
 };
 
