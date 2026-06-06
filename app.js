@@ -1,32 +1,31 @@
-//1231
+//124 4096
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體大腦池初始化
+// 💡 1️⃣ 全域記憶體大腦池初始化（FFT_SIZE 正宗換裝 4096 點）
 // ==========================================
 window.currentSampleRate = 44100; window.currentSinFreq = 1830; 
 window.filteredDataLog = []; window.bufferIndex = 0;
 window.nextPlayTime = 0; window.isSpeakerOn = false;
 window.isSimulating = false; window.currentVolume = 0.3; 
 window.simPhase = 0; window.simPhase2 = 0;             
-window.FFT_SIZE = 1024; window.renderFrameCounter = 0; 
+window.FFT_SIZE = 4096; window.renderFrameCounter = 0; 
 window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 
 window.currentFilterMode = 'RAW'; window.f1 = 1000; window.f2 = 3000;
 window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 
-// 🚀 🛠️ 儀表級實務破關：固化最高解析度 4096 點正弦查表陣列（SIN LUT）
-window.SIN_LUT_SIZE = 4096; window.sinTable = new Float64Array(window.SIN_LUT_SIZE);
-for (let i = 0; i < window.SIN_LUT_SIZE; i++) { window.sinTable[i] = Math.sin((2.0 * Math.PI * i) / window.SIN_LUT_SIZE); }
-
-// 🚀 🔒 全域頂層 window.xv 與 window.yv 陣列死鎖綁定，確保下標讀寫安全
+// 🚀 🔒 全域頂層 window.xv 與 window.yv 陣列死鎖綁定，確保下標作用域安全
 window.xv = new Float32Array(3); window.yv = new Float32Array(3);
 
 window.addEventListener('DOMContentLoaded', () => {
-    window.tCanvas = document.getElementById('timeCanvas'); window.fCanvas = document.getElementById('freqCanvas');
-    window.tCtx = window.tCanvas.getContext('2d'); window.fCtx = window.fCanvas.getContext('2d');
-    window.tCanvas.width = 800; window.tCanvas.height = 400; window.fCanvas.width = 800; window.fCanvas.height = 400;
+    window.tCanvas = document.getElementById('timeCanvas'); 
+    window.fCanvas = document.getElementById('freqCanvas');
+    window.tCtx = window.tCanvas.getContext('2d'); 
+    window.fCtx = window.fCanvas.getContext('2d');
+    window.tCanvas.width = 800; window.tCanvas.height = 400; 
+    window.fCanvas.width = 800; window.fCanvas.height = 400;
 });
 // ==========================================
 // 💡 2️⃣ 數位濾波器精密係數計算公式
@@ -97,43 +96,32 @@ window.initAudioGlobal = function() {
         window.oscNode = window.audioCtx.createOscillator(); window.oscNode2 = window.audioCtx.createOscillator();
         window.oscNode.frequency.setValueAtTime(window.currentSinFreq, window.audioCtx.currentTime); 
         window.oscNode2.frequency.setValueAtTime(window.currentSinFreq * 0.4, window.audioCtx.currentTime);
-        window.scriptNode = window.audioCtx.createScriptProcessor(1024, 1, 1);
+        
+        // 🚀 🛠️ 緩衝區同步鎖定 4096 點發聲
+        window.scriptNode = window.audioCtx.createScriptProcessor(4096, 1, 1);
         window.scriptNode.onaudioprocess = function(audioProcessingEvent) {
             let outputData = audioProcessingEvent.outputBuffer.getChannelData(0);
             for (let sample = 0; sample < audioProcessingEvent.inputBuffer.length; sample++) {
                 
-                let step1 = (window.currentSinFreq * window.SIN_LUT_SIZE) / window.currentSampleRate;
-                let step2 = ((window.currentSinFreq * 0.4) * window.SIN_LUT_SIZE) / window.currentSampleRate;
+                let step1 = 2.0 * Math.PI * (window.currentSinFreq / window.currentSampleRate);
+                let step2 = 2.0 * Math.PI * ((window.currentSinFreq * 0.4) / window.currentSampleRate);
                 
-                let idx1 = Math.floor(window.simPhase) % window.SIN_LUT_SIZE;
-                let idx2 = Math.floor(window.simPhase2) % window.SIN_LUT_SIZE;
-                
-                let s1 = window.sinTable[idx1];
-                let s2 = window.sinTable[idx2];
-                
-                //let rawVal = (s1 + s2) * 0.5;
-                let rawVal = s1 ;
-                
-                window.simPhase = (window.simPhase + step1) % window.SIN_LUT_SIZE;
-                window.simPhase2 = (window.simPhase2 + step2) % window.SIN_LUT_SIZE;
+                let rawVal = (Math.sin(window.simPhase) + Math.sin(window.simPhase2)) * 0.5;
+                window.simPhase = (window.simPhase + step1) % (2 * Math.PI); window.simPhase2 = (window.simPhase2 + step2) % (2 * Math.PI);
                 
                 let fVal = window.applyFilter ? window.applyFilter(rawVal) : rawVal; outputData[sample] = fVal;
                 window.filteredDataLog.push(fVal); window.analysisBuffer[window.bufferIndex] = fVal; window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
             }
-            if (window.filteredDataLog.length > 4000) window.filteredDataLog = window.filteredDataLog.slice(-3000);
+            if (window.filteredDataLog.length > 10000) window.filteredDataLog = window.filteredDataLog.slice(-8000);
         };
-        window.oscNode.connect(window.scriptNode); 
-		window.oscNode2.connect(window.scriptNode);
-		window.scriptNode.connect(window.gainNode); 
-		window.oscNode.start(); 
-		//window.oscNode2.start();
+        window.oscNode.connect(window.scriptNode); window.oscNode2.connect(window.scriptNode); window.scriptNode.connect(window.gainNode); window.oscNode.start(); window.oscNode2.start();
     }
 };
 
 window.consumeRawBuffer = function(rawDataView) {
     for (let i = 0; i < rawDataView.byteLength; i++) {
         let fVal = window.applyFilter((rawDataView.getUint8(i) / 127.5) - 1.0); window.filteredDataLog.push(fVal);
-        if (window.filteredDataLog.length > 5000) window.filteredDataLog.shift(); 
+        if (window.filteredDataLog.length > 10000) window.filteredDataLog.shift(); 
         window.analysisBuffer[window.bufferIndex] = fVal; window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
     }
 };
@@ -197,7 +185,9 @@ window.globalRenderLoop = function() {
     window.fCtx.strokeStyle = '#ffad00'; window.fCtx.lineWidth = 2.5; window.fCtx.beginPath(); let isFirstPoint = true;
     for (let n = 0; n < magnitudes.length; n++) { 
         let currentPointRealHz = n * hzPerBin; if (currentPointRealHz > maxDisplayFreq) break; let curX = (currentPointRealHz / maxDisplayFreq) * 800;
+        
         let y = 30 + ((1.0 - (magnitudes[n] / currentFrameMaxMag)) * 310);
+        
         if (isNaN(y) || !isFinite(y)) y = 358.0; if (y < 32.0) y = 32.0; if (y > 358) y = 358; 
         if (isFirstPoint) { window.fCtx.moveTo(curX, y); isFirstPoint = false; } else { window.fCtx.lineTo(curX, y); }
     } window.fCtx.stroke();
