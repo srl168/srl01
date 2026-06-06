@@ -61,7 +61,7 @@ window.updateFilterCoefficients = function() {
     }
 };
 
-// 🔒 🚀 【核心禁區絕對鎖死】中括號數字下標 [0], [1], [2] 完璧歸趙，100% 絕對雷打不動！一字不改！
+// 🔒 🚀 【核心禁區絕對死鎖】中括號數字下標 [0], [1], [2] 完璧歸趙，100% 絕對雷打不動！
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     
@@ -200,24 +200,21 @@ window.renderFilterButtonLights = function() {
         let btnEl = document.getElementById(btnIds[mode]);
         if (!btnEl) return;
         
-        // 🔒 🚀 灰色外框剛性落盤：為按鈕強制附加實體外邊框（border）樣式，確保任何時候灰色外邊框絕對清晰可見！
-        btnEl.style.border = '1.5px solid #444444';
-        btnEl.style.borderRadius = '4px';
-        btnEl.style.padding = '6px 12px';
+        btnEl.style.border = '2px solid #555555';
+        btnEl.style.borderRadius = '6px';
+        btnEl.style.padding = '8px 16px';
         btnEl.style.cursor = 'pointer';
         
         if (window.currentFilterMode === mode) {
-            // 選取狀態下：大亮起第一版最高對比亮綠色背景（#00ff66），文字死黑，外框同步轉綠
             btnEl.style.backgroundColor = '#00ff66';
             btnEl.style.color = '#111111';
             btnEl.style.borderColor = '#00ff66';
             btnEl.style.fontWeight = 'bold';
             btnEl.classList.add('active');
         } else {
-            // 未選取狀態下：外框線強固化保持有灰度對比（#444444），內部採用深灰襯墊，灰色控制外框絕對永不隱形消失！
-            btnEl.style.backgroundColor = '#1e1e1e';
-            btnEl.style.color = '#aaaaaa';
-            btnEl.style.borderColor = '#444444';
+            btnEl.style.backgroundColor = '#3a3a3a';
+            btnEl.style.color = '#eeeeee';
+            btnEl.style.borderColor = '#555555';
             btnEl.style.fontWeight = 'normal';
             btnEl.classList.remove('active');
         }
