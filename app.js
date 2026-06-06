@@ -1,4 +1,4 @@
-//1242 4096
+//1245 4096
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -61,7 +61,7 @@ window.updateFilterCoefficients = function() {
     }
 };
 
-// 🔒 🚀 【核心禁區絕對死鎖】中括號數字下標 [0], [1], [2] 完璧歸趙，100% 絕對雷打不動！
+// 🔒 🚀 【核心禁區絕對死鎖】[2], [1], [0] 中括號下標完璧歸趙，100% 正確的二階歷史移位！
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     
@@ -200,22 +200,25 @@ window.renderFilterButtonLights = function() {
         let btnEl = document.getElementById(btnIds[mode]);
         if (!btnEl) return;
         
-        btnEl.style.border = '2px solid #555555';
-        btnEl.style.borderRadius = '6px';
-        btnEl.style.padding = '8px 16px';
-        btnEl.style.cursor = 'pointer';
+        // 🔒 🚀 行內最高優先級死鎖！外框樣式永久保留，阻斷任何外部載入後的惡意覆蓋！
+        btnEl.style.setProperty('border', '2px solid #555555', 'important');
+        btnEl.style.setProperty('border-radius', '6px', 'important');
+        btnEl.style.setProperty('padding', '8px 16px', 'important');
+        btnEl.style.setProperty('cursor', 'pointer', 'important');
         
         if (window.currentFilterMode === mode) {
-            btnEl.style.backgroundColor = '#00ff66';
-            btnEl.style.color = '#111111';
-            btnEl.style.borderColor = '#00ff66';
-            btnEl.style.fontWeight = 'bold';
+            // 選取狀態：大亮起第一版最高對比亮綠色（#00ff66），文字死黑，外框同步轉綠
+            btnEl.style.setProperty('background-color', '#00ff66', 'important');
+            btnEl.style.setProperty('color', '#111111', 'important');
+            btnEl.style.setProperty('border-color', '#00ff66', 'important');
+            btnEl.style.setProperty('font-weight', 'bold', 'important');
             btnEl.classList.add('active');
         } else {
-            btnEl.style.backgroundColor = '#3a3a3a';
-            btnEl.style.color = '#eeeeee';
-            btnEl.style.borderColor = '#555555';
-            btnEl.style.fontWeight = 'normal';
+            // 未選取狀態：底色死鎖實體深灰色（#3a3a3a），外框永久卡死水泥灰（#555555），在黑底網頁上高對比浮現！
+            btnEl.style.setProperty('background-color', '#3a3a3a', 'important');
+            btnEl.style.setProperty('color', '#eeeeee', 'important');
+            btnEl.style.setProperty('border-color', '#555555', 'important');
+            btnEl.style.setProperty('font-weight', 'normal', 'important');
             btnEl.classList.remove('active');
         }
     });
