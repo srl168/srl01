@@ -1,9 +1,9 @@
-//1252
+//1253
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體大腦池初始化（4096點大腦鎖死）
+// 💡 1️⃣ 全域記憶體大腦池初始化（4096點解析度卡死）
 // ==========================================
 window.currentSampleRate = 44100; window.currentSinFreq = 1830; 
 window.filteredDataLog = []; window.bufferIndex = 0;
@@ -16,8 +16,9 @@ window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 window.currentFilterMode = 'RAW'; window.f1 = 1000; window.f2 = 3000;
 window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 
-// 🚀 🔒 全域頂層 window.xv 與 window.yv 陣列死鎖綁定，確保下標作用域安全
+// 🚀 🔒 雙級級聯（Stage 1 & Stage 2）全域頂層四階暫存器陣列死鎖綁定，確保下標讀寫安全
 window.xv = new Float32Array(3); window.yv = new Float32Array(3);
+window.xv2 = new Float32Array(3); window.yv2 = new Float32Array(3);
 
 window.addEventListener('DOMContentLoaded', () => {
     window.tCanvas = document.getElementById('timeCanvas'); 
@@ -28,47 +29,37 @@ window.addEventListener('DOMContentLoaded', () => {
     window.fCanvas.width = 800; window.fCanvas.height = 400;
 });
 // ==========================================
-// 💡 2️⃣ 數位濾波器：正宗切比雪夫響應精密係數計算（帶有 1dB 紋波拉伸）
+// 💡 2️⃣ 數位濾波器：正宗切比雪夫響應精密係數計算公式
 // ==========================================
 window.updateFilterCoefficients = function() {
     let fs = window.currentSampleRate;
     let fr1 = fs / window.f1; if (fr1 < 2.01) fr1 = 2.01;
     let omega = Math.tan(Math.PI / fr1);
 
-    // 🚀 🛠️ 切比雪夫 I 型響應（2極點，1 dB 通帶紋波）精密幾何預調制因子
+    // 🚀 🛠️ 切比雪夫 I 型響應精密幾何預調制因子（1 dB 通帶紋波拉伸）
     let rippleDB = 1.0; 
-    let epsilon = Math.sqrt(Math.pow(10, rippleDB / 10) - 1); // 紋波因子
+    let epsilon = Math.sqrt(Math.pow(10, rippleDB / 10) - 1); 
     let alpha = 1.0 / epsilon;
     let s_sinh = Math.sinh(0.5 * Math.asinh(alpha));
     let c_cosh = Math.cosh(0.5 * Math.asinh(alpha));
     
-    // 預調制切比雪夫極點軌跡座標
-    let sinHalfPI = 0.70710678; // sin(pi/4)
-    let cosHalfPI = 0.70710678; // cos(pi/4)
+    let sinHalfPI = 0.70710678; 
+    let cosHalfPI = 0.70710678; 
     let pole_real = -sinHalfPI * s_sinh;
     let pole_imag = cosHalfPI * c_cosh;
     
-    // 計算連續時間分母
     let ct_a2 = pole_real * pole_real + pole_imag * pole_imag;
     let ct_a1 = -2.0 * pole_real;
     
     if (window.currentFilterMode === 'LP') { 
-        // 切比雪夫低通雙線性變換公式
         let denom = ct_a2 + ct_a1 * omega + omega * omega;
-        window.b0 = (omega * omega) / denom;
-        window.b1 = 2.0 * window.b0;
-        window.b2 = window.b0;
-        window.a1 = 2.0 * (omega * omega - ct_a2) / denom;
-        window.a2 = (ct_a2 - ct_a1 * omega + omega * omega) / denom;
+        window.b0 = (omega * omega) / denom; window.b1 = 2.0 * window.b0; window.b2 = window.b0;
+        window.a1 = 2.0 * (omega * omega - ct_a2) / denom; window.a2 = (ct_a2 - ct_a1 * omega + omega * omega) / denom;
     } 
     else if (window.currentFilterMode === 'HP') { 
-        // 切比雪夫高通雙線性變換公式
         let denom = ct_a2 * omega * omega + ct_a1 * omega + 1.0;
-        window.b0 = 1.0 / denom;
-        window.b1 = -2.0 / denom;
-        window.b2 = 1.0 / denom;
-        window.a1 = 2.0 * (1.0 - ct_a2 * omega * omega) / denom;
-        window.a2 = (ct_a2 * omega * omega - ct_a1 * omega + 1.0) / denom;
+        window.b0 = 1.0 / denom; window.b1 = -2.0 / denom; window.b2 = 1.0 / denom;
+        window.a1 = 2.0 * (1.0 - ct_a2 * omega * omega) / denom; window.a2 = (ct_a2 * omega * omega - ct_a1 * omega + 1.0) / denom;
     } 
     else if (window.currentFilterMode === 'BP') { 
         let f2Correct = window.f2; if (f2Correct <= window.f1) f2Correct = window.f1 + 10;
@@ -86,20 +77,32 @@ window.updateFilterCoefficients = function() {
     }
 };
 
-// 🔒 🚀 【核心禁區絕對鎖死】中括號數字下標,, 完璧歸趙，100% 絕對雷打不動！一字不改！
+// 🔒 🚀 【核心禁區最高剛性死鎖】中括號數字下標,, 完璧歸趙！串聯雙級電路大通電！一字不改！
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     
+    // 🛑 1️⃣ 第一級切比雪夫濾波處理
     window.xv[2] = window.xv[1]; window.xv[1] = window.xv[0]; window.xv[0] = x;
     window.yv[2] = window.yv[1]; window.yv[1] = window.yv[0];
     
     window.yv[0] = (window.b0 * window.xv[0]) + (window.b1 * window.xv[1]) + (window.b2 * window.xv[2]) 
                    - (window.a1 * window.yv[1]) - (window.a2 * window.yv[2]);
+                   
+    if (isNaN(window.yv[0]) || !isFinite(window.yv[0])) window.yv[0] = 0;
     
-    if (isNaN(window.yv[0]) || !isFinite(window.yv[0])) { 
+    // 🛑 2️⃣ 🚀 第二級切比雪夫級聯（將第一級輸出直接注入第二級，釋放 4-pole 極限衰減威力）
+    let outStage1 = window.yv[0];
+    window.xv2[2] = window.xv2[1]; window.xv2[1] = window.xv2[0]; window.xv2[0] = outStage1;
+    window.yv2[2] = window.yv2[1]; window.yv2[1] = window.yv2[0];
+    
+    window.yv2[0] = (window.b0 * window.xv2[0]) + (window.b1 * window.xv2[1]) + (window.b2 * window.xv2[2]) 
+                    - (window.a1 * window.yv2[1]) - (window.a2 * window.yv2[2]);
+    
+    if (isNaN(window.yv2[0]) || !isFinite(window.yv2[0])) { 
+        window.yv2[0] = window.yv2[1] = window.yv2[2] = window.xv2[0] = window.xv2[1] = window.xv2[2] = 0; 
         window.yv[0] = window.yv[1] = window.yv[2] = window.xv[0] = window.xv[1] = window.xv[2] = 0; 
     } 
-    return window.yv[0];
+    return window.yv2[0];
 };
 window.oscNode = null; window.oscNode2 = null; window.scriptNode = null;
 window.audioCtx = null; window.gainNode = null;
@@ -224,7 +227,7 @@ window.renderFilterButtonLights = function() {
         let btnEl = document.getElementById(btnIds[mode]);
         if (!btnEl) return;
         
-        // 🔒 🚀 最高優先級水泥灰控制框強制卡死，拒絕載入完成後的外部覆蓋！
+        // 🔒 🚀 最高優先級水泥灰控制外框（#555555）強制卡死，拒絕外部樣式覆蓋！
         btnEl.style.setProperty('border', '2px solid #555555', 'important');
         btnEl.style.setProperty('border-radius', '6px', 'important');
         btnEl.style.setProperty('padding', '8px 16px', 'important');
