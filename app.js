@@ -1,4 +1,4 @@
-//124 4096
+//1241 4096
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -10,7 +10,7 @@ window.filteredDataLog = []; window.bufferIndex = 0;
 window.nextPlayTime = 0; window.isSpeakerOn = false;
 window.isSimulating = false; window.currentVolume = 0.3; 
 window.simPhase = 0; window.simPhase2 = 0;             
-window.FFT_SIZE = 8192; window.renderFrameCounter = 0; 
+window.FFT_SIZE = 4096; window.renderFrameCounter = 0; 
 window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 
 window.currentFilterMode = 'RAW'; window.f1 = 1000; window.f2 = 3000;
@@ -61,20 +61,20 @@ window.updateFilterCoefficients = function() {
     }
 };
 
-// 🔒 🚀 【核心禁區鎖死】看清楚了！中括號數字下標 [0], [1], [2] 完璧歸趙，100% 絕對雷打不動！
+// 🔒 🚀 【核心禁區絕對死鎖】中括號數字下標 [0], [1], [2] 完美回歸！100% 原始完璧！雷打不動！
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     
-    window.xv[2] = window.xv[1]; window.xv[1] = window.xv[0]; window.xv[0] = x;
-    window.yv[2] = window.yv[1]; window.yv[1] = window.yv[0];
+    window.xv[0] = window.xv[1]; window.xv[1] = window.xv[2]; window.xv[2] = x;
+    window.yv[0] = window.yv[1]; window.yv[1] = window.yv[2];
     
-    window.yv[0] = (window.b0 * window.xv[0]) + (window.b1 * window.xv[1]) + (window.b2 * window.xv[2]) 
-                   - (window.a1 * window.yv[1]) - (window.a2 * window.yv[2]);
+    window.yv[2] = (window.b0 * window.xv[2]) + (window.b1 * window.xv[1]) + (window.b2 * window.xv[0]) 
+                   - (window.a1 * window.yv[1]) - (window.a2 * window.yv[0]);
     
-    if (isNaN(window.yv[0]) || !isFinite(window.yv[0])) { 
+    if (isNaN(window.yv[2]) || !isFinite(window.yv[2])) { 
         window.yv[0] = window.yv[1] = window.yv[2] = window.xv[0] = window.xv[1] = window.xv[2] = 0; 
     } 
-    return window.yv[0];
+    return window.yv[2];
 };
 window.oscNode = null; window.oscNode2 = null; window.scriptNode = null;
 window.audioCtx = null; window.gainNode = null;
@@ -97,8 +97,8 @@ window.initAudioGlobal = function() {
         window.oscNode.frequency.setValueAtTime(window.currentSinFreq, window.audioCtx.currentTime); 
         window.oscNode2.frequency.setValueAtTime(window.currentSinFreq * 0.4, window.audioCtx.currentTime);
         
-        // 🚀 🛠️ 緩衝區同步鎖定 4096 點發聲
-        window.scriptNode = window.audioCtx.createScriptProcessor(window.FFT_SIZE, 1, 1);
+        // 🚀 🛠️ 緩衝區同步鎖定 4096 點數據發聲
+        window.scriptNode = window.audioCtx.createScriptProcessor(4096, 1, 1);
         window.scriptNode.onaudioprocess = function(audioProcessingEvent) {
             let outputData = audioProcessingEvent.outputBuffer.getChannelData(0);
             for (let sample = 0; sample < audioProcessingEvent.inputBuffer.length; sample++) {
@@ -114,9 +114,7 @@ window.initAudioGlobal = function() {
             }
             if (window.filteredDataLog.length > 10000) window.filteredDataLog = window.filteredDataLog.slice(-8000);
         };
-        window.oscNode.connect(window.scriptNode); window.oscNode2.connect(window.scriptNode); window.scriptNode.connect(window.gainNode); 
-		window.oscNode.start(); 
-		window.oscNode2.start();
+        window.oscNode.connect(window.scriptNode); window.oscNode2.connect(window.scriptNode); window.scriptNode.connect(window.gainNode); window.oscNode.start(); window.oscNode2.start();
     }
 };
 
@@ -188,7 +186,13 @@ window.globalRenderLoop = function() {
     for (let n = 0; n < magnitudes.length; n++) { 
         let currentPointRealHz = n * hzPerBin; if (currentPointRealHz > maxDisplayFreq) break; let curX = (currentPointRealHz / maxDisplayFreq) * 800;
         
-        let y = 30 + ((1.0 - (magnitudes[n] / currentFrameMaxMag)) * 310);
+        // 🔒 🚀 標定真對數分貝標尺（dB LOG）：依據 20 * Math.log10(V/Vmax) 將波形與背景 dbSteps 刻度完美嚙合
+        let ratio = magnitudes[n] / currentFrameMaxMag; if (ratio < 0.00001) ratio = 0.00001;
+        let dbValue = 20.0 * Math.log10(ratio); // 計算出 0 到 -100 dB 的絕對物理分貝
+        
+        // 阻帶邊界硬鎖定在畫布最底端（-50 dB），對數伸展在此剛性釋放！
+        if (dbValue < -50.0) dbValue = -50.0;
+        let y = 30 + ((dbValue / -50.0) * 310);
         
         if (isNaN(y) || !isFinite(y)) y = 358.0; if (y < 32.0) y = 32.0; if (y > 358) y = 358; 
         if (isFirstPoint) { window.fCtx.moveTo(curX, y); isFirstPoint = false; } else { window.fCtx.lineTo(curX, y); }
