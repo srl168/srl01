@@ -1,4 +1,4 @@
-//125 
+//1251
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
@@ -62,28 +62,30 @@ window.updateFilterCoefficients = function() {
     }
 };
 
-// 🔒 🚀 【核心禁區絕對鎖死】看清楚了！Stage 1 與 Stage 2 移位下標均 100% 完璧原裝，字字不改！
+// 🔒 🚀 【核心禁區大死鎖】中括號數字下標 [0],[1],[2] 完璧歸趙！串聯移位大通電！一字不差！
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     
-    // 1️⃣ 第一級濾波移位更新（貢獻前 12dB 衰減）
+    // 1️⃣ 第一級 IIR 濾波器（貢獻前 12dB 衰減）
     window.xv[2] = window.xv[1]; window.xv[1] = window.xv[0]; window.xv[0] = x;
     window.yv[2] = window.yv[1]; window.yv[1] = window.yv[0];
+    
     window.yv[0] = (window.b0 * window.xv[0]) + (window.b1 * window.xv[1]) + (window.b2 * window.xv[2]) 
                    - (window.a1 * window.yv[1]) - (window.a2 * window.yv[2]);
                    
     if (isNaN(window.yv[0]) || !isFinite(window.yv[0])) window.yv[0] = 0;
     
-    // 2️⃣ 🚨 核心重大升級：將第一級的輸出直接作為第二級的輸入，立刻級聯追加 12dB，總衰減秒變 24dB！
+    // 2️⃣ 第二級 IIR 濾波器（串聯追加 12dB 衰減，總計 24dB 強力裁切）
     let outStage1 = window.yv[0];
     window.xv2[2] = window.xv2[1]; window.xv2[1] = window.xv2[0]; window.xv2[0] = outStage1;
     window.yv2[2] = window.yv2[1]; window.yv2[1] = window.yv2[0];
+    
     window.yv2[0] = (window.b0 * window.xv2[0]) + (window.b1 * window.xv2[1]) + (window.b2 * window.xv2[2]) 
                     - (window.a1 * window.yv2[1]) - (window.a2 * window.yv2[2]);
     
     if (isNaN(window.yv2[0]) || !isFinite(window.yv2[0])) { 
-        window.yv2[0] = window.yv2[1] = window.yv2[2] = window.xv2[0] = window.xv2[1] = window.xv2[2] = 0;
-        window.yv[0] = window.yv[1] = window.yv[2] = window.xv[0] = window.xv[1] = window.xv[2] = 0;
+        window.yv2[0] = window.yv2[1] = window.yv2[2] = window.xv2[0] = window.xv2[1] = window.xv2[2] = 0; 
+        window.yv[0] = window.yv[1] = window.yv[2] = window.xv[0] = window.xv[1] = window.xv[2] = 0; 
     } 
     return window.yv2[0];
 };
