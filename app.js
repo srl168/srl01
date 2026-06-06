@@ -10,7 +10,7 @@ window.filteredDataLog = []; window.bufferIndex = 0;
 window.nextPlayTime = 0; window.isSpeakerOn = false;
 window.isSimulating = false; window.currentVolume = 0.3; 
 window.simPhase = 0; window.simPhase2 = 0;             
-window.FFT_SIZE = 4096; window.renderFrameCounter = 0; 
+window.FFT_SIZE = 8192; window.renderFrameCounter = 0; 
 window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 
 window.currentFilterMode = 'RAW'; window.f1 = 1000; window.f2 = 3000;
@@ -98,7 +98,7 @@ window.initAudioGlobal = function() {
         window.oscNode2.frequency.setValueAtTime(window.currentSinFreq * 0.4, window.audioCtx.currentTime);
         
         // 🚀 🛠️ 緩衝區同步鎖定 4096 點發聲
-        window.scriptNode = window.audioCtx.createScriptProcessor(4096, 1, 1);
+        window.scriptNode = window.audioCtx.createScriptProcessor(window.FFT_SIZE, 1, 1);
         window.scriptNode.onaudioprocess = function(audioProcessingEvent) {
             let outputData = audioProcessingEvent.outputBuffer.getChannelData(0);
             for (let sample = 0; sample < audioProcessingEvent.inputBuffer.length; sample++) {
@@ -114,8 +114,9 @@ window.initAudioGlobal = function() {
             }
             if (window.filteredDataLog.length > 10000) window.filteredDataLog = window.filteredDataLog.slice(-8000);
         };
-        window.oscNode.connect(window.scriptNode); window.oscNode2.connect(window.scriptNode); window.scriptNode.connect(window.gainNode); window.oscNode.start(); 
-		//window.oscNode2.start();
+        window.oscNode.connect(window.scriptNode); window.oscNode2.connect(window.scriptNode); window.scriptNode.connect(window.gainNode); 
+		window.oscNode.start(); 
+		window.oscNode2.start();
     }
 };
 
