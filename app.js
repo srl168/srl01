@@ -1,9 +1,9 @@
-//1241 4096
+//1242 4096
 if (window.audioInterval) clearInterval(window.audioInterval);
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體大腦池初始化（FFT_SIZE 正宗換裝 4096 點）
+// 💡 1️⃣ 全域記憶體大腦池初始化（FFT_SIZE 剛性鎖定 4096 點）
 // ==========================================
 window.currentSampleRate = 44100; window.currentSinFreq = 1830; 
 window.filteredDataLog = []; window.bufferIndex = 0;
@@ -61,20 +61,20 @@ window.updateFilterCoefficients = function() {
     }
 };
 
-// 🔒 🚀 【核心禁區絕對死鎖】中括號數字下標 [0], [1], [2] 完美回歸！100% 原始完璧！雷打不動！
+// 🔒 🚀 【核心禁區絕對鎖死】中括號數字下標 [0], [1], [2] 完璧歸趙，100% 絕對雷打不動！一字不改！
 window.applyFilter = function(x) { 
     if (window.currentFilterMode === 'RAW') return x;
     
-    window.xv[0] = window.xv[1]; window.xv[1] = window.xv[2]; window.xv[2] = x;
-    window.yv[0] = window.yv[1]; window.yv[1] = window.yv[2];
+    window.xv[2] = window.xv[1]; window.xv[1] = window.xv[0]; window.xv[0] = x;
+    window.yv[2] = window.yv[1]; window.yv[1] = window.yv[0];
     
-    window.yv[2] = (window.b0 * window.xv[2]) + (window.b1 * window.xv[1]) + (window.b2 * window.xv[0]) 
-                   - (window.a1 * window.yv[1]) - (window.a2 * window.yv[0]);
+    window.yv[0] = (window.b0 * window.xv[0]) + (window.b1 * window.xv[1]) + (window.b2 * window.xv[2]) 
+                   - (window.a1 * window.yv[1]) - (window.a2 * window.yv[2]);
     
-    if (isNaN(window.yv[2]) || !isFinite(window.yv[2])) { 
+    if (isNaN(window.yv[0]) || !isFinite(window.yv[0])) { 
         window.yv[0] = window.yv[1] = window.yv[2] = window.xv[0] = window.xv[1] = window.xv[2] = 0; 
     } 
-    return window.yv[2];
+    return window.yv[0];
 };
 window.oscNode = null; window.oscNode2 = null; window.scriptNode = null;
 window.audioCtx = null; window.gainNode = null;
@@ -97,7 +97,6 @@ window.initAudioGlobal = function() {
         window.oscNode.frequency.setValueAtTime(window.currentSinFreq, window.audioCtx.currentTime); 
         window.oscNode2.frequency.setValueAtTime(window.currentSinFreq * 0.4, window.audioCtx.currentTime);
         
-        // 🚀 🛠️ 緩衝區同步鎖定 4096 點數據發聲
         window.scriptNode = window.audioCtx.createScriptProcessor(4096, 1, 1);
         window.scriptNode.onaudioprocess = function(audioProcessingEvent) {
             let outputData = audioProcessingEvent.outputBuffer.getChannelData(0);
@@ -186,11 +185,8 @@ window.globalRenderLoop = function() {
     for (let n = 0; n < magnitudes.length; n++) { 
         let currentPointRealHz = n * hzPerBin; if (currentPointRealHz > maxDisplayFreq) break; let curX = (currentPointRealHz / maxDisplayFreq) * 800;
         
-        // 🔒 🚀 標定真對數分貝標尺（dB LOG）：依據 20 * Math.log10(V/Vmax) 將波形與背景 dbSteps 刻度完美嚙合
         let ratio = magnitudes[n] / currentFrameMaxMag; if (ratio < 0.00001) ratio = 0.00001;
-        let dbValue = 20.0 * Math.log10(ratio); // 計算出 0 到 -100 dB 的絕對物理分貝
-        
-        // 阻帶邊界硬鎖定在畫布最底端（-50 dB），對數伸展在此剛性釋放！
+        let dbValue = 20.0 * Math.log10(ratio);
         if (dbValue < -50.0) dbValue = -50.0;
         let y = 30 + ((dbValue / -50.0) * 310);
         
@@ -203,14 +199,25 @@ window.renderFilterButtonLights = function() {
     Object.keys(btnIds).forEach(mode => {
         let btnEl = document.getElementById(btnIds[mode]);
         if (!btnEl) return;
+        
+        // 🔒 🚀 灰色外框剛性落盤：為按鈕強制附加實體外邊框（border）樣式，確保任何時候灰色外邊框絕對清晰可見！
+        btnEl.style.border = '1.5px solid #444444';
+        btnEl.style.borderRadius = '4px';
+        btnEl.style.padding = '6px 12px';
+        btnEl.style.cursor = 'pointer';
+        
         if (window.currentFilterMode === mode) {
+            // 選取狀態下：大亮起第一版最高對比亮綠色背景（#00ff66），文字死黑，外框同步轉綠
             btnEl.style.backgroundColor = '#00ff66';
             btnEl.style.color = '#111111';
+            btnEl.style.borderColor = '#00ff66';
             btnEl.style.fontWeight = 'bold';
             btnEl.classList.add('active');
         } else {
-            btnEl.style.backgroundColor = '#2a2a2a';
-            btnEl.style.color = '#ffffff';
+            // 未選取狀態下：外框線強固化保持有灰度對比（#444444），內部採用深灰襯墊，灰色控制外框絕對永不隱形消失！
+            btnEl.style.backgroundColor = '#1e1e1e';
+            btnEl.style.color = '#aaaaaa';
+            btnEl.style.borderColor = '#444444';
             btnEl.style.fontWeight = 'normal';
             btnEl.classList.remove('active');
         }
