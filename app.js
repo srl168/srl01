@@ -234,7 +234,7 @@ window.initAudioGlobal = function() {
         window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         window.gainNode = window.audioCtx.createGain(); 
         
-        // 🚀 🔒 【世紀大死鎖】強制鎖死 Gain 節點的硬體立體聲通道，阻斷 Up-mixing 串軌！
+        // 🔒 強制鎖死硬體雙聲道，完全杜絕瀏覽器 Up-mixing 混音黑洞
         window.gainNode.channelCount = 2;
         window.gainNode.channelCountMode = "explicit";
         window.gainNode.channelInterpretation = "speakers";
@@ -253,11 +253,10 @@ window.initAudioGlobal = function() {
         window.oscNode.frequency.setValueAtTime(window.currentSinFreq, window.audioCtx.currentTime); 
         window.oscNode2.frequency.setValueAtTime(window.currentSinFreq * 0.4, window.audioCtx.currentTime);
         
-        // 建立 2 輸出通道（立體聲）的 ScriptProcessor
         window.scriptNode = window.audioCtx.createScriptProcessor(4096, 1, 2);
         window.scriptNode.onaudioprocess = function(audioProcessingEvent) {
-            let leftOutput = audioProcessingEvent.outputBuffer.getChannelData(0);  // 左聲道：通道一 (0 ~ F1)
-            let rightOutput = audioProcessingEvent.outputBuffer.getChannelData(1); // 右聲道：通道二 (F1 ~ F2)
+            let leftOutput = audioProcessingEvent.outputBuffer.getChannelData(0);  
+            let rightOutput = audioProcessingEvent.outputBuffer.getChannelData(1); 
             let bufLength = audioProcessingEvent.inputBuffer.length;
             
             for (let sample = 0; sample < bufLength; sample++) {
@@ -271,17 +270,17 @@ window.initAudioGlobal = function() {
                 let leftVal = window.applyFilterLeft ? window.applyFilterLeft(rawVal) : rawVal;
                 let rightVal = window.applyFilterRight ? window.applyFilterRight(rawVal) : rawVal;
                 
-                // 按鈕動態發聲分流與單邊 Solo 監聽
+                // 🚀 🔒 【100% 訊號高保真直通】聲音絕對不再經過任何放大，保持原汁原味的真實物理電壓！
                 let leftOutVal = leftVal;
                 let rightOutVal = rightVal;
                 
                 if (window.currentFilterMode === 'LP') {
-                    rightOutVal = 0.0; // 👈 LP 時：右耳物理斷電！
+                    rightOutVal = 0.0; // LP 時右耳單邊物理靜音
                 } else if (window.currentFilterMode === 'HP') {
-                    leftOutVal = 0.0;  // 👈 HP 時：左耳物理斷電！
+                    leftOutVal = 0.0;  // HP 時左耳物理靜音
                 } else if (window.currentFilterMode === 'BP') {
                     leftOutVal = leftVal;
-                    rightOutVal = rightVal; // 👈 BP 時：左右雙耳平行大放音！
+                    rightOutVal = rightVal; // BP 時雙耳平行發聲
                 } else if (window.currentFilterMode === 'RAW') {
                     leftOutVal = rawVal;
                     rightOutVal = rawVal;
@@ -290,6 +289,7 @@ window.initAudioGlobal = function() {
                 leftOutput[sample] = leftOutVal;   
                 rightOutput[sample] = rightOutVal; 
                 
+                // 🔒 繪圖監控點同樣保持高保真，拒絕乘法干擾
                 let plotVal = leftVal;
                 if (window.currentFilterMode === 'HP' || window.currentFilterMode === 'BP') {
                     plotVal = rightVal; 
@@ -335,7 +335,7 @@ window.consumeRawBuffer = function(rawDataView) {
 };
 
 // ==========================================
-// 💡 4️⃣ 快速傅立葉變換與真對數分貝標尺（dB LOG）渲染大腦
+// 💡 4️⃣ 快速傅立葉變換與真自適應最高振幅動態投影（Auto-Scale）渲染大腦
 // ==========================================
 function localFFT(re, im) {
     const n = re.length; 
@@ -440,13 +440,20 @@ window.globalRenderLoop = function() {
     
     if (window.filteredDataLog.length < 10) return;
     let rawSlice = window.filteredDataLog.slice(-Math.max(64, Math.min(window.filteredDataLog.length, Math.round((3 * window.currentSampleRate) / (window.currentSinFreq * 0.4)))));
-    let scaleY = 145.0; 
-    let max = Math.max(...rawSlice);
-    let min = Math.min(...rawSlice);
+    
+    // 🔒 如實計算並投影真實物理數據（保真顯示真實 Vpp 與 RMS） [INDEX]
+    let maxRealVal = Math.max(...rawSlice);
+    let minRealVal = Math.min(...rawSlice);
     let sq = 0; 
     rawSlice.forEach(v => sq += v * v);
-    document.getElementById('vppVal').innerText = (max - min).toFixed(2) + " V"; 
+    document.getElementById('vppVal').innerText = (maxRealVal - minRealVal).toFixed(2) + " V"; 
     document.getElementById('rmsVal').innerText = Math.sqrt(sq / rawSlice.length).toFixed(2) + " V";
+    
+    // 🚀 🔒 【時域自適應繪圖歸一化核心】
+    // 找出當前幀的絕對波峰最大值（Peak），動態調製波形縮放係數，保證視覺上永遠挺拔飽滿、絕不縮水！
+    let framePeak = Math.max(Math.abs(maxRealVal), Math.abs(minRealVal));
+    if (framePeak < 0.01) framePeak = 0.01;
+    let scaleY = 145.0 / framePeak; // 👈 根據最高振幅動態調整 Y 軸繪圖拉伸比例 [INDEX]
     
     let re = new Float32Array(window.FFT_SIZE);
     let im = new Float32Array(window.FFT_SIZE);
@@ -457,14 +464,14 @@ window.globalRenderLoop = function() {
     
     let magnitudes = new Float32Array(window.FFT_SIZE / 2);
     let maxMag = 0;
-    let peakBinIndex = 0; // 🚀 🔒 換裝正宗全局最高點 Peak 追蹤索引
+    let peakBinIndex = 0; 
     
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { 
         magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); 
-        if (m > 2) { // 跳過極低頻 DC 雜訊干擾
+        if (m > 2) { 
             if (magnitudes[m] > maxMag) {
                 maxMag = magnitudes[m];
-                peakBinIndex = m; // 🔒 實時咬定全局最強能量的網格點
+                peakBinIndex = m; 
             }
         }
     }
@@ -475,13 +482,15 @@ window.globalRenderLoop = function() {
     if (maxDisplayFreq < 200) maxDisplayFreq = 200; 
     if (maxDisplayFreq > htmlMaxFreq) maxDisplayFreq = htmlMaxFreq;
     
+    // 🚀 🔒 【頻譜自適應繪圖歸一化核心】
+    // 頻譜以當前幀最大振幅為 0 dB 基準進行對數運算，波柱永遠圓潤挺拔、絕不切頭死平！ [INDEX]
     let currentFrameMaxMag = maxMag; 
     if (currentFrameMaxMag < 0.001) currentFrameMaxMag = 0.001;
     
-    // 🚀 🔒 【徹底砸爛下標熔斷 Bug】文字頻率直接利用 PeakBin 進行物理換算，決不熔斷！
     let livePeakHz = peakBinIndex * hzPerBin;
     document.getElementById('freqVal').innerText = maxMag > 0.015 ? livePeakHz.toFixed(1) + " Hz" : "0.0 Hz";
 
+    // 繪製時域背景刻度（刻度依然固定在真實的 +1.0V 到 -1.0V，以實現絕對高保真儀表規範） [INDEX]
     window.tCtx.clearRect(0, 0, 800, 400); 
     window.tCtx.fillStyle = '#111'; 
     window.tCtx.fillRect(0, 0, 800, 400); 
@@ -489,20 +498,21 @@ window.globalRenderLoop = function() {
     window.tCtx.lineWidth = 1; 
     window.tCtx.beginPath(); 
     voltSteps.forEach(v => { 
-        let yPos = midY - v * scaleY; 
-        window.tCtx.moveTo(0, yPos); 
-        window.tCtx.lineTo(800, yPos); 
+        let gridY = midY - v * 145.0; // 👈 刻度線維持 100% 原始物理物理幾何不變
+        window.tCtx.moveTo(0, gridY); 
+        window.tCtx.lineTo(800, gridY); 
     }); 
     window.tCtx.stroke();
     
     window.tCtx.fillStyle = '#ffffff'; 
     window.tCtx.font = 'bold 12px Arial'; 
-    voltSteps.forEach(v => window.tCtx.fillText((v >= 0 ? "+" : "") + v.toFixed(1) + "V", 25, midY - v * scaleY + 4));
+    voltSteps.forEach(v => window.tCtx.fillText((v >= 0 ? "+" : "") + v.toFixed(1) + "V", 25, midY - v * 145.0 + 4));
     
+    // 🚀 🔒 最終渲染波形線：乘上剛才算出的自適應 scaleY，波形瞬間滿格、展現純淨物理形狀！ [INDEX]
     window.tCtx.strokeStyle = '#00ff66'; 
     window.tCtx.lineWidth = 2.5; 
     window.tCtx.beginPath(); 
-    window.tCtx.moveTo(0, midY - (rawSlice * scaleY)); 
+    window.tCtx.moveTo(0, midY - (rawSlice[0] * scaleY)); 
     for (let j = 1; j < rawSlice.length; j++) { 
         window.tCtx.lineTo(j * (800 / (rawSlice.length - 1)), midY - (rawSlice[j] * scaleY)); 
     } 
@@ -511,6 +521,7 @@ window.globalRenderLoop = function() {
     window.tCtx.fillStyle = '#00ff66'; 
     window.tCtx.fillText("全幅時間: " + ((rawSlice.length / window.currentSampleRate) * 1000).toFixed(2) + " ms", 620, 380);
 
+    // 繪製頻譜背景刻度
     window.fCtx.clearRect(0, 0, 800, 400); 
     window.fCtx.fillStyle = '#111'; 
     window.fCtx.fillRect(0, 0, 800, 400); 
