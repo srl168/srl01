@@ -1,4 +1,4 @@
-//1264
+//1265
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
@@ -69,7 +69,7 @@ window.updateFilterCoefficients = function() {
     let C1 = o1_L * o1_H;
     let cBP1 = 1.0 + W1 + C1;
     
-    // 剛性死鎖給左耳專用變數
+    // 剛性鎖死給左耳專用變數
     window.b0 = W1 / cBP1;
     window.b1 = 0.0;
     window.b2 = -window.b0;
@@ -89,14 +89,13 @@ window.updateFilterCoefficients = function() {
     let C2 = o2_L * o2_H;
     let cBP2 = 1.0 + W2 + C2;
     
-    // 🚀 🚨 剛性解耦！必須死鎖給右耳專用獨立變數（b0R, a1R, a2R），絕不與左耳混用！
+    // 🚀 🚨 剛性解耦！右耳專用獨立變數（b0R, a1R, a2R），毫無串軌！
     window.b0R = W2 / cBP2;
     window.b1R = 0.0;
     window.b2R = -window.b0R;
     window.a1R = 2.0 * (C2 - 1.0) / cBP2;
     window.a2R = (1.0 - W2 + C2) / cBP2;
     
-    // 安全性異常防禦覆核
     if (isNaN(window.b0) || !isFinite(window.b0)) {
         window.b0 = 1; window.b1 = window.b2 = window.a1 = window.a2 = 0;
     }
@@ -105,108 +104,108 @@ window.updateFilterCoefficients = function() {
     }
 };
 
-// 🔒 🚀 【🚨 左耳獨立八階穩健巴特沃斯核心絕對鎖死】中括號數字下標 [0],[1],[2] 完璧通電大歸位！🔒
+// 🔒 🚀 【🚨 真．左耳 8 階巴特沃斯中括號下標原裝死鎖大歸位】🔒
 window.applyFilterLeft = function(x) {
     if (window.currentFilterMode === 'RAW') return x;
     
-    // 🛑 左通道 Stage 1（使用左耳專用係數 b0, a1, a2）
-    window.xv[0] = window.xv[1]; 
-    window.xv[1] = window.xv[2]; 
-    window.xv[2] = x;
-    window.yv[0] = window.yv[1]; 
-    window.yv[1] = window.yv[2];
-    window.yv[2] = (window.b0 * window.xv[2]) + (window.b1 * window.xv[1]) + (window.b2 * window.xv[0]) 
-                      - (window.a1 * window.yv[1]) - (window.a2 * window.yv[0]);
-    if (isNaN(window.yv[2]) || !isFinite(window.yv[2])) window.yv[2] = 0;
+    // 🛑 左通道 Stage 1
+    window.xv[2] = window.xv[1]; 
+    window.xv[1] = window.xv[0]; 
+    window.xv[0] = x;
+    window.yv[2] = window.yv[1]; 
+    window.yv[1] = window.yv[0];
+    window.yv[0] = (window.b0 * window.xv[0]) + (window.b1 * window.xv[1]) + (window.b2 * window.xv[2]) 
+                      - (window.a1 * window.yv[1]) - (window.a2 * window.yv[2]);
+    if (isNaN(window.yv[0]) || !isFinite(window.yv[0])) window.yv[0] = 0;
     
     // 🛑 左通道 Stage 2
-    window.xv2[0] = window.xv2[1]; 
-    window.xv2[1] = window.xv2[2]; 
-    window.xv2[2] = window.yv[2];
-    window.yv2[0] = window.yv2[1]; 
-    window.yv2[1] = window.yv2[2];
-    window.yv2[2] = (window.b0 * window.xv2[2]) + (window.b1 * window.xv2[1]) + (window.b2 * window.xv2[0]) 
-                       - (window.a1 * window.yv2[1]) - (window.a2 * window.yv2[0]);
-    if (isNaN(window.yv2[2]) || !isFinite(window.yv2[2])) window.yv2[2] = 0;
+    window.xv2[2] = window.xv2[1]; 
+    window.xv2[1] = window.xv2[0]; 
+    window.xv2[0] = window.yv[0];
+    window.yv2[2] = window.yv2[1]; 
+    window.yv2[1] = window.yv2[0];
+    window.yv2[0] = (window.b0 * window.xv2[0]) + (window.b1 * window.xv2[1]) + (window.b2 * window.xv2[2]) 
+                       - (window.a1 * window.yv2[1]) - (window.a2 * window.yv2[2]);
+    if (isNaN(window.yv2[0]) || !isFinite(window.yv2[0])) window.yv2[0] = 0;
     
     // 🛑 左通道 Stage 3
-    window.xv3[0] = window.xv3[1]; 
-    window.xv3[1] = window.xv3[2]; 
-    window.xv3[2] = window.yv2[2];
-    window.yv3[0] = window.yv3[1]; 
-    window.yv3[1] = window.yv3[2];
-    window.yv3[2] = (window.b0 * window.xv3[2]) + (window.b1 * window.xv3[1]) + (window.b2 * window.xv3[0]) 
-                       - (window.a1 * window.yv3[1]) - (window.a2 * window.yv3[0]);
-    if (isNaN(window.yv3[2]) || !isFinite(window.yv3[2])) window.yv3[2] = 0;
+    window.xv3[2] = window.xv3[1]; 
+    window.xv3[1] = window.xv3[0]; 
+    window.xv3[0] = window.yv2[0];
+    window.yv3[2] = window.yv3[1]; 
+    window.yv3[1] = window.yv3[0];
+    window.yv3[0] = (window.b0 * window.xv3[0]) + (window.b1 * window.xv3[1]) + (window.b2 * window.xv3[2]) 
+                       - (window.a1 * window.yv3[1]) - (window.a2 * window.yv3[2]);
+    if (isNaN(window.yv3[0]) || !isFinite(window.yv3[0])) window.yv3[0] = 0;
     
-    // 🛑 左通道 Stage 4（8階 0~F1 帶通完畢）
-    window.xv4[0] = window.xv4[1]; 
-    window.xv4[1] = window.xv4[2]; 
-    window.xv4[2] = window.yv3[2];
-    window.yv4[0] = window.yv4[1]; 
-    window.yv4[1] = window.yv4[2];
-    window.yv4[2] = (window.b0 * window.xv4[2]) + (window.b1 * window.xv4[1]) + (window.b2 * window.xv4[0]) 
-                       - (window.a1 * window.yv4[1]) - (window.a2 * window.yv4[0]);
+    // 🛑 左通道 Stage 4（8階 0~F1 帶通收官）
+    window.xv4[2] = window.xv4[1]; 
+    window.xv4[1] = window.xv4[0]; 
+    window.xv4[0] = window.yv3[0];
+    window.yv4[2] = window.yv4[1]; 
+    window.yv4[1] = window.yv4[0];
+    window.yv4[0] = (window.b0 * window.xv4[0]) + (window.b1 * window.xv4[1]) + (window.b2 * window.xv4[2]) 
+                       - (window.a1 * window.yv4[1]) - (window.a2 * window.yv4[2]);
     
-    if (isNaN(window.yv4[2]) || !isFinite(window.yv4[2])) {
+    if (isNaN(window.yv4[0]) || !isFinite(window.yv4[0])) {
         window.yv4[0] = window.yv4[1] = window.yv4[2] = window.xv4[0] = window.xv4[1] = window.xv4[2] = 0;
         window.yv3[0] = window.yv3[1] = window.yv3[2] = window.xv3[0] = window.xv3[1] = window.xv3[2] = 0;
         window.yv2[0] = window.yv2[1] = window.yv2[2] = window.xv2[0] = window.xv2[1] = window.xv2[2] = 0;
         window.yv[0]  = window.yv[1]  = window.yv[2]  = window.xv[0]  = window.xv[1]  = window.xv[2]  = 0;
     }
-    return window.yv4[2];
+    return window.yv4[0];
 };
 
-// 🔒 🚀 【🚨 右耳獨立八階穩健巴特沃斯帶通核心絕對大死鎖】中括號數字下標 [0],[1],[2] 完璧通電大歸位！🔒
+// 🔒 🚀 【🚨 真．右耳 8 階巴特沃斯中括號下標原裝死鎖大歸位】🔒
 window.applyFilterRight = function(x) {
     if (window.currentFilterMode === 'RAW') return x;
     
-    // 🛑 右通道 Stage 1（🚀 剛性採用右耳專用解耦係數 b0R, a1R, a2R）
-    window.xvR[0] = window.xvR[1]; 
-    window.xvR[1] = window.xvR[2]; 
-    window.xvR[2] = x;
-    window.yvR[0] = window.yvR[1]; 
-    window.yvR[1] = window.yvR[2];
-    window.yvR[2] = (window.b0R * window.xvR[2]) + (window.b1R * window.xvR[1]) + (window.b2R * window.xvR[0]) 
-                       - (window.a1R * window.yvR[1]) - (window.a2R * window.yvR[0]);
-    if (isNaN(window.yvR[2]) || !isFinite(window.yvR[2])) window.yvR[2] = 0;
+    // 🛑 右通道 Stage 1
+    window.xvR[2] = window.xvR[1]; 
+    window.xvR[1] = window.xvR[0]; 
+    window.xvR[0] = x;
+    window.yvR[2] = window.yvR[1]; 
+    window.yvR[1] = window.yvR[0];
+    window.yvR[0] = (window.b0R * window.xvR[0]) + (window.b1R * window.xvR[1]) + (window.b2R * window.xvR[2]) 
+                       - (window.a1R * window.yvR[1]) - (window.a2R * window.yvR[2]);
+    if (isNaN(window.yvR[0]) || !isFinite(window.yvR[0])) window.yvR[0] = 0;
     
     // 🛑 右通道 Stage 2
-    window.xvR2[0] = window.xvR2[1]; 
-    window.xvR2[1] = window.xvR2[2]; 
-    window.xvR2[2] = window.yvR[2];
-    window.yvR2[0] = window.yvR2[1]; 
-    window.yvR2[1] = window.yvR2[2];
-    window.yvR2[2] = (window.b0R * window.xvR2[2]) + (window.b1R * window.xvR2[1]) + (window.b2R * window.xvR2[0]) 
-                        - (window.a1R * window.yvR2[1]) - (window.a2R * window.yvR2[0]);
-    if (isNaN(window.yvR2[2]) || !isFinite(window.yvR2[2])) window.yvR2[2] = 0;
+    window.xvR2[2] = window.xvR2[1]; 
+    window.xvR2[1] = window.xvR2[0]; 
+    window.xvR2[0] = window.yvR[0];
+    window.yvR2[2] = window.yvR2[1]; 
+    window.yvR2[1] = window.yvR2[0];
+    window.yvR2[0] = (window.b0R * window.xvR2[0]) + (window.b1R * window.xvR2[1]) + (window.b2R * window.xvR2[2]) 
+                        - (window.a1R * window.yvR2[1]) - (window.a2R * window.yvR2[2]);
+    if (isNaN(window.yvR2[0]) || !isFinite(window.yvR2[0])) window.yvR2[0] = 0;
     
     // 🛑 右通道 Stage 3
-    window.xvR3[0] = window.xvR3[1]; 
-    window.xvR3[1] = window.xvR3[2]; 
-    window.xvR3[2] = window.yvR2[2];
-    window.yvR3[0] = window.yvR3[1]; 
-    window.yvR3[1] = window.yvR3[2];
-    window.yvR3[2] = (window.b0R * window.xvR3[2]) + (window.b1R * window.xvR3[1]) + (window.b2R * window.xvR3[0]) 
-                        - (window.a1R * window.yvR3[1]) - (window.a2R * window.yvR3[0]);
-    if (isNaN(window.yvR3[2]) || !isFinite(window.yvR3[2])) window.yvR3[2] = 0;
+    window.xvR3[2] = window.xvR3[1]; 
+    window.xvR3[1] = window.xvR3[0]; 
+    window.xvR3[0] = window.yvR2[0];
+    window.yvR3[2] = window.yvR3[1]; 
+    window.yvR3[1] = window.yvR3[0];
+    window.yvR3[0] = (window.b0R * window.xvR3[0]) + (window.b1R * window.xvR3[1]) + (window.b2R * window.xvR3[2]) 
+                        - (window.a1R * window.yvR3[1]) - (window.a2R * window.yvR3[2]);
+    if (isNaN(window.yvR3[0]) || !isFinite(window.yvR3[0])) window.yvR3[0] = 0;
     
-    // 🛑 右通道 Stage 4（8階 F1~F2 帶通大收官）
-    window.xvR4[0] = window.xvR4[1]; 
-    window.xvR4[1] = window.xvR4[2]; 
-    window.xvR4[2] = window.yvR3[2];
-    window.yvR4[0] = window.yvR4[1]; 
-    window.yvR4[1] = window.yvR4[2];
-    window.yvR4[2] = (window.b0R * window.xvR4[2]) + (window.b1R * window.xvR4[1]) + (window.b2R * window.xvR4[0]) 
-                        - (window.a1R * window.yvR4[1]) - (window.a2R * window.yvR4[0]);
+    // 🛑 右通道 Stage 4（8階 F1~F2 帶通收官）
+    window.xvR4[2] = window.xvR4[1]; 
+    window.xvR4[1] = window.xvR4[0]; 
+    window.xvR4[0] = window.yvR3[0];
+    window.yvR4[2] = window.yvR4[1]; 
+    window.yvR4[1] = window.yvR4[0];
+    window.yvR4[0] = (window.b0R * window.xvR4[0]) + (window.b1R * window.xvR4[1]) + (window.b2R * window.xvR4[2]) 
+                        - (window.a1R * window.yvR4[1]) - (window.a2R * window.yvR4[2]);
     
-    if (isNaN(window.yvR4[2]) || !isFinite(window.yvR4[2])) {
+    if (isNaN(window.yvR4[0]) || !isFinite(window.yvR4[0])) {
         window.yvR4[0] = window.yvR4[1] = window.yvR4[2] = window.xvR4[0] = window.xvR4[1] = window.xvR4[2] = 0;
         window.yvR3[0] = window.yvR3[1] = window.yvR3[2] = window.xvR3[0] = window.xvR3[1] = window.xvR3[2] = 0;
         window.yvR2[0] = window.yvR2[1] = window.yvR2[2] = window.xvR2[0] = window.xvR2[1] = window.xvR2[2] = 0;
         window.yvR[0]  = window.yvR[1]  = window.yvR[2]  = window.xvR[0]  = window.xvR[1]  = window.xvR[2]  = 0;
     }
-    return window.yvR4[2];
+    return window.yvR4[0];
 };
 
 // ==========================================
@@ -252,33 +251,41 @@ window.initAudioGlobal = function() {
                 let leftVal = window.applyFilterLeft ? window.applyFilterLeft(rawVal) : rawVal;
                 let rightVal = window.applyFilterRight ? window.applyFilterRight(rawVal) : rawVal;
                 
-                leftOutput[sample] = leftVal;
-                rightOutput[sample] = rightVal;
+                leftOutput[sample] = leftVal;   
+                rightOutput[sample] = rightVal; 
                 
-                // 🚀 🔒 【真．立體分流示波器動態投影監控點】
                 let plotVal = leftVal;
                 if (window.currentFilterMode === 'HP' || window.currentFilterMode === 'BP') {
-plotVal = rightVal; // 👈 切換到高通/帶通按鈕時，畫布 100% 只繪製右耳純淨波形
-} 
-else if (window.currentFilterMode === 'RAW') {plotVal = rawVal;   // 👈 RAW 時看原始波
+                    plotVal = rightVal; 
+                } else if (window.currentFilterMode === 'RAW') {
+                    plotVal = rawVal;   
+                }
+                
+window.filteredDataLog.push(plotVal);window.analysisBuffer[window.bufferIndex] = plotVal;
+window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
 }
-window.filteredDataLog.push(plotVal);
-window.analysisBuffer[window.bufferIndex] = plotVal;
-window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;}
 
 if (window.filteredDataLog.length > 10000) {window.filteredDataLog = window.filteredDataLog.slice(-8000);}
 };
+
 window.oscNode.connect(window.scriptNode);
 window.oscNode2.connect(window.scriptNode);
 window.scriptNode.connect(window.gainNode);
-window.oscNode.start();
-window.oscNode2.start();
+window.oscNode.start();window.oscNode2.start();
 }
 };
 window.consumeRawBuffer = function(rawDataView) {
-	let byteLen = rawDataView.byteLength;
+let byteLen = rawDataView.byteLength;
 for (let i = 0; i < byteLen; i++) {
-	let rawVal = (rawDataView.getUint8(i) / 127.5) - 1.0;let leftVal = window.applyFilterLeft(rawVal);let rightVal = window.applyFilterRight(rawVal);let plotVal = leftVal;if (window.currentFilterMode === 'HP' || window.currentFilterMode === 'BP') {plotVal = rightVal;} else if (window.currentFilterMode === 'RAW') {plotVal = rawVal;}window.filteredDataLog.push(plotVal);if (window.filteredDataLog.length > 10000) window.filteredDataLog.shift();window.analysisBuffer[window.bufferIndex] = plotVal;window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
+let rawVal = (rawDataView.getUint8(i) / 127.5) - 1.0;
+let leftVal = window.applyFilterLeft(rawVal);
+let rightVal = window.applyFilterRight(rawVal);
+let plotVal = leftVal;
+if (window.currentFilterMode === 'HP' || window.currentFilterMode === 'BP') {plotVal = rightVal;} 
+else if (window.currentFilterMode === 'RAW') {plotVal = rawVal;}
+window.filteredDataLog.push(plotVal);
+if (window.filteredDataLog.length > 10000) window.filteredDataLog.shift();
+window.analysisBuffer[window.bufferIndex] = plotVal;window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
 }
 };
 
