@@ -1,4 +1,4 @@
-//1265
+//1266
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
@@ -251,43 +251,46 @@ window.initAudioGlobal = function() {
                 let leftVal = window.applyFilterLeft ? window.applyFilterLeft(rawVal) : rawVal;
                 let rightVal = window.applyFilterRight ? window.applyFilterRight(rawVal) : rawVal;
                 
-                leftOutput[sample] = leftVal;   
-                rightOutput[sample] = rightVal; 
+                // 🚀 🔒 【按鈕動態發聲分流與單邊 Solo 監聽控制】
+                let leftOutVal = leftVal;
+                let rightOutVal = rightVal;
                 
-                let plotVal = leftVal;
-                if (window.currentFilterMode === 'HP' || window.currentFilterMode === 'BP') {
-                    plotVal = rightVal; 
-                } else if (window.currentFilterMode === 'RAW') {
-                    plotVal = rawVal;   
-                }
-                
-window.filteredDataLog.push(plotVal);window.analysisBuffer[window.bufferIndex] = plotVal;
-window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
-}
+                if (window.currentFilterMode === 'LP') {
+                    rightOutVal = 0.0; // 👈 點擊 LP 時：右耳強制完全靜音，左耳獨奏 (Solo) 0~F1 低頻波！
+                } 
+				else if (window.currentFilterMode === 'HP') {
+                    leftOutVal = 0.0;  // 👈 點擊 HP 時：左耳強制完全靜音，右耳獨奏 (Solo) F1~F2 主音針尖！
+} 
+else if (window.currentFilterMode === 'BP') {
+// 👈 點擊 BP 時：保持左右一起放音，左耳放低頻，右耳放高頻！
+leftOutVal = leftVal;
+rightOutVal = rightVal;}
+ 
+else if (window.currentFilterMode === 'RAW') {
+leftOutVal = rawVal;
+rightOutVal = rawVal;}
 
-if (window.filteredDataLog.length > 10000) {window.filteredDataLog = window.filteredDataLog.slice(-8000);}
-};
+leftOutput[sample] = leftOutVal;
+rightOutput[sample] = rightOutVal;
+let plotVal = leftVal;
 
+if (window.currentFilterMode === 'HP' || window.currentFilterMode === 'BP') {
+plotVal = rightVal;} 
+else if (window.currentFilterMode === 'RAW') {plotVal = rawVal;}
+
+window.filteredDataLog.push(plotVal);
+window.analysisBuffer[window.bufferIndex] = plotVal;window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;}
+
+if (window.filteredDataLog.length > 10000) {
+window.filteredDataLog = window.filteredDataLog.slice(-8000);}};
 window.oscNode.connect(window.scriptNode);
 window.oscNode2.connect(window.scriptNode);
 window.scriptNode.connect(window.gainNode);
-window.oscNode.start();window.oscNode2.start();
-}
-};
-window.consumeRawBuffer = function(rawDataView) {
-let byteLen = rawDataView.byteLength;
-for (let i = 0; i < byteLen; i++) {
-let rawVal = (rawDataView.getUint8(i) / 127.5) - 1.0;
-let leftVal = window.applyFilterLeft(rawVal);
-let rightVal = window.applyFilterRight(rawVal);
-let plotVal = leftVal;
-if (window.currentFilterMode === 'HP' || window.currentFilterMode === 'BP') {plotVal = rightVal;} 
-else if (window.currentFilterMode === 'RAW') {plotVal = rawVal;}
-window.filteredDataLog.push(plotVal);
-if (window.filteredDataLog.length > 10000) window.filteredDataLog.shift();
-window.analysisBuffer[window.bufferIndex] = plotVal;window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
-}
-};
+window.oscNode.start();
+window.oscNode2.start();
+}};
+window.consumeRawBuffer = function(rawDataView) {let byteLen = rawDataView.byteLength;for (let i = 0; i < byteLen; i++) {let rawVal = (rawDataView.getUint8(i) / 127.5) - 1.0;let leftVal = window.applyFilterLeft(rawVal);let rightVal = window.applyFilterRight(rawVal);let plotVal = leftVal;if (window.currentFilterMode === 'HP' || window.currentFilterMode === 'BP') {plotVal = rightVal;} else if (window.currentFilterMode === 'RAW') {plotVal = rawVal;}window.filteredDataLog.push(plotVal);if (window.filteredDataLog.length > 10000) window.filteredDataLog.shift();window.analysisBuffer[window.bufferIndex] = plotVal;window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;}};
+
 
 // ==========================================
 // 💡 4️⃣ 快速傅立葉變換與真對數分貝標尺（dB LOG）渲染大腦
