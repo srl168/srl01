@@ -616,7 +616,7 @@ window.globalRenderLoop = function() {
     window.fCtx.stroke();
 };
 // ==========================================
-// 💡 5️⃣ !important 最高優先級控制外框與「RAW動態隔離 ＋ 0~20kHz全頻段解鎖」事件驱动引擎
+// 💡 5️⃣ !important 最高優先級控制外框與「RAW動態隔離 ＋ 0~20kHz全頻段解鎖」事件驅動引擎
 // ==========================================
 window.renderFilterButtonLights = function() {
     const btnIds = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
@@ -624,22 +624,22 @@ window.renderFilterButtonLights = function() {
     let f1Slider = document.getElementById('f1Slider');
     let f2Slider = document.getElementById('f2Slider');
     
-    // 🚀 🔒 【100% 聽從 HTML 天條校準死鎖 🔒】
-    // F1 容器直接抓住 f1Slider，F2 容器直接抓住 f2Container，徹底消滅找不到節點的熔斷黑洞！
-    let f1Box = document.getElementById('f1Slider'); 
+    // 🚀 🔒 【真．100% 雙通道對稱容器剛性死鎖 🔒】
+    // 精確抓住您最新修改的實體對稱 ID 節點 f1Container 與 f2Container，徹底消滅一切打架烏龍！
+    let f1Box = document.getElementById('f1Container'); 
     let f2Box = document.getElementById('f2Container'); 
     
     if (f1Box && f2Box && f1Slider && f2Slider) {
         if (window.currentFilterMode === 'RAW') {
-            // 💡 RAW 直通模式：兩根拉桿實體 ID 100% 同步 display='none' 徹底全消！
+            // 💡 RAW 直通模式：F1、F2 兩個對稱大外框容器 100% 同步完全消失，面板達到絕對高保真極簡！
             f1Box.style.setProperty('display', 'none', 'important');
             f2Box.style.setProperty('display', 'none', 'important');
         } else {
-            // 💡 LP, HP, BP 三大濾波模式：兩根拉桿實體 ID 100% 同步 display='flex' 永久全出！ LP 時 F2 也挺立！
+            // 💡 LP, HP, BP 三大濾波模式：F1、F2 兩個對稱大外框容器 100% 同步 flex 永久全出！LP 模式下 F2 也絕對挺立不失蹤！
             f1Box.style.setProperty('display', 'flex', 'important');
             f2Box.style.setProperty('display', 'flex', 'important');
             
-            // 最高權限解鎖 0 ~ 20000 Hz 工業全頻段 HTML 硬件極限
+            // 最高權限一鍵全開 0 ~ 20000 Hz 工業全頻段 HTML 硬件邊界
             f1Slider.setAttribute('min', '0');
             f1Slider.setAttribute('max', '20000');
             f2Slider.setAttribute('min', '0');
@@ -732,7 +732,7 @@ document.addEventListener('input', (e) => {
     }
     if (sliderId === "sinFreqSlider") window.currentSinFreq = parseInt(curVal);
     
-    // 🔒 【個別模式引數記憶動態改值引擎】
+    // 🔒 【個別模式引數記憶動態改值引擎】拉動拉桿時，0 ~ 20000 Hz 全範圍無阻礙寫入專屬記憶池！
     if (sliderId === "f1Slider") { 
         if (window.currentFilterMode === 'LP') window.f1_LP = parseInt(curVal);
         else if (window.currentFilterMode === 'HP') window.f1_HP = parseInt(curVal);
