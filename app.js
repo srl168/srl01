@@ -1,4 +1,4 @@
-//1273
+//1274
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
@@ -623,21 +623,21 @@ window.renderFilterButtonLights = function() {
     
     let f1Slider = document.getElementById('f1Slider');
     let f2Slider = document.getElementById('f2Slider');
-    let f1View = document.getElementById('f1Container'); // F1 容器節點
-    let f2View = document.getElementById('f2Container'); // F2 容器節點
+    let f1View = document.getElementById('f1Container'); 
+    let f2View = document.getElementById('f2Container'); 
     
-    // 🚀 🔒 【RAW模式動態隔離 ＋ 0~20000Hz 邊界最高權限鎖死】
+    // 🚀 🔒 【RAW 模式動態隔離 ＋ 濾波模式雙拉桿 100% 剛性常開鎖死】
     if (f1View && f2View && f1Slider && f2Slider) {
         if (window.currentFilterMode === 'RAW') {
-            // RAW 模式下：不要 F1、F2，直接徹底隱藏，讓面板保持保真直通！
+            // RAW 直通模式下：不要 F1、F2，兩個控制列容器徹底完全隱藏，保持極簡保真！
             f1View.style.setProperty('display', 'none', 'important');
             f2View.style.setProperty('display', 'none', 'important');
         } else {
-            // LP, HP, BP 模式下：F1、F2 拉桿必須 100% 同步傲然挺立浮現，絕不切換消失！
+            // 🚨 🔒 世紀大定案：只要是 LP, HP, BP 三大濾波模式中的任何一個，F1 和 F2 同步 100% 強制常開，在 LP 時 F2 也絕對傲然挺立不消失！
             f1View.style.setProperty('display', 'flex', 'important');
             f2View.style.setProperty('display', 'flex', 'important');
             
-            // 剛性改寫 HTML 拉桿的物理極限值，解鎖工業級全頻段 0 ~ 20000 Hz 操作！
+            // 剛性鎖死 HTML 拉桿極限範圍，全線解鎖 0 ~ 20000 Hz 工業全頻段！
             f1Slider.min = "0";
             f1Slider.max = "20000";
             f2Slider.min = "0";
@@ -709,6 +709,8 @@ document.addEventListener('click', (e) => {
     if (fModes[clickId]) {
         window.currentFilterMode = fModes[clickId];
         
+        // 🚀 🔒 【徹底摧毀所有隱藏與閹割拉桿的自殘代碼】
+        // 此處所有的問號判斷式和 display='none' 已經百分之百斬草除根！一個字都沒留！
         window.updateFilterCoefficients(); 
         window.renderFilterButtonLights();
     }
@@ -725,7 +727,7 @@ document.addEventListener('input', (e) => {
     }
     if (sliderId === "sinFreqSlider") window.currentSinFreq = parseInt(curVal);
     
-    // 🔒 【個別模式引數記憶動態改值引擎】拉動拉桿時，0 ~ 20000 Hz 全範圍無阻礙寫入！
+    // 🔒 【個別模式引數記憶動態改值引擎】拉動拉桿時，0 ~ 20000 Hz 全範圍寫入專屬記憶池！
     if (sliderId === "f1Slider") { 
         if (window.currentFilterMode === 'LP') window.f1_LP = parseInt(curVal);
         else if (window.currentFilterMode === 'HP') window.f1_HP = parseInt(curVal);
