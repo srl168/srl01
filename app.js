@@ -211,21 +211,40 @@ window.applyFilterRight = function(x) {
 // ==========================================
 // 💡 3️⃣ 數位立體聲空間音訊流管道（2通道直通水管）
 // ==========================================
-window.oscNode = null; window.oscNode2 = null; window.scriptNode = null;
-window.audioCtx = null; window.gainNode = null;
+window.oscNode = null; 
+window.oscNode2 = null; 
+window.scriptNode = null;
+window.audioCtx = null; 
+window.gainNode = null;
 
 window.initAudioGlobal = function() {
-    if (window.oscNode) { try { window.oscNode.stop(); } catch(e){} window.oscNode = null; }
-    if (window.oscNode2) { try { window.oscNode2.stop(); } catch(e){} window.oscNode2 = null; }
-    if (window.scriptNode) window.scriptNode.disconnect();
+    if (window.oscNode) { 
+        try { window.oscNode.stop(); } catch(e){} 
+        window.oscNode = null; 
+    }
+    if (window.oscNode2) { 
+        try { window.oscNode2.stop(); } catch(e){} 
+        window.oscNode2 = null; 
+    }
+    if (window.scriptNode) {
+        window.scriptNode.disconnect();
+    }
     
     if (!window.audioCtx) {
         window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        window.gainNode = window.audioCtx.createGain();
+        window.gainNode = window.audioCtx.createGain(); 
+        
+        // 🚀 🔒 【世紀大死鎖】強制鎖死 Gain 節點的硬體立體聲通道，阻斷 Up-mixing 串軌！
+        window.gainNode.channelCount = 2;
+        window.gainNode.channelCountMode = "explicit";
+        window.gainNode.channelInterpretation = "speakers";
+        
         window.gainNode.connect(window.audioCtx.destination);
     }
     window.gainNode.gain.setValueAtTime(window.isSpeakerOn ? window.currentVolume : 0.0, window.audioCtx.currentTime);
-    if (window.audioCtx.state === 'suspended') window.audioCtx.resume();
+    if (window.audioCtx.state === 'suspended') {
+        window.audioCtx.resume();
+    }
 
     if (window.isSimulating) {
         window.updateFilterCoefficients();
@@ -234,10 +253,11 @@ window.initAudioGlobal = function() {
         window.oscNode.frequency.setValueAtTime(window.currentSinFreq, window.audioCtx.currentTime); 
         window.oscNode2.frequency.setValueAtTime(window.currentSinFreq * 0.4, window.audioCtx.currentTime);
         
+        // 建立 2 輸出通道（立體聲）的 ScriptProcessor
         window.scriptNode = window.audioCtx.createScriptProcessor(4096, 1, 2);
         window.scriptNode.onaudioprocess = function(audioProcessingEvent) {
-            let leftOutput = audioProcessingEvent.outputBuffer.getChannelData(0);  
-            let rightOutput = audioProcessingEvent.outputBuffer.getChannelData(1); 
+            let leftOutput = audioProcessingEvent.outputBuffer.getChannelData(0);  // 左聲道：通道一 (0 ~ F1)
+            let rightOutput = audioProcessingEvent.outputBuffer.getChannelData(1); // 右聲道：通道二 (F1 ~ F2)
             let bufLength = audioProcessingEvent.inputBuffer.length;
             
             for (let sample = 0; sample < bufLength; sample++) {
@@ -251,46 +271,68 @@ window.initAudioGlobal = function() {
                 let leftVal = window.applyFilterLeft ? window.applyFilterLeft(rawVal) : rawVal;
                 let rightVal = window.applyFilterRight ? window.applyFilterRight(rawVal) : rawVal;
                 
-                // 🚀 🔒 【按鈕動態發聲分流與單邊 Solo 監聽控制】
+                // 按鈕動態發聲分流與單邊 Solo 監聽
                 let leftOutVal = leftVal;
                 let rightOutVal = rightVal;
                 
                 if (window.currentFilterMode === 'LP') {
-                    rightOutVal = 0.0; // 👈 點擊 LP 時：右耳強制完全靜音，左耳獨奏 (Solo) 0~F1 低頻波！
-                } 
-				else if (window.currentFilterMode === 'HP') {
-                    leftOutVal = 0.0;  // 👈 點擊 HP 時：左耳強制完全靜音，右耳獨奏 (Solo) F1~F2 主音針尖！
-} 
-else if (window.currentFilterMode === 'BP') {
-// 👈 點擊 BP 時：保持左右一起放音，左耳放低頻，右耳放高頻！
-leftOutVal = leftVal;
-rightOutVal = rightVal;}
- 
-else if (window.currentFilterMode === 'RAW') {
-leftOutVal = rawVal;
-rightOutVal = rawVal;}
+                    rightOutVal = 0.0; // 👈 LP 時：右耳物理斷電！
+                } else if (window.currentFilterMode === 'HP') {
+                    leftOutVal = 0.0;  // 👈 HP 時：左耳物理斷電！
+                } else if (window.currentFilterMode === 'BP') {
+                    leftOutVal = leftVal;
+                    rightOutVal = rightVal; // 👈 BP 時：左右雙耳平行大放音！
+                } else if (window.currentFilterMode === 'RAW') {
+                    leftOutVal = rawVal;
+                    rightOutVal = rawVal;
+                }
+                
+                leftOutput[sample] = leftOutVal;   
+                rightOutput[sample] = rightOutVal; 
+                
+                let plotVal = leftVal;
+                if (window.currentFilterMode === 'HP' || window.currentFilterMode === 'BP') {
+                    plotVal = rightVal; 
+                } else if (window.currentFilterMode === 'RAW') {
+                    plotVal = rawVal;   
+                }
+                
+                window.filteredDataLog.push(plotVal); 
+                window.analysisBuffer[window.bufferIndex] = plotVal; 
+                window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
+            }
+            if (window.filteredDataLog.length > 10000) {
+                window.filteredDataLog = window.filteredDataLog.slice(-8000);
+            }
+        };
+        window.oscNode.connect(window.scriptNode); 
+        window.oscNode2.connect(window.scriptNode); 
+        window.scriptNode.connect(window.gainNode); 
+        window.oscNode.start(); 
+        window.oscNode2.start();
+    }
+};
 
-leftOutput[sample] = leftOutVal;
-rightOutput[sample] = rightOutVal;
-let plotVal = leftVal;
-
-if (window.currentFilterMode === 'HP' || window.currentFilterMode === 'BP') {
-plotVal = rightVal;} 
-else if (window.currentFilterMode === 'RAW') {plotVal = rawVal;}
-
-window.filteredDataLog.push(plotVal);
-window.analysisBuffer[window.bufferIndex] = plotVal;window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;}
-
-if (window.filteredDataLog.length > 10000) {
-window.filteredDataLog = window.filteredDataLog.slice(-8000);}};
-window.oscNode.connect(window.scriptNode);
-window.oscNode2.connect(window.scriptNode);
-window.scriptNode.connect(window.gainNode);
-window.oscNode.start();
-window.oscNode2.start();
-}};
-window.consumeRawBuffer = function(rawDataView) {let byteLen = rawDataView.byteLength;for (let i = 0; i < byteLen; i++) {let rawVal = (rawDataView.getUint8(i) / 127.5) - 1.0;let leftVal = window.applyFilterLeft(rawVal);let rightVal = window.applyFilterRight(rawVal);let plotVal = leftVal;if (window.currentFilterMode === 'HP' || window.currentFilterMode === 'BP') {plotVal = rightVal;} else if (window.currentFilterMode === 'RAW') {plotVal = rawVal;}window.filteredDataLog.push(plotVal);if (window.filteredDataLog.length > 10000) window.filteredDataLog.shift();window.analysisBuffer[window.bufferIndex] = plotVal;window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;}};
-
+window.consumeRawBuffer = function(rawDataView) {
+    let byteLen = rawDataView.byteLength;
+    for (let i = 0; i < byteLen; i++) {
+        let rawVal = (rawDataView.getUint8(i) / 127.5) - 1.0;
+        let leftVal = window.applyFilterLeft(rawVal);
+        let rightVal = window.applyFilterRight(rawVal);
+        
+        let plotVal = leftVal;
+        if (window.currentFilterMode === 'HP' || window.currentFilterMode === 'BP') {
+            plotVal = rightVal;
+        } else if (window.currentFilterMode === 'RAW') {
+            plotVal = rawVal;
+        }
+        
+        window.filteredDataLog.push(plotVal);
+        if (window.filteredDataLog.length > 10000) window.filteredDataLog.shift(); 
+        window.analysisBuffer[window.bufferIndex] = plotVal; 
+        window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
+    }
+};
 
 // ==========================================
 // 💡 4️⃣ 快速傅立葉變換與真對數分貝標尺（dB LOG）渲染大腦
