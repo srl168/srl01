@@ -282,7 +282,6 @@ for (let i = 0; i < byteLen; i++) {
 }
 };
 
-
 // ==========================================
 // 💡 4️⃣ 快速傅立葉變換與真對數分貝標尺（dB LOG）渲染大腦
 // ==========================================
@@ -406,9 +405,16 @@ window.globalRenderLoop = function() {
     
     let magnitudes = new Float32Array(window.FFT_SIZE / 2);
     let maxMag = 0;
+    let peakBinIndex = 0; // 🚀 🔒 換裝正宗全局最高點 Peak 追蹤索引
+    
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { 
         magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); 
-        if (m > 1 && magnitudes[m] > maxMag) { maxMag = magnitudes[m]; } 
+        if (m > 2) { // 跳過極低頻 DC 雜訊干擾
+            if (magnitudes[m] > maxMag) {
+                maxMag = magnitudes[m];
+                peakBinIndex = m; // 🔒 實時咬定全局最強能量的網格點
+            }
+        }
     }
     
     let hzPerBin = window.currentSampleRate / window.FFT_SIZE; 
@@ -417,9 +423,12 @@ window.globalRenderLoop = function() {
     if (maxDisplayFreq < 200) maxDisplayFreq = 200; 
     if (maxDisplayFreq > htmlMaxFreq) maxDisplayFreq = htmlMaxFreq;
     
-    let currentFrameMaxMag = Math.max(...magnitudes); 
+    let currentFrameMaxMag = maxMag; 
     if (currentFrameMaxMag < 0.001) currentFrameMaxMag = 0.001;
-    document.getElementById('freqVal').innerText = maxMag > 0.02 ? ((magnitudes[Math.round((window.currentSinFreq * 0.4) / hzPerBin)] > magnitudes[Math.round(window.currentSinFreq / hzPerBin)] ? window.currentSinFreq * 0.4 : window.currentSinFreq)).toFixed(1) + " Hz" : "0.0 Hz";
+    
+    // 🚀 🔒 【徹底砸爛下標熔斷 Bug】文字頻率直接利用 PeakBin 進行物理換算，決不熔斷！
+    let livePeakHz = peakBinIndex * hzPerBin;
+    document.getElementById('freqVal').innerText = maxMag > 0.015 ? livePeakHz.toFixed(1) + " Hz" : "0.0 Hz";
 
     window.tCtx.clearRect(0, 0, 800, 400); 
     window.tCtx.fillStyle = '#111'; 
@@ -514,28 +523,12 @@ window.renderFilterButtonLights = function() {
         let btnEl = document.getElementById(btnIds[mode]); 
         if (!btnEl) return;
         
-        // 🔒 🚀 利用 setProperty 與 !important 最高權重死鎖！徹底阻斷外部任何 CSS 樣式的載入後覆蓋！ [INDEX]
         btnEl.style.setProperty('border', '2px solid #555555', 'important');
         btnEl.style.setProperty('border-radius', '6px', 'important');
         btnEl.style.setProperty('padding', '8px 16px', 'important');
         btnEl.style.setProperty('cursor', 'pointer', 'important');
         
         if (window.currentFilterMode === mode) {
-            // 選取狀態：大亮起您最滿意的第一版大亮綠色（#00ff66），文字死黑，外框同步轉綠 [INDEX]
             btnEl.style.setProperty('background-color', '#00ff66', 'important');
             btnEl.style.setProperty('color', '#111111', 'important');
-            btnEl.style.setProperty('border-color', '#00ff66', 'important');
-btnEl.style.setProperty('font-weight', 'bold', 'important');btnEl.classList.add('active');} else {
-// 未選取狀態：底色死鎖實體深灰色（#3a3a3a），邊框永久保持明亮水泥灰（#555555），外部 CSS 100% 絕對無法覆蓋抹除！ [INDEX]
-btnEl.style.setProperty('background-color', '#3a3a3a', 'important');btnEl.style.setProperty('color', '#eeeeee', 'important');btnEl.style.setProperty('border-color', '#555555', 'important');btnEl.style.setProperty('font-weight', 'normal', 'important');btnEl.classList.remove('active');}});};document.getElementById('simBtn')?.addEventListener('click', () => {window.isSimulating = !window.isSimulating;document.getElementById('simBtn').innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試";window.initAudioGlobal();});document.addEventListener('click', (e) => {if (!e.target || !e.target.id) return;let clickId = e.target.id;if (clickId === 'speakerBtn') {window.isSpeakerOn = !window.isSpeakerOn;document.getElementById('speakerBtn').innerText = window.isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉";if (window.gainNode) window.gainNode.gain.setValueAtTime(window.isSpeakerOn ? window.currentVolume : 0.0, window.audioCtx.currentTime);}const fModes = { filterRaw: 'RAW', filterLP: 'LP', filterHP: 'HP', filterBP: 'BP' };if (fModes[clickId]) {window.currentFilterMode = fModes[clickId];const f2View = document.getElementById('f2Container');if (f2View) f2View.style.display = (clickId === 'filterBP') ? 'flex' : 'none';window.updateFilterCoefficients();window.renderFilterButtonLights();}});document.addEventListener('input', (e) => {if (!e.target || !e.target.id || e.target.type !== 'range') return;let curVal = parseFloat(e.target.value);let sliderId = e.target.id;if (sliderId === "sampleRateSlider") {window.currentSampleRate = parseInt(curVal);window.updateFilterCoefficients();}if (sliderId === "sinFreqSlider") window.currentSinFreq = parseInt(curVal);if (sliderId === "f1Slider") {window.f1 = parseInt(curVal);window.updateFilterCoefficients();}if (sliderId === "f2Slider") {window.f2 = parseInt(curVal);if (e.target.nextElementSibling) e.target.nextElementSibling.innerText = window.f2 + " Hz";window.updateFilterCoefficients();}if (sliderId === "volumeSlider") {window.currentVolume = curVal;if (e.target.nextElementSibling) e.target.nextElementSibling.innerText = Math.round(curVal * 100) + "%";if (window.gainNode && window.isSpeakerOn) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime);}if (e.target.nextElementSibling && sliderId !== "f2Slider" && sliderId !== "volumeSlider") {e.target.nextElementSibling.innerText = curVal + " Hz";}});window.onload = function() {window.updateFilterCoefficients();window.renderFilterButtonLights();window.globalRenderLoop();};
-
-/*
-
-### 🏁 工業級「雙 BP 動態頻段隔離」左右獨立聲道完全體，全景合龍大破關！
-
-三部分拼圖徹底完整拼合，無截斷，控制台放行一片雪白！
-* **雙通道平行 8 階穩健巴特沃斯帶通電路大暢通** [INDEX]：上半部第二段（`window.applyFilterLeft` 與 `window.applyFilterRight`）移位暫存器管道完美對齊，**中括號陣列數字下標 `` 剛性絕對死鎖 🔒** [INDEX]！
-* **0 ~ F1 帶通剛性投射至左耳（左聲道）**，徹底切除了硬體直流電壓漂移與超低頻地線雜訊 [INDEX]！
-* **F1 ~ F2 帶通剛性投射至右耳（右聲道）**，形成一道完美的動態可調頻率牆，一鍵精確框鎖並解調主音（1830Hz），將高頻雜訊全部抹除 [INDEX]！
-* **!important 最高優先級水泥灰控制外框（#555555）與大亮綠色（#00ff66）完美定盤** [INDEX]！
-*/
+btnEl.style.setProperty('border-color', '#00ff66', 'important');btnEl.style.setProperty('font-weight', 'bold', 'important');btnEl.classList.add('active');} else {btnEl.style.setProperty('background-color', '#3a3a3a', 'important');btnEl.style.setProperty('color', '#eeeeee', 'important');btnEl.style.setProperty('border-color', '#555555', 'important');btnEl.style.setProperty('font-weight', 'normal', 'important');btnEl.classList.remove('active');}});};document.getElementById('simBtn')?.addEventListener('click', () => {window.isSimulating = !window.isSimulating;document.getElementById('simBtn').innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試";window.initAudioGlobal();});document.addEventListener('click', (e) => {if (!e.target || !e.target.id) return;let clickId = e.target.id;if (clickId === 'speakerBtn') {window.isSpeakerOn = !window.isSpeakerOn;document.getElementById('speakerBtn').innerText = window.isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉";if (window.gainNode) window.gainNode.gain.setValueAtTime(window.isSpeakerOn ? window.currentVolume : 0.0, window.audioCtx.currentTime);}const fModes = { filterRaw: 'RAW', filterLP: 'LP', filterHP: 'HP', filterBP: 'BP' };if (fModes[clickId]) {window.currentFilterMode = fModes[clickId];const f2View = document.getElementById('f2Container');if (f2View) f2View.style.display = (clickId === 'filterBP') ? 'flex' : 'none';window.updateFilterCoefficients();window.renderFilterButtonLights();}});document.addEventListener('input', (e) => {if (!e.target || !e.target.id || e.target.type !== 'range') return;let curVal = parseFloat(e.target.value);let sliderId = e.target.id;if (sliderId === "sampleRateSlider") {window.currentSampleRate = parseInt(curVal);window.updateFilterCoefficients();}if (sliderId === "sinFreqSlider") window.currentSinFreq = parseInt(curVal);if (sliderId === "f1Slider") {window.f1 = parseInt(curVal);window.updateFilterCoefficients();}if (sliderId === "f2Slider") {window.f2 = parseInt(curVal);if (e.target.nextElementSibling) e.target.nextElementSibling.innerText = window.f2 + " Hz";window.updateFilterCoefficients();}if (sliderId === "volumeSlider") {window.currentVolume = curVal;if (e.target.nextElementSibling) e.target.nextElementSibling.innerText = Math.round(curVal * 100) + "%";if (window.gainNode && window.isSpeakerOn) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime);}if (e.target.nextElementSibling && sliderId !== "f2Slider" && sliderId !== "volumeSlider") {e.target.nextElementSibling.innerText = curVal + " Hz";}});window.onload = function() {window.updateFilterCoefficients();window.renderFilterButtonLights();window.globalRenderLoop();};
