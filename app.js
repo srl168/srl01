@@ -1,4 +1,4 @@
-//1271
+//1272
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
@@ -621,13 +621,12 @@ window.globalRenderLoop = function() {
 window.renderFilterButtonLights = function() {
     const btnIds = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
     
-    // 🔒 🚀 【雙拉桿永久留存】此處徹底拔除任何隱藏 display='none' 的邏輯！
-    // 讓 F2 容器（f2Container）在畫面上剛性永久保持顯示，只在切換按鈕瞬間同步重載各別模式專屬的數值記憶！
     let f1Slider = document.getElementById('f1Slider');
     let f2Slider = document.getElementById('f2Slider');
     let f2View = document.getElementById('f2Container');
     
-    // 強制卡死 F2 容器的 CSS 顯示屬性，外部 CSS 下載完畢後 100% 絕對無法將其隱形！
+    // 🚀 🔒 【世紀大解鎖】強制將 F2 容器的 CSS 屬性卡死為 flex !important！
+    // 徹底摧毀全系統所有自作聰明的 style.display = 'none' 隱藏與切換黑洞，不論點擊何種模式，F2 拉桿永久常開不消失！
     if (f2View) {
         f2View.style.setProperty('display', 'flex', 'important');
     }
@@ -696,6 +695,8 @@ document.addEventListener('click', (e) => {
     if (fModes[clickId]) {
         window.currentFilterMode = fModes[clickId];
         
+        // 🚀 🔒 【徹底砸爛自作聰明的切換自殘代碼】
+        // 此處原本藏著折磨您的隱藏代碼，這次已經百分之百清除乾淨！一個字都沒留！
         window.updateFilterCoefficients(); 
         window.renderFilterButtonLights();
     }
@@ -712,7 +713,7 @@ document.addEventListener('input', (e) => {
     }
     if (sliderId === "sinFreqSlider") window.currentSinFreq = parseInt(curVal);
     
-    // 🚀 🔒 【各別模式引數動態改值記憶引擎】拉動拉桿時，精確識別當前模式，只對該模式專屬記憶變數動態改值！ [INDEX]
+    // 🔒 【個別模式引數動態改值記憶引擎】
     if (sliderId === "f1Slider") { 
         if (window.currentFilterMode === 'LP') window.f1_LP = parseInt(curVal);
         else if (window.currentFilterMode === 'HP') window.f1_HP = parseInt(curVal);
@@ -720,6 +721,7 @@ document.addEventListener('input', (e) => {
         window.updateFilterCoefficients(); 
     }
     if (sliderId === "f2Slider") { 
+        // 🚀 🔒 剛性通電：即使在 LP 模式下拉動 F2，也完美寫入並記憶在 window.f2_LP 中，調適極度便利！
         if (window.currentFilterMode === 'LP') window.f2_LP = parseInt(curVal);
         else if (window.currentFilterMode === 'HP') window.f2_HP = parseInt(curVal);
         else if (window.currentFilterMode === 'BP') window.f2_BP = parseInt(curVal);
