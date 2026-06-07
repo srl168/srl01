@@ -335,7 +335,7 @@ window.consumeRawBuffer = function(rawDataView) {
 };
 
 // ==========================================
-// 💡 4️⃣ 快速傅立葉變換與真自適應最高振幅動態投影（Auto-Scale）渲染大腦
+// 💡 4️⃣ 快速傅立葉變換與真立體聲動態變焦尺標（Dynamic Scale）渲染大腦
 // ==========================================
 function localFFT(re, im) {
     const n = re.length; 
@@ -381,7 +381,6 @@ window.globalRenderLoop = function() {
     window.renderFrameCounter++; 
     if (window.renderFrameCounter % 2 !== 0) return;
     
-    let voltSteps = [1.0, 0.5, 0.0, -0.5, -1.0];
     let dbSteps = [0, -12, -30, -50];
     let midY = 200;
 
@@ -391,7 +390,7 @@ window.globalRenderLoop = function() {
         window.tCtx.fillRect(0, 0, 800, 400); 
         window.tCtx.strokeStyle = '#333'; 
         window.tCtx.beginPath(); 
-        voltSteps.forEach(v => { 
+        [1.0, 0.5, 0.0, -0.5, -1.0].forEach(v => { 
             window.tCtx.moveTo(0, midY - v * 145); 
             window.tCtx.lineTo(800, midY - v * 145); 
         }); 
@@ -439,9 +438,11 @@ window.globalRenderLoop = function() {
     }
     
     if (window.filteredDataLog.length < 10) return;
-    let rawSlice = window.filteredDataLog.slice(-Math.max(64, Math.min(window.filteredDataLog.length, Math.round((3 * window.currentSampleRate) / window.currentSinFreq ))));
     
-    // 🔒 如實計算並投影真實物理數據（保真顯示真實 Vpp 與 RMS） [INDEX]
+    // 完美的時域切片長度
+    let rawSlice = window.filteredDataLog.slice(-Math.max(64, Math.min(window.filteredDataLog.length, Math.round((3 * window.currentSampleRate) / window.currentSinFreq))));
+    
+    // 看板實時保真數據
     let maxRealVal = Math.max(...rawSlice);
     let minRealVal = Math.min(...rawSlice);
     let sq = 0; 
@@ -449,11 +450,10 @@ window.globalRenderLoop = function() {
     document.getElementById('vppVal').innerText = (maxRealVal - minRealVal).toFixed(2) + " V"; 
     document.getElementById('rmsVal').innerText = Math.sqrt(sq / rawSlice.length).toFixed(2) + " V";
     
-    // 🚀 🔒 【時域自適應繪圖歸一化核心】
-    // 找出當前幀的絕對波峰最大值（Peak），動態調製波形縮放係數，保證視覺上永遠挺拔飽滿、絕不縮水！
+    // 🚀 🔒 【時域自適應最高振幅監測】
     let framePeak = Math.max(Math.abs(maxRealVal), Math.abs(minRealVal));
     if (framePeak < 0.01) framePeak = 0.01;
-    let scaleY = 145.0 / framePeak; // 👈 根據最高振幅動態調整 Y 軸繪圖拉伸比例 [INDEX]
+    let scaleY = 145.0 / framePeak; // 實時調製動態縮放係數 [INDEX]
     
     let re = new Float32Array(window.FFT_SIZE);
     let im = new Float32Array(window.FFT_SIZE);
@@ -482,37 +482,44 @@ window.globalRenderLoop = function() {
     if (maxDisplayFreq < 200) maxDisplayFreq = 200; 
     if (maxDisplayFreq > htmlMaxFreq) maxDisplayFreq = htmlMaxFreq;
     
-    // 🚀 🔒 【頻譜自適應繪圖歸一化核心】
-    // 頻譜以當前幀最大振幅為 0 dB 基準進行對數運算，波柱永遠圓潤挺拔、絕不切頭死平！ [INDEX]
     let currentFrameMaxMag = maxMag; 
     if (currentFrameMaxMag < 0.001) currentFrameMaxMag = 0.001;
     
     let livePeakHz = peakBinIndex * hzPerBin;
     document.getElementById('freqVal').innerText = maxMag > 0.015 ? livePeakHz.toFixed(1) + " Hz" : "0.0 Hz";
 
-    // 繪製時域背景刻度（刻度依然固定在真實的 +1.0V 到 -1.0V，以實現絕對高保真儀表規範） [INDEX]
+    // 🚀 🔒 【真．時域背景刻度動態變焦繪製大腦】
+    // 網格底線與尺標數字完美跟隨 framePeak 實時縮放，波形拉大的同時，標尺精確相應！ [INDEX]
     window.tCtx.clearRect(0, 0, 800, 400); 
     window.tCtx.fillStyle = '#111'; 
     window.tCtx.fillRect(0, 0, 800, 400); 
     window.tCtx.strokeStyle = '#333'; 
     window.tCtx.lineWidth = 1; 
     window.tCtx.beginPath(); 
-    voltSteps.forEach(v => { 
-        let gridY = midY - v * 145.0; // 👈 刻度線維持 100% 原始物理物理幾何不變
+    
+    // 動態計算當前幀的五檔保真電壓分級刻度 [INDEX]
+    let dynamicVoltSteps = [framePeak, framePeak * 0.5, 0.0, -framePeak * 0.5, -framePeak];
+    dynamicVoltSteps.forEach(v => { 
+        let gridY = midY - (v * scaleY); // 網格幾何線精確追隨變焦
         window.tCtx.moveTo(0, gridY); 
         window.tCtx.lineTo(800, gridY); 
     }); 
     window.tCtx.stroke();
     
+    // 實時打印符合物理保真度的變焦尺標文字！ [INDEX]
     window.tCtx.fillStyle = '#ffffff'; 
     window.tCtx.font = 'bold 12px Arial'; 
-    voltSteps.forEach(v => window.tCtx.fillText((v >= 0 ? "+" : "") + v.toFixed(1) + "V", 25, midY - v * 145.0 + 4));
+    dynamicVoltSteps.forEach(v => {
+        let sign = (v > 0.001) ? "+" : "";
+        window.tCtx.fillText(sign + v.toFixed(2) + "V", 25, midY - (v * scaleY) + 4);
+    });
     
-    // 🚀 🔒 最終渲染波形線：乘上剛才算出的自適應 scaleY，波形瞬間滿格、展現純淨物理形狀！ [INDEX]
+    // 🚀 🔒 【起點與迴圈中括號下標數字絕對鎖死】
+    // 完璧原裝中括號數字下標直通，配合 scaleY 自適應，幾何圖形頂天立地！🔒
     window.tCtx.strokeStyle = '#00ff66'; 
     window.tCtx.lineWidth = 2.5; 
     window.tCtx.beginPath(); 
-    window.tCtx.moveTo(0, midY - (rawSlice[0] * scaleY)); 
+    window.tCtx.moveTo(0, midY - (rawSlice * scaleY)); 
     for (let j = 1; j < rawSlice.length; j++) { 
         window.tCtx.lineTo(j * (800 / (rawSlice.length - 1)), midY - (rawSlice[j] * scaleY)); 
     } 
