@@ -1,4 +1,4 @@
-//1272
+//1273
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
@@ -616,19 +616,33 @@ window.globalRenderLoop = function() {
     window.fCtx.stroke();
 };
 // ==========================================
-// 💡 5️⃣ !important 最高優先級控制外框與「雙拉桿永久留存 ＋ 各別模式動態改值記憶」事件驅動引擎
+// 💡 5️⃣ !important 最高優先級控制外框與「RAW動態隔離 ＋ 0~20kHz全頻段解鎖」事件驅動引擎
 // ==========================================
 window.renderFilterButtonLights = function() {
     const btnIds = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
     
     let f1Slider = document.getElementById('f1Slider');
     let f2Slider = document.getElementById('f2Slider');
-    let f2View = document.getElementById('f2Container');
+    let f1View = document.getElementById('f1Container'); // F1 容器節點
+    let f2View = document.getElementById('f2Container'); // F2 容器節點
     
-    // 🚀 🔒 【世紀大解鎖】強制將 F2 容器的 CSS 屬性卡死為 flex !important！
-    // 徹底摧毀全系統所有自作聰明的 style.display = 'none' 隱藏與切換黑洞，不論點擊何種模式，F2 拉桿永久常開不消失！
-    if (f2View) {
-        f2View.style.setProperty('display', 'flex', 'important');
+    // 🚀 🔒 【RAW模式動態隔離 ＋ 0~20000Hz 邊界最高權限鎖死】
+    if (f1View && f2View && f1Slider && f2Slider) {
+        if (window.currentFilterMode === 'RAW') {
+            // RAW 模式下：不要 F1、F2，直接徹底隱藏，讓面板保持保真直通！
+            f1View.style.setProperty('display', 'none', 'important');
+            f2View.style.setProperty('display', 'none', 'important');
+        } else {
+            // LP, HP, BP 模式下：F1、F2 拉桿必須 100% 同步傲然挺立浮現，絕不切換消失！
+            f1View.style.setProperty('display', 'flex', 'important');
+            f2View.style.setProperty('display', 'flex', 'important');
+            
+            // 剛性改寫 HTML 拉桿的物理極限值，解鎖工業級全頻段 0 ~ 20000 Hz 操作！
+            f1Slider.min = "0";
+            f1Slider.max = "20000";
+            f2Slider.min = "0";
+            f2Slider.max = "20000";
+        }
     }
     
     if (f1Slider && f2Slider) {
@@ -695,8 +709,6 @@ document.addEventListener('click', (e) => {
     if (fModes[clickId]) {
         window.currentFilterMode = fModes[clickId];
         
-        // 🚀 🔒 【徹底砸爛自作聰明的切換自殘代碼】
-        // 此處原本藏著折磨您的隱藏代碼，這次已經百分之百清除乾淨！一個字都沒留！
         window.updateFilterCoefficients(); 
         window.renderFilterButtonLights();
     }
@@ -713,7 +725,7 @@ document.addEventListener('input', (e) => {
     }
     if (sliderId === "sinFreqSlider") window.currentSinFreq = parseInt(curVal);
     
-    // 🔒 【個別模式引數動態改值記憶引擎】
+    // 🔒 【個別模式引數記憶動態改值引擎】拉動拉桿時，0 ~ 20000 Hz 全範圍無阻礙寫入！
     if (sliderId === "f1Slider") { 
         if (window.currentFilterMode === 'LP') window.f1_LP = parseInt(curVal);
         else if (window.currentFilterMode === 'HP') window.f1_HP = parseInt(curVal);
@@ -721,7 +733,6 @@ document.addEventListener('input', (e) => {
         window.updateFilterCoefficients(); 
     }
     if (sliderId === "f2Slider") { 
-        // 🚀 🔒 剛性通電：即使在 LP 模式下拉動 F2，也完美寫入並記憶在 window.f2_LP 中，調適極度便利！
         if (window.currentFilterMode === 'LP') window.f2_LP = parseInt(curVal);
         else if (window.currentFilterMode === 'HP') window.f2_HP = parseInt(curVal);
         else if (window.currentFilterMode === 'BP') window.f2_BP = parseInt(curVal);
