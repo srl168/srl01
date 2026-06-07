@@ -1,11 +1,11 @@
-//127
+//1271
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體大腦池初始化（三大模式頻段控制參數徹底獨立解耦！）
+// 💡 1️⃣ 全域記憶體大腦池初始化（個別模式引數記憶池完全鎖死 🔒）
 // ==========================================
 window.currentSampleRate = 44100;
 window.currentSinFreq = 1830;
@@ -21,29 +21,29 @@ window.FFT_SIZE = 4096;
 window.renderFrameCounter = 0;
 window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 
-// 🚀 🔒 【三大模式截止頻率獨立記憶池，調適極度方便，絕不互相干擾】
 window.currentFilterMode = 'RAW';
 
-// LP 專屬獨立記憶頻段
+// 🚀 🔒 【個別模式引數記憶池：調適極度方便，各就各位絕不干擾】
+// LP 專屬獨立記憶引數池
 window.f1_LP = 1000;
 window.f2_LP = 3000;
 
-// HP 專屬獨立記憶頻段
+// HP 專屬獨立記憶引數池
 window.f1_HP = 1200;
 window.f2_HP = 3500;
 
-// BP 專屬獨立記憶頻段
+// BP 專屬獨立記憶引數池
 window.f1_BP = 800;
 window.f2_BP = 2500;
 
-// 🔒 🚀 【左通道八階巴特沃斯狀態陣列死鎖】
+// 🔒 🚀 【左聲道八階巴特沃斯狀態暫存器陣列死鎖】
 window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 window.xv = new Float32Array(3);  window.yv = new Float32Array(3);
 window.xv2 = new Float32Array(3); window.yv2 = new Float32Array(3);
 window.xv3 = new Float32Array(3); window.yv3 = new Float32Array(3);
 window.xv4 = new Float32Array(3); window.yv4 = new Float32Array(3);
 
-// 🔒 🚀 【右通道八階巴特沃斯狀態陣列死鎖】
+// 🔒 🚀 【右聲道八階巴特沃斯狀態暫存器陣列死鎖】
 window.b0R = 1; window.b1R = 0; window.b2R = 0; window.a1R = 0; window.a2R = 0;
 window.xvR = new Float32Array(3);  window.yvR = new Float32Array(3);
 window.xvR2 = new Float32Array(3); window.yvR2 = new Float32Array(3);
@@ -61,17 +61,17 @@ window.addEventListener('DOMContentLoaded', () => {
     window.fCanvas.height = 400;
 });
 // ==========================================
-// 💡 2️⃣ 各自 F1, F2 精密係數計算公式（三大模式記憶完全解耦）
+// 💡 2️⃣ 各自 F1, F2 精密係數計算公式（個別模式引數記憶池完全解耦）
 // ==========================================
 window.updateFilterCoefficients = function() {
     let fs = window.currentSampleRate;
     
-    // 🔒 [LP 模式]：左耳讀取 f1_LP 做真八階低通，右耳靜音不計
+    // 🔒 1. [LP 模式]：左耳讀取各別模式引數 f1_LP 做真八階低通，確保通帶內 0 衰減保真
     if (window.currentFilterMode === 'LP') {
         let frLeft = fs / window.f1_LP;
         if (frLeft < 2.01) frLeft = 2.01;
         let oL = Math.tan(Math.PI / frLeft);
-        let qValL = 0.70710678;
+        let qValL = 0.70710678; // 最大平坦剛性 Q 值
         let cL = 1.0 + (oL / qValL) + (oL * oL);
         
         window.b0 = (oL * oL) / cL;
@@ -80,9 +80,10 @@ window.updateFilterCoefficients = function() {
         window.a1 = 2.0 * (oL * oL - 1.0) / cL;
         window.a2 = (1.0 - (oL / qValL) + (oL * oL)) / cL;
         
+        // 右耳完全靜音，係數歸零
         window.b0R = window.b1R = window.b2R = window.a1R = window.a2R = 0;
     }
-    // 🔒 [HP 模式]：左耳靜音，右耳讀取 f1_HP, f2_HP 做精確框鎖帶通
+    // 🔒 2. [HP 模式]：右耳讀取各別模式引數 f1_HP, f2_HP 做高頻帶通精密框鎖
     else if (window.currentFilterMode === 'HP') {
         window.b0 = window.b1 = window.b2 = window.a1 = window.a2 = 0;
         
@@ -102,8 +103,9 @@ window.updateFilterCoefficients = function() {
         window.a1R = 2.0 * (C2 - 1.0) / cBP2;
         window.a2R = (1.0 - W2 + C2) / cBP2;
     }
-    // 🔒 [BP 模式]：左耳專享 f1_BP 穩健低通，右耳精確框鎖 f1_BP ~ f2_BP 帶通
+    // 🔒 3. [BP 模式]：雙耳平行解調，左耳讀取 f1_BP 低通，右耳讀取 f1_BP~f2_BP 帶通
     else if (window.currentFilterMode === 'BP') {
+        // 左耳
         let frLeft = fs / window.f1_BP;
         if (frLeft < 2.01) frLeft = 2.01;
         let oL = Math.tan(Math.PI / frLeft);
@@ -115,6 +117,7 @@ window.updateFilterCoefficients = function() {
         window.a1 = 2.0 * (oL * oL - 1.0) / cL;
         window.a2 = (1.0 - (oL / qValL) + (oL * oL)) / cL;
         
+        // 右耳
         let f2Correct = window.f2_BP;
         if (f2Correct <= window.f1_BP) f2Correct = window.f1_BP + 10;
         let fr2_L = fs / window.f1_BP; if (fr2_L < 2.01) fr2_L = 2.01;
@@ -177,7 +180,7 @@ window.applyFilterLeft = function(x) {
                        - (window.a1 * window.yv3[1]) - (window.a2 * window.yv3[2]);
     if (isNaN(window.yv3[0]) || !isFinite(window.yv3[0])) window.yv3[0] = 0;
     
-    // 🛑 左通道 Stage 4
+    // 🛑 左通道 Stage 4（8階低通收官）
     window.xv4[2] = window.xv4[1]; 
     window.xv4[1] = window.xv4[0]; 
     window.xv4[0] = window.yv3[0];
@@ -227,9 +230,9 @@ window.applyFilterRight = function(x) {
     window.yvR3[1] = window.yvR3[0];
     window.yvR3[0] = (window.b0R * window.xvR3[0]) + (window.b1R * window.xvR3[1]) + (window.b2R * window.xvR3[2]) 
                         - (window.a1R * window.yvR3[1]) - (window.a2R * window.yvR3[2]);
-    if (isNaN(window.yvR3[0]) || !isFinite(window.yvR3[0])) window.yvR3 = 0;
+    if (isNaN(window.yvR3[0]) || !isFinite(window.yvR3[0])) window.yvR3[0] = 0;
     
-    // 🛑 右通道 Stage 4
+    // 🛑 右通道 Stage 4（8階帶通收官）
     window.xvR4[2] = window.xvR4[1]; 
     window.xvR4[1] = window.xvR4[0]; 
     window.xvR4[0] = window.yvR3[0];
@@ -272,7 +275,7 @@ window.initAudioGlobal = function() {
         window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         window.gainNode = window.audioCtx.createGain(); 
         
-        // 🚀 🔒 【硬體級聲道死鎖】強制 GainNode 通道為 explicit 雙聲道，徹底切斷 Up-mixing 自動混音黑洞！ [INDEX]
+        // 🚀 🔒 【硬體聲道死鎖】強制 GainNode 通道為 explicit 雙聲道，徹底切斷 Up-mixing 自動混音黑洞！ [INDEX]
         window.gainNode.channelCount = 2;
         window.gainNode.channelCountMode = "explicit";
         window.gainNode.channelInterpretation = "speakers";
@@ -293,8 +296,8 @@ window.initAudioGlobal = function() {
         
         window.scriptNode = window.audioCtx.createScriptProcessor(4096, 1, 2);
         window.scriptNode.onaudioprocess = function(audioProcessingEvent) {
-            let leftOutput = audioProcessingEvent.outputBuffer.getChannelData(0);  // 左聲道水管
-            let rightOutput = audioProcessingEvent.outputBuffer.getChannelData(1); // 右聲道水管
+            let leftOutput = audioProcessingEvent.outputBuffer.getChannelData(0);  // 左聲道
+            let rightOutput = audioProcessingEvent.outputBuffer.getChannelData(1); // 右聲道
             let bufLength = audioProcessingEvent.inputBuffer.length;
             
             for (let sample = 0; sample < bufLength; sample++) {
@@ -327,7 +330,7 @@ window.initAudioGlobal = function() {
                 leftOutput[sample] = leftOutVal;   
                 rightOutput[sample] = rightOutVal; 
                 
-                // 圖表大腦抽取點，完美對齊聆聽切換
+                // 圖表大腦監聽抽取點
                 let plotVal = leftVal;
                 if (window.currentFilterMode === 'HP' || window.currentFilterMode === 'BP') {
                     plotVal = rightVal; 
@@ -545,11 +548,11 @@ window.globalRenderLoop = function() {
         window.tCtx.fillText(sign + currentLabelVolt.toFixed(2) + "V", 25, midY - (ratio * 145.0) + 4);
     });
     
-    // 🚀 🔒 【起點與迴圈中括號下標數字絕對死鎖】🔒 [INDEX]
+    // 🚀 🔒 【起點與迴圈中括號下標數字絕對鎖死 🔒】雙重轉義破天鎖護航，下標全數歸位
     window.tCtx.strokeStyle = '#00ff66'; 
     window.tCtx.lineWidth = 2.5; 
     window.tCtx.beginPath(); 
-    window.tCtx.moveTo(0, midY - (rawSlice * scaleY)); 
+    window.tCtx.moveTo(0, midY - (rawSlice[0] * scaleY)); 
     for (let j = 1; j < rawSlice.length; j++) { 
         window.tCtx.lineTo(j * (800 / (rawSlice.length - 1)), midY - (rawSlice[j] * scaleY)); 
     } 
@@ -613,19 +616,28 @@ window.globalRenderLoop = function() {
     window.fCtx.stroke();
 };
 // ==========================================
-// 💡 5️⃣ !important 最高優先級控制外框與「各模式獨立滑塊控制」事件驅動引擎
+// 💡 5️⃣ !important 最高優先級控制外框與「雙拉桿永久留存 ＋ 各別模式動態改值記憶」事件驅動引擎
 // ==========================================
 window.renderFilterButtonLights = function() {
     const btnIds = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
     
-    // 🔒 在切換按鈕的瞬間，同步刷新網頁 HTML 上 F1、F2 滑塊的拉桿位置與文字看板！
+    // 🔒 🚀 【雙拉桿永久留存】此處徹底拔除任何隱藏 display='none' 的邏輯！
+    // 讓 F2 容器（f2Container）在畫面上剛性永久保持顯示，只在切換按鈕瞬間同步重載各別模式專屬的數值記憶！
     let f1Slider = document.getElementById('f1Slider');
     let f2Slider = document.getElementById('f2Slider');
+    let f2View = document.getElementById('f2Container');
+    
+    // 強制卡死 F2 容器的 CSS 顯示屬性，外部 CSS 下載完畢後 100% 絕對無法將其隱形！
+    if (f2View) {
+        f2View.style.setProperty('display', 'flex', 'important');
+    }
     
     if (f1Slider && f2Slider) {
         if (window.currentFilterMode === 'LP') {
             f1Slider.value = window.f1_LP;
+            f2Slider.value = window.f2_LP;
             if (f1Slider.nextElementSibling) f1Slider.nextElementSibling.innerText = window.f1_LP + " Hz";
+            if (f2Slider.nextElementSibling) f2Slider.nextElementSibling.innerText = window.f2_LP + " Hz";
         } else if (window.currentFilterMode === 'HP') {
             f1Slider.value = window.f1_HP;
             f2Slider.value = window.f2_HP;
@@ -683,8 +695,6 @@ document.addEventListener('click', (e) => {
     const fModes = { filterRaw: 'RAW', filterLP: 'LP', filterHP: 'HP', filterBP: 'BP' };
     if (fModes[clickId]) {
         window.currentFilterMode = fModes[clickId];
-        const f2View = document.getElementById('f2Container'); 
-        if (f2View) f2View.style.display = (clickId === 'filterLP') ? 'none' : 'flex';
         
         window.updateFilterCoefficients(); 
         window.renderFilterButtonLights();
@@ -702,7 +712,7 @@ document.addEventListener('input', (e) => {
     }
     if (sliderId === "sinFreqSlider") window.currentSinFreq = parseInt(curVal);
     
-    // 🚀 🔒 【獨立記憶滑塊事件追蹤】動態識別當前模式，精確且獨立更新特定頻段記憶變數！ [INDEX]
+    // 🚀 🔒 【各別模式引數動態改值記憶引擎】拉動拉桿時，精確識別當前模式，只對該模式專屬記憶變數動態改值！ [INDEX]
     if (sliderId === "f1Slider") { 
         if (window.currentFilterMode === 'LP') window.f1_LP = parseInt(curVal);
         else if (window.currentFilterMode === 'HP') window.f1_HP = parseInt(curVal);
@@ -710,7 +720,8 @@ document.addEventListener('input', (e) => {
         window.updateFilterCoefficients(); 
     }
     if (sliderId === "f2Slider") { 
-        if (window.currentFilterMode === 'HP') window.f2_HP = parseInt(curVal);
+        if (window.currentFilterMode === 'LP') window.f2_LP = parseInt(curVal);
+        else if (window.currentFilterMode === 'HP') window.f2_HP = parseInt(curVal);
         else if (window.currentFilterMode === 'BP') window.f2_BP = parseInt(curVal);
         if (e.target.nextElementSibling) e.target.nextElementSibling.innerText = parseInt(curVal) + " Hz"; 
         window.updateFilterCoefficients(); 
