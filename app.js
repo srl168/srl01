@@ -1,11 +1,11 @@
-//1267
+//127
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體大腦池初始化（4096點真儀表網格）
+// 💡 1️⃣ 全域記憶體大腦池初始化（三大模式頻段控制參數徹底獨立解耦！）
 // ==========================================
 window.currentSampleRate = 44100;
 window.currentSinFreq = 1830;
@@ -21,19 +21,29 @@ window.FFT_SIZE = 4096;
 window.renderFrameCounter = 0;
 window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 
-// 預設鎖定：即使按鈕按在其他地方，核心計算也由 F1, F2 的雙 BP 動態解調分離
+// 🚀 🔒 【三大模式截止頻率獨立記憶池，調適極度方便，絕不互相干擾】
 window.currentFilterMode = 'RAW';
-window.f1 = 1000;
-window.f2 = 3000;
 
-// 🔒 🚀 【左聲道：通道一 (0 ~ F1) 獨立八階巴特沃斯記憶體】
+// LP 專屬獨立記憶頻段
+window.f1_LP = 1000;
+window.f2_LP = 3000;
+
+// HP 專屬獨立記憶頻段
+window.f1_HP = 1200;
+window.f2_HP = 3500;
+
+// BP 專屬獨立記憶頻段
+window.f1_BP = 800;
+window.f2_BP = 2500;
+
+// 🔒 🚀 【左通道八階巴特沃斯狀態陣列死鎖】
 window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
 window.xv = new Float32Array(3);  window.yv = new Float32Array(3);
 window.xv2 = new Float32Array(3); window.yv2 = new Float32Array(3);
 window.xv3 = new Float32Array(3); window.yv3 = new Float32Array(3);
 window.xv4 = new Float32Array(3); window.yv4 = new Float32Array(3);
 
-// 🔒 🚀 【右聲道：通道二 (F1 ~ F2) 獨立八階巴特沃斯記憶體】
+// 🔒 🚀 【右通道八階巴特沃斯狀態陣列死鎖】
 window.b0R = 1; window.b1R = 0; window.b2R = 0; window.a1R = 0; window.a2R = 0;
 window.xvR = new Float32Array(3);  window.yvR = new Float32Array(3);
 window.xvR2 = new Float32Array(3); window.yvR2 = new Float32Array(3);
@@ -51,50 +61,79 @@ window.addEventListener('DOMContentLoaded', () => {
     window.fCanvas.height = 400;
 });
 // ==========================================
-// 💡 2️⃣ 雙帶通（Dual-BP）濾波器獨立精密係數計算公式（徹底解耦）
+// 💡 2️⃣ 各自 F1, F2 精密係數計算公式（三大模式記憶完全解耦）
 // ==========================================
 window.updateFilterCoefficients = function() {
     let fs = window.currentSampleRate;
     
-    // 🔒 1. 左聲道獨立計算：通道一 (0 ~ F1 帶通濾波器)
-    let f1_Low = 20;
-    let f1_High = window.f1;
-    if (f1_High <= f1_Low) f1_High = f1_Low + 10;
-    
-    let fr1_L = fs / f1_Low;   if (fr1_L < 2.01) fr1_L = 2.01;
-    let fr1_H = fs / f1_High;  if (fr1_H < 2.01) fr1_H = 2.01;
-    let o1_L = Math.tan(Math.PI / fr1_L);
-    let o1_H = Math.tan(Math.PI / fr1_H);
-    let W1 = o1_H - o1_L; if (W1 < 0.001) W1 = 0.001;
-    let C1 = o1_L * o1_H;
-    let cBP1 = 1.0 + W1 + C1;
-    
-    // 剛性鎖死給左耳專用變數
-    window.b0 = W1 / cBP1;
-    window.b1 = 0.0;
-    window.b2 = -window.b0;
-    window.a1 = 2.0 * (C1 - 1.0) / cBP1;
-    window.a2 = (1.0 - W1 + C1) / cBP1;
-
-    // 🔒 2. 右聲道獨立計算：通道二 (F1 ~ F2 帶通濾波器)
-    let f2Correct = window.f2;
-    if (f2Correct <= window.f1) {
-        f2Correct = window.f1 + 10;
+    // 🔒 [LP 模式]：左耳讀取 f1_LP 做真八階低通，右耳靜音不計
+    if (window.currentFilterMode === 'LP') {
+        let frLeft = fs / window.f1_LP;
+        if (frLeft < 2.01) frLeft = 2.01;
+        let oL = Math.tan(Math.PI / frLeft);
+        let qValL = 0.70710678;
+        let cL = 1.0 + (oL / qValL) + (oL * oL);
+        
+        window.b0 = (oL * oL) / cL;
+        window.b1 = 2.0 * window.b0;
+        window.b2 = window.b0;
+        window.a1 = 2.0 * (oL * oL - 1.0) / cL;
+        window.a2 = (1.0 - (oL / qValL) + (oL * oL)) / cL;
+        
+        window.b0R = window.b1R = window.b2R = window.a1R = window.a2R = 0;
     }
-    let fr2_L = fs / window.f1; if (fr2_L < 2.01) fr2_L = 2.01;
-    let fr2_H = fs / f2Correct; if (fr2_H < 2.01) fr2_H = 2.01;
-    let o2_L = Math.tan(Math.PI / fr2_L);
-    let o2_H = Math.tan(Math.PI / fr2_H);
-    let W2 = o2_H - o2_L; if (W2 < 0.001) W2 = 0.001;
-    let C2 = o2_L * o2_H;
-    let cBP2 = 1.0 + W2 + C2;
-    
-    // 🚀 🚨 剛性解耦！右耳專用獨立變數（b0R, a1R, a2R），毫無串軌！
-    window.b0R = W2 / cBP2;
-    window.b1R = 0.0;
-    window.b2R = -window.b0R;
-    window.a1R = 2.0 * (C2 - 1.0) / cBP2;
-    window.a2R = (1.0 - W2 + C2) / cBP2;
+    // 🔒 [HP 模式]：左耳靜音，右耳讀取 f1_HP, f2_HP 做精確框鎖帶通
+    else if (window.currentFilterMode === 'HP') {
+        window.b0 = window.b1 = window.b2 = window.a1 = window.a2 = 0;
+        
+        let f2Correct = window.f2_HP;
+        if (f2Correct <= window.f1_HP) f2Correct = window.f1_HP + 10;
+        let fr2_L = fs / window.f1_HP; if (fr2_L < 2.01) fr2_L = 2.01;
+        let fr2_H = fs / f2Correct;    if (fr2_H < 2.01) fr2_H = 2.01;
+        let o2_L = Math.tan(Math.PI / fr2_L);
+        let o2_H = Math.tan(Math.PI / fr2_H);
+        let W2 = o2_H - o2_L; if (W2 < 0.001) W2 = 0.001;
+        let C2 = o2_L * o2_H;
+        let cBP2 = 1.0 + W2 + C2;
+        
+        window.b0R = W2 / cBP2;
+        window.b1R = 0.0;
+        window.b2R = -window.b0R;
+        window.a1R = 2.0 * (C2 - 1.0) / cBP2;
+        window.a2R = (1.0 - W2 + C2) / cBP2;
+    }
+    // 🔒 [BP 模式]：左耳專享 f1_BP 穩健低通，右耳精確框鎖 f1_BP ~ f2_BP 帶通
+    else if (window.currentFilterMode === 'BP') {
+        let frLeft = fs / window.f1_BP;
+        if (frLeft < 2.01) frLeft = 2.01;
+        let oL = Math.tan(Math.PI / frLeft);
+        let qValL = 0.70710678;
+        let cL = 1.0 + (oL / qValL) + (oL * oL);
+        window.b0 = (oL * oL) / cL;
+        window.b1 = 2.0 * window.b0;
+        window.b2 = window.b0;
+        window.a1 = 2.0 * (oL * oL - 1.0) / cL;
+        window.a2 = (1.0 - (oL / qValL) + (oL * oL)) / cL;
+        
+        let f2Correct = window.f2_BP;
+        if (f2Correct <= window.f1_BP) f2Correct = window.f1_BP + 10;
+        let fr2_L = fs / window.f1_BP; if (fr2_L < 2.01) fr2_L = 2.01;
+        let fr2_H = fs / f2Correct;    if (fr2_H < 2.01) fr2_H = 2.01;
+        let o2_L = Math.tan(Math.PI / fr2_L);
+        let o2_H = Math.tan(Math.PI / fr2_H);
+        let W2 = o2_H - o2_L; if (W2 < 0.001) W2 = 0.001;
+        let C2 = o2_L * o2_H;
+        let cBP2 = 1.0 + W2 + C2;
+        window.b0R = W2 / cBP2;
+        window.b1R = 0.0;
+        window.b2R = -window.b0R;
+        window.a1R = 2.0 * (C2 - 1.0) / cBP2;
+        window.a2R = (1.0 - W2 + C2) / cBP2;
+    }
+    else {
+        window.b0 = 1; window.b1 = window.b2 = window.a1 = window.a2 = 0;
+        window.b0R = 1; window.b1R = window.b2R = window.a1R = window.a2R = 0;
+    }
     
     if (isNaN(window.b0) || !isFinite(window.b0)) {
         window.b0 = 1; window.b1 = window.b2 = window.a1 = window.a2 = 0;
@@ -138,7 +177,7 @@ window.applyFilterLeft = function(x) {
                        - (window.a1 * window.yv3[1]) - (window.a2 * window.yv3[2]);
     if (isNaN(window.yv3[0]) || !isFinite(window.yv3[0])) window.yv3[0] = 0;
     
-    // 🛑 左通道 Stage 4（8階 0~F1 帶通收官）
+    // 🛑 左通道 Stage 4
     window.xv4[2] = window.xv4[1]; 
     window.xv4[1] = window.xv4[0]; 
     window.xv4[0] = window.yv3[0];
@@ -188,9 +227,9 @@ window.applyFilterRight = function(x) {
     window.yvR3[1] = window.yvR3[0];
     window.yvR3[0] = (window.b0R * window.xvR3[0]) + (window.b1R * window.xvR3[1]) + (window.b2R * window.xvR3[2]) 
                         - (window.a1R * window.yvR3[1]) - (window.a2R * window.yvR3[2]);
-    if (isNaN(window.yvR3[0]) || !isFinite(window.yvR3[0])) window.yvR3[0] = 0;
+    if (isNaN(window.yvR3[0]) || !isFinite(window.yvR3[0])) window.yvR3 = 0;
     
-    // 🛑 右通道 Stage 4（8階 F1~F2 帶通收官）
+    // 🛑 右通道 Stage 4
     window.xvR4[2] = window.xvR4[1]; 
     window.xvR4[1] = window.xvR4[0]; 
     window.xvR4[0] = window.yvR3[0];
@@ -207,9 +246,8 @@ window.applyFilterRight = function(x) {
     }
     return window.yvR4[0];
 };
-
 // ==========================================
-// 💡 3️⃣ 數位立體聲空間音訊流管道（2通道直通水管）
+// 💡 3️⃣ 數位立體聲空間音訊流管道（2通道直通水管，強控立體聲不串軌）
 // ==========================================
 window.oscNode = null; 
 window.oscNode2 = null; 
@@ -234,7 +272,7 @@ window.initAudioGlobal = function() {
         window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         window.gainNode = window.audioCtx.createGain(); 
         
-        // 🔒 強制鎖死硬體雙聲道，完全杜絕瀏覽器 Up-mixing 混音黑洞
+        // 🚀 🔒 【硬體級聲道死鎖】強制 GainNode 通道為 explicit 雙聲道，徹底切斷 Up-mixing 自動混音黑洞！ [INDEX]
         window.gainNode.channelCount = 2;
         window.gainNode.channelCountMode = "explicit";
         window.gainNode.channelInterpretation = "speakers";
@@ -255,8 +293,8 @@ window.initAudioGlobal = function() {
         
         window.scriptNode = window.audioCtx.createScriptProcessor(4096, 1, 2);
         window.scriptNode.onaudioprocess = function(audioProcessingEvent) {
-            let leftOutput = audioProcessingEvent.outputBuffer.getChannelData(0);  
-            let rightOutput = audioProcessingEvent.outputBuffer.getChannelData(1); 
+            let leftOutput = audioProcessingEvent.outputBuffer.getChannelData(0);  // 左聲道水管
+            let rightOutput = audioProcessingEvent.outputBuffer.getChannelData(1); // 右聲道水管
             let bufLength = audioProcessingEvent.inputBuffer.length;
             
             for (let sample = 0; sample < bufLength; sample++) {
@@ -270,17 +308,17 @@ window.initAudioGlobal = function() {
                 let leftVal = window.applyFilterLeft ? window.applyFilterLeft(rawVal) : rawVal;
                 let rightVal = window.applyFilterRight ? window.applyFilterRight(rawVal) : rawVal;
                 
-                // 🚀 🔒 【100% 訊號高保真直通】聲音絕對不再經過任何放大，保持原汁原味的真實物理電壓！
+                // 🚀 🔒 【高保真物理分流靜音控制】
                 let leftOutVal = leftVal;
                 let rightOutVal = rightVal;
                 
                 if (window.currentFilterMode === 'LP') {
-                    rightOutVal = 0.0; // LP 時右耳單邊物理靜音
+                    rightOutVal = 0.0; // LP 狀態下：右耳強制完全斷電靜音 🔇 [INDEX]
                 } else if (window.currentFilterMode === 'HP') {
-                    leftOutVal = 0.0;  // HP 時左耳物理靜音
+                    leftOutVal = 0.0;  // HP 狀態下：左耳強制完全靜音 🔇 [INDEX]
                 } else if (window.currentFilterMode === 'BP') {
                     leftOutVal = leftVal;
-                    rightOutVal = rightVal; // BP 時雙耳平行發聲
+                    rightOutVal = rightVal; // BP 狀態下：左右各就各位同時放音 [INDEX]
                 } else if (window.currentFilterMode === 'RAW') {
                     leftOutVal = rawVal;
                     rightOutVal = rawVal;
@@ -289,7 +327,7 @@ window.initAudioGlobal = function() {
                 leftOutput[sample] = leftOutVal;   
                 rightOutput[sample] = rightOutVal; 
                 
-                // 🔒 繪圖監控點同樣保持高保真，拒絕乘法干擾
+                // 圖表大腦抽取點，完美對齊聆聽切換
                 let plotVal = leftVal;
                 if (window.currentFilterMode === 'HP' || window.currentFilterMode === 'BP') {
                     plotVal = rightVal; 
@@ -333,7 +371,6 @@ window.consumeRawBuffer = function(rawDataView) {
         window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
     }
 };
-
 // ==========================================
 // 💡 4️⃣ 快速傅立葉變換與真立體聲動態變焦尺標（Dynamic Scale）渲染大腦
 // ==========================================
@@ -439,10 +476,8 @@ window.globalRenderLoop = function() {
     
     if (window.filteredDataLog.length < 10) return;
     
-    // 完璧的原裝時域切片長度
     let rawSlice = window.filteredDataLog.slice(-Math.max(64, Math.min(window.filteredDataLog.length, Math.round((3 * window.currentSampleRate) / window.currentSinFreq))));
     
-    // 看板實時保真數據
     let maxRealVal = Math.max(...rawSlice);
     let minRealVal = Math.min(...rawSlice);
     let sq = 0; 
@@ -450,7 +485,6 @@ window.globalRenderLoop = function() {
     document.getElementById('vppVal').innerText = (maxRealVal - minRealVal).toFixed(2) + " V"; 
     document.getElementById('rmsVal').innerText = Math.sqrt(sq / rawSlice.length).toFixed(2) + " V";
     
-    // 🚀 🔒 【時域自適應最高振幅監測與變焦比例】
     let framePeak = Math.max(Math.abs(maxRealVal), Math.abs(minRealVal));
     if (framePeak < 0.01) framePeak = 0.01;
     let scaleY = 145.0 / framePeak; 
@@ -488,8 +522,6 @@ window.globalRenderLoop = function() {
     let livePeakHz = peakBinIndex * hzPerBin;
     document.getElementById('freqVal').innerText = maxMag > 0.015 ? livePeakHz.toFixed(1) + " Hz" : "0.0 Hz";
 
-    // 🚀 🔒 【真．動態變焦標尺網格繪製大腦】
-    // 徹底砸爛數學相消黑洞！網格線剛性鎖定五檔分組像素，而尺標文字精確隨 framePeak 動態拉伸變焦！
     window.tCtx.clearRect(0, 0, 800, 400); 
     window.tCtx.fillStyle = '#111'; 
     window.tCtx.fillRect(0, 0, 800, 400); 
@@ -497,7 +529,6 @@ window.globalRenderLoop = function() {
     window.tCtx.lineWidth = 1; 
     window.tCtx.beginPath(); 
     
-    // 1. 剛性劃定固定示波器五格網格線（徹底解開數學抵消限制）
     let gridPixelSteps = [1.0, 0.5, 0.0, -0.5, -1.0];
     gridPixelSteps.forEach(ratio => {
         let gridY = midY - (ratio * 145.0); 
@@ -506,17 +537,15 @@ window.globalRenderLoop = function() {
     });
     window.tCtx.stroke();
     
-    // 2. 實時打印 100% 動態隨訊號同步變焦的科學電壓尺標文字！
     window.tCtx.fillStyle = '#ffffff'; 
     window.tCtx.font = 'bold 12px Arial'; 
     gridPixelSteps.forEach(ratio => {
-        let currentLabelVolt = ratio * framePeak; // 依據當前幀的最高振幅計算每格真實物理電壓
+        let currentLabelVolt = ratio * framePeak; 
         let sign = (currentLabelVolt > 0.001) ? "+" : "";
         window.tCtx.fillText(sign + currentLabelVolt.toFixed(2) + "V", 25, midY - (ratio * 145.0) + 4);
     });
     
-    // 🚀 🔒 【起點與迴圈中括號下標數字絕對死鎖】
-    // 完璧原裝中括號數字下標直通，配合 scaleY 自適應，圖形與真實變焦刻度 100% 同頻共振！🔒
+    // 🚀 🔒 【起點與迴圈中括號下標數字絕對死鎖】🔒 [INDEX]
     window.tCtx.strokeStyle = '#00ff66'; 
     window.tCtx.lineWidth = 2.5; 
     window.tCtx.beginPath(); 
@@ -529,7 +558,6 @@ window.globalRenderLoop = function() {
     window.tCtx.fillStyle = '#00ff66'; 
     window.tCtx.fillText("全幅時間: " + ((rawSlice.length / window.currentSampleRate) * 1000).toFixed(2) + " ms", 620, 380);
 
-    // 繪製頻譜背景刻度
     window.fCtx.clearRect(0, 0, 800, 400); 
     window.fCtx.fillStyle = '#111'; 
     window.fCtx.fillRect(0, 0, 800, 400); 
@@ -584,12 +612,33 @@ window.globalRenderLoop = function() {
     } 
     window.fCtx.stroke();
 };
-
 // ==========================================
-// 💡 5️⃣ !important 最高優先級控制框外觀事件引擎
+// 💡 5️⃣ !important 最高優先級控制外框與「各模式獨立滑塊控制」事件驅動引擎
 // ==========================================
 window.renderFilterButtonLights = function() {
     const btnIds = { RAW: 'filterRaw', LP: 'filterLP', HP: 'filterHP', BP: 'filterBP' };
+    
+    // 🔒 在切換按鈕的瞬間，同步刷新網頁 HTML 上 F1、F2 滑塊的拉桿位置與文字看板！
+    let f1Slider = document.getElementById('f1Slider');
+    let f2Slider = document.getElementById('f2Slider');
+    
+    if (f1Slider && f2Slider) {
+        if (window.currentFilterMode === 'LP') {
+            f1Slider.value = window.f1_LP;
+            if (f1Slider.nextElementSibling) f1Slider.nextElementSibling.innerText = window.f1_LP + " Hz";
+        } else if (window.currentFilterMode === 'HP') {
+            f1Slider.value = window.f1_HP;
+            f2Slider.value = window.f2_HP;
+            if (f1Slider.nextElementSibling) f1Slider.nextElementSibling.innerText = window.f1_HP + " Hz";
+            if (f2Slider.nextElementSibling) f2Slider.nextElementSibling.innerText = window.f2_HP + " Hz";
+        } else if (window.currentFilterMode === 'BP') {
+            f1Slider.value = window.f1_BP;
+            f2Slider.value = window.f2_BP;
+            if (f1Slider.nextElementSibling) f1Slider.nextElementSibling.innerText = window.f1_BP + " Hz";
+            if (f2Slider.nextElementSibling) f2Slider.nextElementSibling.innerText = window.f2_BP + " Hz";
+        }
+    }
+
     Object.keys(btnIds).forEach(mode => {
         let btnEl = document.getElementById(btnIds[mode]); 
         if (!btnEl) return;
@@ -602,4 +651,83 @@ window.renderFilterButtonLights = function() {
         if (window.currentFilterMode === mode) {
             btnEl.style.setProperty('background-color', '#00ff66', 'important');
             btnEl.style.setProperty('color', '#111111', 'important');
-btnEl.style.setProperty('border-color', '#00ff66', 'important');btnEl.style.setProperty('font-weight', 'bold', 'important');btnEl.classList.add('active');} else {btnEl.style.setProperty('background-color', '#3a3a3a', 'important');btnEl.style.setProperty('color', '#eeeeee', 'important');btnEl.style.setProperty('border-color', '#555555', 'important');btnEl.style.setProperty('font-weight', 'normal', 'important');btnEl.classList.remove('active');}});};document.getElementById('simBtn')?.addEventListener('click', () => {window.isSimulating = !window.isSimulating;document.getElementById('simBtn').innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試";window.initAudioGlobal();});document.addEventListener('click', (e) => {if (!e.target || !e.target.id) return;let clickId = e.target.id;if (clickId === 'speakerBtn') {window.isSpeakerOn = !window.isSpeakerOn;document.getElementById('speakerBtn').innerText = window.isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉";if (window.gainNode) window.gainNode.gain.setValueAtTime(window.isSpeakerOn ? window.currentVolume : 0.0, window.audioCtx.currentTime);}const fModes = { filterRaw: 'RAW', filterLP: 'LP', filterHP: 'HP', filterBP: 'BP' };if (fModes[clickId]) {window.currentFilterMode = fModes[clickId];const f2View = document.getElementById('f2Container');if (f2View) f2View.style.display = (clickId === 'filterBP') ? 'flex' : 'none';window.updateFilterCoefficients();window.renderFilterButtonLights();}});document.addEventListener('input', (e) => {if (!e.target || !e.target.id || e.target.type !== 'range') return;let curVal = parseFloat(e.target.value);let sliderId = e.target.id;if (sliderId === "sampleRateSlider") {window.currentSampleRate = parseInt(curVal);window.updateFilterCoefficients();}if (sliderId === "sinFreqSlider") window.currentSinFreq = parseInt(curVal);if (sliderId === "f1Slider") {window.f1 = parseInt(curVal);window.updateFilterCoefficients();}if (sliderId === "f2Slider") {window.f2 = parseInt(curVal);if (e.target.nextElementSibling) e.target.nextElementSibling.innerText = window.f2 + " Hz";window.updateFilterCoefficients();}if (sliderId === "volumeSlider") {window.currentVolume = curVal;if (e.target.nextElementSibling) e.target.nextElementSibling.innerText = Math.round(curVal * 100) + "%";if (window.gainNode && window.isSpeakerOn) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime);}if (e.target.nextElementSibling && sliderId !== "f2Slider" && sliderId !== "volumeSlider") {e.target.nextElementSibling.innerText = curVal + " Hz";}});window.onload = function() {window.updateFilterCoefficients();window.renderFilterButtonLights();window.globalRenderLoop();};
+            btnEl.style.setProperty('border-color', '#00ff66', 'important');
+            btnEl.style.setProperty('font-weight', 'bold', 'important');
+            btnEl.classList.add('active');
+        } else {
+            btnEl.style.setProperty('background-color', '#3a3a3a', 'important');
+            btnEl.style.setProperty('color', '#eeeeee', 'important');
+            btnEl.style.setProperty('border-color', '#555555', 'important');
+            btnEl.style.setProperty('font-weight', 'normal', 'important');
+            btnEl.classList.remove('active');
+        }
+    });
+};
+
+document.getElementById('simBtn')?.addEventListener('click', () => { 
+    window.isSimulating = !window.isSimulating; 
+    document.getElementById('simBtn').innerText = window.isSimulating ? "🛑 停止本地模擬測試" : "🛠️ 開啟本地資料模擬測試"; 
+    window.initAudioGlobal(); 
+});
+
+document.addEventListener('click', (e) => {
+    if (!e.target || !e.target.id) return; 
+    let clickId = e.target.id;
+    
+    if (clickId === 'speakerBtn') { 
+        window.isSpeakerOn = !window.isSpeakerOn; 
+        document.getElementById('speakerBtn').innerText = window.isSpeakerOn ? "🔊 喇叭發聲：開啟" : "🔇 喇叭發聲：關閉"; 
+        if (window.gainNode) window.gainNode.gain.setValueAtTime(window.isSpeakerOn ? window.currentVolume : 0.0, window.audioCtx.currentTime); 
+    }
+    
+    const fModes = { filterRaw: 'RAW', filterLP: 'LP', filterHP: 'HP', filterBP: 'BP' };
+    if (fModes[clickId]) {
+        window.currentFilterMode = fModes[clickId];
+        const f2View = document.getElementById('f2Container'); 
+        if (f2View) f2View.style.display = (clickId === 'filterLP') ? 'none' : 'flex';
+        
+        window.updateFilterCoefficients(); 
+        window.renderFilterButtonLights();
+    }
+});
+
+document.addEventListener('input', (e) => {
+    if (!e.target || !e.target.id || e.target.type !== 'range') return;
+    let curVal = parseFloat(e.target.value);
+    let sliderId = e.target.id;
+    
+    if (sliderId === "sampleRateSlider") { 
+        window.currentSampleRate = parseInt(curVal); 
+        window.updateFilterCoefficients(); 
+    }
+    if (sliderId === "sinFreqSlider") window.currentSinFreq = parseInt(curVal);
+    
+    // 🚀 🔒 【獨立記憶滑塊事件追蹤】動態識別當前模式，精確且獨立更新特定頻段記憶變數！ [INDEX]
+    if (sliderId === "f1Slider") { 
+        if (window.currentFilterMode === 'LP') window.f1_LP = parseInt(curVal);
+        else if (window.currentFilterMode === 'HP') window.f1_HP = parseInt(curVal);
+        else if (window.currentFilterMode === 'BP') window.f1_BP = parseInt(curVal);
+        window.updateFilterCoefficients(); 
+    }
+    if (sliderId === "f2Slider") { 
+        if (window.currentFilterMode === 'HP') window.f2_HP = parseInt(curVal);
+        else if (window.currentFilterMode === 'BP') window.f2_BP = parseInt(curVal);
+        if (e.target.nextElementSibling) e.target.nextElementSibling.innerText = parseInt(curVal) + " Hz"; 
+        window.updateFilterCoefficients(); 
+    }
+    
+    if (sliderId === "volumeSlider") { 
+        window.currentVolume = curVal; 
+        if (e.target.nextElementSibling) e.target.nextElementSibling.innerText = Math.round(curVal * 100) + "%"; 
+        if (window.gainNode && window.isSpeakerOn) window.gainNode.gain.setValueAtTime(curVal, window.audioCtx.currentTime); 
+    }
+    if (e.target.nextElementSibling && sliderId !== "f2Slider" && sliderId !== "volumeSlider") {
+        e.target.nextElementSibling.innerText = curVal + " Hz";
+    }
+});
+
+window.onload = function() { 
+    window.updateFilterCoefficients(); 
+    window.renderFilterButtonLights(); 
+    window.globalRenderLoop(); 
+};
