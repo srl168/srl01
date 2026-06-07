@@ -439,7 +439,7 @@ window.globalRenderLoop = function() {
     }
     
     if (window.filteredDataLog.length < 10) return;
-    let rawSlice = window.filteredDataLog.slice(-Math.max(64, Math.min(window.filteredDataLog.length, Math.round((3 * window.currentSampleRate) / (window.currentSinFreq * 0.4)))));
+    let rawSlice = window.filteredDataLog.slice(-Math.max(64, Math.min(window.filteredDataLog.length, Math.round((3 * window.currentSampleRate) / window.currentSinFreq ))));
     
     // 🔒 如實計算並投影真實物理數據（保真顯示真實 Vpp 與 RMS） [INDEX]
     let maxRealVal = Math.max(...rawSlice);
