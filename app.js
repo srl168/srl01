@@ -1,4 +1,4 @@
-//1263
+//1264
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
@@ -258,10 +258,29 @@ window.initAudioGlobal = function() {
                 // 🚀 🔒 【真．立體分流示波器動態投影監控點】
                 let plotVal = leftVal;
                 if (window.currentFilterMode === 'HP' || window.currentFilterMode === 'BP') {
-plotVal = rightVal; // 👈 切換到高通/帶通按鈕時，畫布 100% 只繪製右耳純淨波形} 
-else if (window.currentFilterMode === 'RAW') {plotVal = rawVal;   
-// 👈 RAW 時看原始波}
-window.filteredDataLog.push(plotVal);window.analysisBuffer[window.bufferIndex] = plotVal;window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;}if (window.filteredDataLog.length > 10000) {window.filteredDataLog = window.filteredDataLog.slice(-8000);}};window.oscNode.connect(window.scriptNode);window.oscNode2.connect(window.scriptNode);window.scriptNode.connect(window.gainNode);window.oscNode.start();window.oscNode2.start();}};window.consumeRawBuffer = function(rawDataView) {let byteLen = rawDataView.byteLength;for (let i = 0; i < byteLen; i++) {let rawVal = (rawDataView.getUint8(i) / 127.5) - 1.0;let leftVal = window.applyFilterLeft(rawVal);let rightVal = window.applyFilterRight(rawVal);let plotVal = leftVal;if (window.currentFilterMode === 'HP' || window.currentFilterMode === 'BP') {plotVal = rightVal;} else if (window.currentFilterMode === 'RAW') {plotVal = rawVal;}window.filteredDataLog.push(plotVal);if (window.filteredDataLog.length > 10000) window.filteredDataLog.shift();window.analysisBuffer[window.bufferIndex] = plotVal;window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;}};
+plotVal = rightVal; // 👈 切換到高通/帶通按鈕時，畫布 100% 只繪製右耳純淨波形
+} 
+else if (window.currentFilterMode === 'RAW') {plotVal = rawVal;   // 👈 RAW 時看原始波
+}
+window.filteredDataLog.push(plotVal);
+window.analysisBuffer[window.bufferIndex] = plotVal;
+window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;}
+
+if (window.filteredDataLog.length > 10000) {window.filteredDataLog = window.filteredDataLog.slice(-8000);}
+};
+window.oscNode.connect(window.scriptNode);
+window.oscNode2.connect(window.scriptNode);
+window.scriptNode.connect(window.gainNode);
+window.oscNode.start();
+window.oscNode2.start();
+}
+};
+window.consumeRawBuffer = function(rawDataView) {
+	let byteLen = rawDataView.byteLength;
+for (let i = 0; i < byteLen; i++) {
+	let rawVal = (rawDataView.getUint8(i) / 127.5) - 1.0;let leftVal = window.applyFilterLeft(rawVal);let rightVal = window.applyFilterRight(rawVal);let plotVal = leftVal;if (window.currentFilterMode === 'HP' || window.currentFilterMode === 'BP') {plotVal = rightVal;} else if (window.currentFilterMode === 'RAW') {plotVal = rawVal;}window.filteredDataLog.push(plotVal);if (window.filteredDataLog.length > 10000) window.filteredDataLog.shift();window.analysisBuffer[window.bufferIndex] = plotVal;window.bufferIndex = (window.bufferIndex + 1) % window.FFT_SIZE;
+}
+};
 
 
 // ==========================================
