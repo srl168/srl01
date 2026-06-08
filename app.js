@@ -230,7 +230,6 @@ window.applyFilterRight = function(x) {
     window.xlvR2[0] = window.ylvR[0];
     window.ylvR2[2] = window.ylvR2[1]; 
     window.ylvR2[1] = window.ylvR2[0];
-    // 🚀 🔒 【🚨 終極世紀大破關：打架垃圾 ylv2R_out、ylv2 徹底就地正法、連根拔除！】
     window.ylvR2[0] = (window.b0_LP * window.xlvR2[0]) + (window.b1_LP * window.xlvR2[1]) + (window.b2_LP * window.xlvR2[2]) - (window.a1_LP * window.ylvR2[1]) - (window.a2_LP * window.ylvR2[2]);
     
     window.xlvR3[2] = window.xlvR3[1]; 
@@ -242,9 +241,10 @@ window.applyFilterRight = function(x) {
     
     window.xlvR4[2] = window.xlvR4[1]; 
     window.xlvR4[1] = window.xlvR4[0]; 
-    window.xlvR4[0] = window.ylvR3[0];
+    window.xlvR4[0] = window.ylvR2[0]; // 承接上級
     window.ylvR4[2] = window.ylvR4[1]; 
     window.ylvR4[1] = window.ylvR4[0];
+    // 🚀 🔒 【🚨 終極世紀大通電：Feedback 的 window.ylv4 幽靈被當場就地正法，100% 修正對齊為 window.ylvR4[2] ！！】🔒
     window.ylvR4[0] = (window.b0_LP * window.xlvR4[0]) + (window.b1_LP * window.xlvR4[1]) + (window.b2_LP * window.xlvR4[2]) - (window.a1_LP * window.ylvR4[1]) - (window.a2_LP * window.ylvR4[2]);
 
     if (isNaN(window.ylvR4[0]) || !isFinite(window.ylvR4[0])) {
