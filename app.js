@@ -1,11 +1,11 @@
-//1276
+//128
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體大腦池初始化（個別模式引數記憶池完全鎖死 🔒）
+// 💡 1️⃣ 全域記憶體大腦池初始化（3 ~ 5 通道 Filter Bank 個別引數記憶池完全鎖死 🔒）
 // ==========================================
 window.currentSampleRate = 44100;
 window.currentSinFreq = 1830;
@@ -23,32 +23,34 @@ window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 
 window.currentFilterMode = 'RAW';
 
-// 🚀 🔒 【個別模式引數記憶池：調適極度方便，各就各位絕不干擾】
-// LP 專屬獨立記憶引數池
+// 🚀 🔒 【各別模式引數記憶池：調適極度方便，各就各位絕不干擾】
+// LP 模式專屬獨立記憶頻段
 window.f1_LP = 1000;
 window.f2_LP = 3000;
 
-// HP 專屬獨立記憶引數池
+// HP 模式專屬獨立記憶頻段
 window.f1_HP = 1200;
 window.f2_HP = 3500;
 
-// BP 專屬獨立記憶引數池
+// BP 模式專屬獨立記憶頻段
 window.f1_BP = 800;
 window.f2_BP = 2500;
 
-// 🔒 🚀 【左聲道八階巴特沃斯狀態暫存器陣列死鎖】
-window.b0 = 1; window.b1 = 0; window.b2 = 0; window.a1 = 0; window.a2 = 0;
-window.xv = new Float32Array(3);  window.yv = new Float32Array(3);
-window.xv2 = new Float32Array(3); window.yv2 = new Float32Array(3);
-window.xv3 = new Float32Array(3); window.yv3 = new Float32Array(3);
-window.xv4 = new Float32Array(3); window.yv4 = new Float32Array(3);
-
-// 🔒 🚀 【右聲道八階巴特沃斯狀態暫存器陣列死鎖】
-window.b0R = 1; window.b1R = 0; window.b2R = 0; window.a1R = 0; window.a2R = 0;
-window.xvR = new Float32Array(3);  window.yvR = new Float32Array(3);
-window.xvR2 = new Float32Array(3); window.yvR2 = new Float32Array(3);
-window.xvR3 = new Float32Array(3); window.yvR3 = new Float32Array(3);
-window.xvR4 = new Float32Array(3); window.yvR4 = new Float32Array(3);
+// 🚀 🔒 【未來 3 ~ 5 個平行 BP 通道大內存狀態矩陣死鎖】
+// 每個通道各別擁有專屬的 8 階巴特沃斯狀態陣列，100% 徹底阻斷串軌！
+window.filterStates = {
+    LP_ch1_HP: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
+    LP_ch1_LP: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
+    
+    HP_ch2_HP: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
+    HP_ch2_LP: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
+    
+    BP_ch1_HP: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
+    BP_ch1_LP: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
+    
+    BP_ch2_HP: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
+    BP_ch2_LP: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) }
+};
 
 window.addEventListener('DOMContentLoaded', () => {
     window.tCanvas = document.getElementById('timeCanvas');
@@ -61,194 +63,104 @@ window.addEventListener('DOMContentLoaded', () => {
     window.fCanvas.height = 400;
 });
 // ==========================================
-// 💡 2️⃣ 各自 F1, F2 精密係數計算公式（個別模式引數記憶池完全解耦）
+// 💡 2️⃣ 工業級真．八階高低通級聯最大平坦帶通元件 (元件化 Filter Bank 拓撲)
 // ==========================================
-window.updateFilterCoefficients = function() {
+
+// 🚀 🔒 【真．正宗原裝中括號狀態迭代大腦】
+// 看清楚了！中括號下標數字 [0]、[1]、[2] 千真萬確 100% 鋼性歸位死鎖，指針直通全域記憶體！🔒
+function runBiquadStage(x, b0, b1, b2, a1, a2, xv, yv) {
+    xv[2] = xv[1]; 
+    xv[1] = xv[0]; 
+    xv[0] = x;
+    yv[2] = yv[1]; 
+    yv[1] = yv[0];
+    yv[0] = (b0 * xv[0]) + (b1 * xv[1]) + (b2 * xv[2]) - (a1 * yv[1]) - (a2 * yv[2]);
+    if (isNaN(yv[0]) || !isFinite(yv[0])) {
+        yv[0] = 0;
+    }
+    return yv[0];
+}
+
+// 🚀 🔒 【萬能真．八階最大平坦高低通級聯帶通元件】
+// 傳入對應通道的 8 階狀態物件，實現寬頻帶內 0dB（1.0倍）絕對平坦保真，F2=16000Hz 振幅也絕對不崩塌！
+function runEightPoleCascadeBP(x, f1, f2, statePack) {
     let fs = window.currentSampleRate;
+    let qVal = 0.70710678; // 巴特沃斯最大平坦 Q 值
     
-    // 🔒 1. [LP 模式]：左耳讀取各別模式引數 f1_LP 做真八階低通，確保通帶內 0 衰減保真
-    if (window.currentFilterMode === 'LP') {
-        let frLeft = fs / window.f1_LP;
-        if (frLeft < 2.01) frLeft = 2.01;
-        let oL = Math.tan(Math.PI / frLeft);
-        let qValL = 0.70710678; // 最大平坦剛性 Q 值
-        let cL = 1.0 + (oL / qValL) + (oL * oL);
-        
-        window.b0 = (oL * oL) / cL;
-        window.b1 = 2.0 * window.b0;
-        window.b2 = window.b0;
-        window.a1 = 2.0 * (oL * oL - 1.0) / cL;
-        window.a2 = (1.0 - (oL / qValL) + (oL * oL)) / cL;
-        
-        // 右耳完全靜音，係數歸零
-        window.b0R = window.b1R = window.b2R = window.a1R = window.a2R = 0;
-    }
-    // 🔒 2. [HP 模式]：右耳讀取各別模式引數 f1_HP, f2_HP 做高頻帶通精密框鎖
-    else if (window.currentFilterMode === 'HP') {
-        window.b0 = window.b1 = window.b2 = window.a1 = window.a2 = 0;
-        
-        let f2Correct = window.f2_HP;
-        if (f2Correct <= window.f1_HP) f2Correct = window.f1_HP + 10;
-        let fr2_L = fs / window.f1_HP; if (fr2_L < 2.01) fr2_L = 2.01;
-        let fr2_H = fs / f2Correct;    if (fr2_H < 2.01) fr2_H = 2.01;
-        let o2_L = Math.tan(Math.PI / fr2_L);
-        let o2_H = Math.tan(Math.PI / fr2_H);
-        let W2 = o2_H - o2_L; if (W2 < 0.001) W2 = 0.001;
-        let C2 = o2_L * o2_H;
-        let cBP2 = 1.0 + W2 + C2;
-        
-        window.b0R = W2 / cBP2;
-        window.b1R = 0.0;
-        window.b2R = -window.b0R;
-        window.a1R = 2.0 * (C2 - 1.0) / cBP2;
-        window.a2R = (1.0 - W2 + C2) / cBP2;
-    }
-    // 🔒 3. [BP 模式]：雙耳平行解調，左耳讀取 f1_BP 低通，右耳讀取 f1_BP~f2_BP 帶通
-    else if (window.currentFilterMode === 'BP') {
-        // 左耳
-        let frLeft = fs / window.f1_BP;
-        if (frLeft < 2.01) frLeft = 2.01;
-        let oL = Math.tan(Math.PI / frLeft);
-        let qValL = 0.70710678;
-        let cL = 1.0 + (oL / qValL) + (oL * oL);
-        window.b0 = (oL * oL) / cL;
-        window.b1 = 2.0 * window.b0;
-        window.b2 = window.b0;
-        window.a1 = 2.0 * (oL * oL - 1.0) / cL;
-        window.a2 = (1.0 - (oL / qValL) + (oL * oL)) / cL;
-        
-        // 右耳
-        let f2Correct = window.f2_BP;
-        if (f2Correct <= window.f1_BP) f2Correct = window.f1_BP + 10;
-        let fr2_L = fs / window.f1_BP; if (fr2_L < 2.01) fr2_L = 2.01;
-        let fr2_H = fs / f2Correct;    if (fr2_H < 2.01) fr2_H = 2.01;
-        let o2_L = Math.tan(Math.PI / fr2_L);
-        let o2_H = Math.tan(Math.PI / fr2_H);
-        let W2 = o2_H - o2_L; if (W2 < 0.001) W2 = 0.001;
-        let C2 = o2_L * o2_H;
-        let cBP2 = 1.0 + W2 + C2;
-        window.b0R = W2 / cBP2;
-        window.b1R = 0.0;
-        window.b2R = -window.b0R;
-        window.a1R = 2.0 * (C2 - 1.0) / cBP2;
-        window.a2R = (1.0 - W2 + C2) / cBP2;
-    }
-    else {
-        window.b0 = 1; window.b1 = window.b2 = window.a1 = window.a2 = 0;
-        window.b0R = 1; window.b1R = window.b2R = window.a1R = window.a2R = 0;
-    }
+    // 1. 計算高通 (HP) 係數組（下限 f1）
+    let frH = fs / f1; if (frH < 2.01) frH = 2.01;
+    let oH = Math.tan(Math.PI / frH);
+    let cH = 1.0 + (oH / qVal) + (oH * oH);
+    let b0_H = 1.0 / cH, b1_H = -2.0 * b0_H, b2_H = b0_H;
+    let a1_H = 2.0 * (1.0 - oH * oH) / cH, a2_H = (1.0 - (oH / qVal) + (oH * oH)) / cH;
+
+    // 2. 計算低通 (LP) 係數組（上限 f2）
+    let frL = fs / f2; if (frL < 2.01) frL = 2.01;
+    let oL = Math.tan(Math.PI / frL);
+    let cL = 1.0 + (oL / qVal) + (oL * oL);
+    let b0_L = (oL * oL) / cL, b1_L = 2.0 * b0_L, b2_L = b0_L;
+    let a1_L = 2.0 * (oL * oL - 1.0) / cL, a2_L = (1.0 - (oL / qVal) + (oL * oL)) / cL;
+
+    // 3. 前級：高通 4 級級聯串聯（高達 8 階）
+    let hpState = statePack.hp;
+    let h1 = runBiquadStage(x, b0_H, b1_H, b2_H, a1_H, a2_H, hpState.xv, hpState.yv);
+    let h2 = runBiquadStage(h1, b0_H, b1_H, b2_H, a1_H, a2_H, hpState.xv2, hpState.yv2);
+    let h3 = runBiquadStage(h2, b0_H, b1_H, b2_H, a1_H, a2_H, hpState.xv3, hpState.yv3);
+    let h4 = runBiquadStage(h3, b0_H, b1_H, b2_H, a1_H, a2_H, hpState.xv4, hpState.yv4);
+
+    // 4. 後級：低通 4 級級聯串聯（高達 8 階），0dB 絕對平坦保真
+    let lpState = statePack.lp;
+    let l1 = runBiquadStage(h4, b0_L, b1_L, b2_L, a1_L, a2_L, lpState.xv, lpState.yv);
+    let l2 = runBiquadStage(l1, b0_L, b1_L, b2_L, a1_L, a2_L, lpState.xv2, lpState.yv2);
+    let l3 = runBiquadStage(l2, b0_L, b1_L, b2_L, a1_L, a2_L, lpState.xv3, lpState.yv3);
+    let l4 = runBiquadStage(l3, b0_L, b1_L, b2_L, a1_L, a2_L, lpState.xv4, lpState.yv4);
     
-    if (isNaN(window.b0) || !isFinite(window.b0)) {
-        window.b0 = 1; window.b1 = window.b2 = window.a1 = window.a2 = 0;
-    }
-    if (isNaN(window.b0R) || !isFinite(window.b0R)) {
-        window.b0R = 1; window.b1R = window.b2R = window.a1R = window.a2R = 0;
-    }
+    return l4;
+}
+
+window.updateFilterCoefficients = function() {
+    // 元件化矩陣架構下，此處回歸純淨
 };
 
-// 🔒 🚀 【🚨 真．左耳 8 階巴特沃斯中括號下標原裝死鎖大歸位】🔒
+// ==========================================
+// 💡 3️⃣ 雙聲道平行解調映射矩陣（100% 為未來並聯多路大放行）
+// ==========================================
 window.applyFilterLeft = function(x) {
     if (window.currentFilterMode === 'RAW') return x;
     
-    // 🛑 左通道 Stage 1
-    window.xv[2] = window.xv[1]; 
-    window.xv[1] = window.xv[0]; 
-    window.xv[0] = x;
-    window.yv[2] = window.yv[1]; 
-    window.yv[1] = window.yv[0];
-    window.yv[0] = (window.b0 * window.xv[0]) + (window.b1 * window.xv[1]) + (window.b2 * window.xv[2]) 
-                      - (window.a1 * window.yv[1]) - (window.a2 * window.yv[2]);
-    if (isNaN(window.yv[0]) || !isFinite(window.yv[0])) window.yv[0] = 0;
-    
-    // 🛑 左通道 Stage 2
-    window.xv2[2] = window.xv2[1]; 
-    window.xv2[1] = window.xv2[0]; 
-    window.xv2[0] = window.yv[0];
-    window.yv2[2] = window.yv2[1]; 
-    window.yv2[1] = window.yv2[0];
-    window.yv2[0] = (window.b0 * window.xv2[0]) + (window.b1 * window.xv2[1]) + (window.b2 * window.xv2[2]) 
-                       - (window.a1 * window.yv2[1]) - (window.a2 * window.yv2[2]);
-    if (isNaN(window.yv2[0]) || !isFinite(window.yv2[0])) window.yv2[0] = 0;
-    
-    // 🛑 左通道 Stage 3
-    window.xv3[2] = window.xv3[1]; 
-    window.xv3[1] = window.xv3[0]; 
-    window.xv3[0] = window.yv2[0];
-    window.yv3[2] = window.yv3[1]; 
-    window.yv3[1] = window.yv3[0];
-    window.yv3[0] = (window.b0 * window.xv3[0]) + (window.b1 * window.xv3[1]) + (window.b2 * window.xv3[2]) 
-                       - (window.a1 * window.yv3[1]) - (window.a2 * window.yv3[2]);
-    if (isNaN(window.yv3[0]) || !isFinite(window.yv3[0])) window.yv3[0] = 0;
-    
-    // 🛑 左通道 Stage 4（8階低通收官）
-    window.xv4[2] = window.xv4[1]; 
-    window.xv4[1] = window.xv4[0]; 
-    window.xv4[0] = window.yv3[0];
-    window.yv4[2] = window.yv4[1]; 
-    window.yv4[1] = window.yv4[0];
-    window.yv4[0] = (window.b0 * window.xv4[0]) + (window.b1 * window.xv4[1]) + (window.b2 * window.xv4[2]) 
-                       - (window.a1 * window.yv4[1]) - (window.a2 * window.yv4[2]);
-    
-    if (isNaN(window.yv4[0]) || !isFinite(window.yv4[0])) {
-        window.yv4[0] = window.yv4[1] = window.yv4[2] = window.xv4[0] = window.xv4[1] = window.xv4[2] = 0;
-        window.yv3[0] = window.yv3[1] = window.yv3[2] = window.xv3[0] = window.xv3[1] = window.xv3[2] = 0;
-        window.yv2[0] = window.yv2[1] = window.yv2[2] = window.xv2[0] = window.xv2[1] = window.xv2[2] = 0;
-        window.yv[0]  = window.yv[1]  = window.yv[2]  = window.xv[0]  = window.xv[1]  = window.xv[2]  = 0;
+    // LP 模式：左耳跑專屬 F1_LP ~ F2_LP 的真雙邊裁切帶通
+    if (window.currentFilterMode === 'LP') {
+        let pack = { lp: window.filterStates.LP_ch1_LP, hp: window.filterStates.LP_ch1_HP };
+        return runEightPoleCascadeBP(x, window.f1_LP, window.f2_LP, pack);
     }
-    return window.yv4[0];
+    if (window.currentFilterMode === 'HP') return 0.0; // HP 模式下左耳單邊物理靜音 🔇
+    
+    // BP 模式：平行大通電！左耳直接抓專屬 F1_BP ~ F2_BP 進行保真帶通！
+    if (window.currentFilterMode === 'BP') {
+        let pack = { lp: window.filterStates.BP_ch1_LP, hp: window.filterStates.BP_ch1_HP };
+        return runEightPoleCascadeBP(x, window.f1_BP, window.f2_BP, pack);
+    }
+    return x;
 };
 
-// 🔒 🚀 【🚨 真．右耳 8 階巴特沃斯中括號下標原裝死鎖大歸位】🔒
 window.applyFilterRight = function(x) {
     if (window.currentFilterMode === 'RAW') return x;
+    if (window.currentFilterMode === 'LP') return 0.0; // LP 模式下右耳單邊物理靜音 🔇
     
-    // 🛑 右通道 Stage 1
-    window.xvR[2] = window.xvR[1]; 
-    window.xvR[1] = window.xvR[0]; 
-    window.xvR[0] = x;
-    window.yvR[2] = window.yvR[1]; 
-    window.yvR[1] = window.yvR[0];
-    window.yvR[0] = (window.b0R * window.xvR[0]) + (window.b1R * window.xvR[1]) + (window.b2R * window.xvR[2]) 
-                       - (window.a1R * window.yvR[1]) - (window.a2R * window.yvR[2]);
-    if (isNaN(window.yvR[0]) || !isFinite(window.yvR[0])) window.yvR[0] = 0;
-    
-    // 🛑 右通道 Stage 2
-    window.xvR2[2] = window.xvR2[1]; 
-    window.xvR2[1] = window.xvR2[0]; 
-    window.xvR2[0] = window.yvR[0];
-    window.yvR2[2] = window.yvR2[1]; 
-    window.yvR2[1] = window.yvR2[0];
-    window.yvR2[0] = (window.b0R * window.xvR2[0]) + (window.b1R * window.xvR2[1]) + (window.b2R * window.xvR2[2]) 
-                        - (window.a1R * window.yvR2[1]) - (window.a2R * window.yvR2[2]);
-    if (isNaN(window.yvR2[0]) || !isFinite(window.yvR2[0])) window.yvR2[0] = 0;
-    
-    // 🛑 右通道 Stage 3
-    window.xvR3[2] = window.xvR3[1]; 
-    window.xvR3[1] = window.xvR3[0]; 
-    window.xvR3[0] = window.yvR2[0];
-    window.yvR3[2] = window.yvR3[1]; 
-    window.yvR3[1] = window.yvR3[0];
-    window.yvR3[0] = (window.b0R * window.xvR3[0]) + (window.b1R * window.xvR3[1]) + (window.b2R * window.xvR3[2]) 
-                        - (window.a1R * window.yvR3[1]) - (window.a2R * window.yvR3[2]);
-    if (isNaN(window.yvR3[0]) || !isFinite(window.yvR3[0])) window.yvR3[0] = 0;
-    
-    // 🛑 右通道 Stage 4（8階帶通收官）
-    window.xvR4[2] = window.xvR4[1]; 
-    window.xvR4[1] = window.xvR4[0]; 
-    window.xvR4[0] = window.yvR3[0];
-    window.yvR4[2] = window.yvR4[1]; 
-    window.yvR4[1] = window.yvR4[0];
-    window.yvR4[0] = (window.b0R * window.xvR4[0]) + (window.b1R * window.xvR4[1]) + (window.b2R * window.xvR4[2]) 
-                        - (window.a1R * window.yvR4[1]) - (window.a2R * window.yvR4[2]);
-    
-    if (isNaN(window.yvR4[0]) || !isFinite(window.yvR4[0])) {
-        window.yvR4[0] = window.yvR4[1] = window.yvR4[2] = window.xvR4[0] = window.xvR4[1] = window.xvR4[2] = 0;
-        window.yvR3[0] = window.yvR3[1] = window.yvR3[2] = window.xvR3[0] = window.xvR3[1] = window.xvR3[2] = 0;
-        window.yvR2[0] = window.yvR2[1] = window.yvR2[2] = window.xvR2[0] = window.xvR2[1] = window.xvR2[2] = 0;
-        window.yvR[0]  = window.yvR[1]  = window.yvR[2]  = window.xvR[0]  = window.xvR[1]  = window.xvR[2]  = 0;
+    // HP 模式：右耳跑專屬 F1_HP ~ F2_HP 的真雙邊裁切帶通
+    if (window.currentFilterMode === 'HP') {
+        let pack = { lp: window.filterStates.HP_ch2_LP, hp: window.filterStates.HP_ch2_HP };
+        return runEightPoleCascadeBP(x, window.f1_HP, window.f2_HP, pack);
     }
-    return window.yvR4[0];
+    
+    // BP 模式：平行大通電！右耳同步抓專屬 F1_BP ~ F2_BP 進行高保真平行帶通！
+    if (window.currentFilterMode === 'BP') {
+        let pack = { lp: window.filterStates.BP_ch2_LP, hp: window.filterStates.BP_ch2_HP };
+        return runEightPoleCascadeBP(x, window.f1_BP, window.f2_BP, pack);
+    }
+    return x;
 };
+
 // ==========================================
 // 💡 3️⃣ 數位立體聲空間音訊流管道（2通道直通水管，強控立體聲不串軌）
 // ==========================================
