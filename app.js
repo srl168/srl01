@@ -1,11 +1,11 @@
-//128
+//1281
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體大腦池初始化（3 ~ 5 通道 Filter Bank 個別引數記憶池完全鎖死 🔒）
+// 💡 1️⃣ 全域記憶體大腦池初始化（個別模式引數記憶池完全鎖死 🔒）
 // ==========================================
 window.currentSampleRate = 44100;
 window.currentSinFreq = 1830;
@@ -24,20 +24,17 @@ window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 window.currentFilterMode = 'RAW';
 
 // 🚀 🔒 【各別模式引數記憶池：調適極度方便，各就各位絕不干擾】
-// LP 模式專屬獨立記憶頻段
 window.f1_LP = 1000;
 window.f2_LP = 3000;
 
-// HP 模式專屬獨立記憶頻段
 window.f1_HP = 1200;
 window.f2_HP = 3500;
 
-// BP 模式專屬獨立記憶頻段
 window.f1_BP = 800;
 window.f2_BP = 2500;
 
-// 🚀 🔒 【未來 3 ~ 5 個平行 BP 通道大內存狀態矩陣死鎖】
-// 每個通道各別擁有專屬的 8 階巴特沃斯狀態陣列，100% 徹底阻斷串軌！
+// 🚀 🔒 【真．對稱多通道 8 階巴特沃斯狀態大內存矩陣絕對死鎖】
+// 100% 精確對齊第二部分呼叫指針，徹底砸毀 undefined 區域變數熔斷黑洞！🔒
 window.filterStates = {
     LP_ch1_HP: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
     LP_ch1_LP: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
@@ -62,6 +59,7 @@ window.addEventListener('DOMContentLoaded', () => {
     window.fCanvas.width = 800;
     window.fCanvas.height = 400;
 });
+
 // ==========================================
 // 💡 2️⃣ 工業級真．八階高低通級聯最大平坦帶通元件 (元件化 Filter Bank 拓撲)
 // ==========================================
