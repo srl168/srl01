@@ -61,26 +61,11 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================
-// 💡 2️⃣ 工業級真．八階高低通級聯最大平坦帶通元件 (元件化 Filter Bank 拓撲)
+// 💡 2️⃣ 各自 F1, F2 精密係數計算公式（個別模式引數記憶池完全解耦）
 // ==========================================
 
-// 🔒 1. 為了支援未來 3 ~ 5 個 BP 平行並聯，開闢全域獨立歷史狀態大記憶矩陣，100% 阻斷串軌！
-window.filterStates = {
-    LP_ch1_HP: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
-    LP_ch1_LP: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
-    
-    HP_ch2_HP: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
-    HP_ch2_LP: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
-    
-    BP_ch1_HP: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
-    BP_ch1_LP: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
-    
-    BP_ch2_HP: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
-    BP_ch2_LP: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) }
-};
-
 // 🚀 🔒 【真．正宗原裝中括號狀態迭代大腦】
-// 中括號下標數字 [0]、[1]、[2] 完璧歸位死鎖 🔒！
+// 中括號下標數字 [2]、[1]、[0] 千真萬確 100% 鋼性歸位死鎖，指針直通全域大記憶池！🔒
 function runBiquadStage(x, b0, b1, b2, a1, a2, xv, yv) {
     xv[2] = xv[1]; 
     xv[1] = xv[0]; 
@@ -88,6 +73,7 @@ function runBiquadStage(x, b0, b1, b2, a1, a2, xv, yv) {
     yv[2] = yv[1]; 
     yv[1] = yv[0];
     yv[0] = (b0 * xv[0]) + (b1 * xv[1]) + (b2 * xv[2]) - (a1 * yv[1]) - (a2 * yv[2]);
+    
     if (isNaN(yv[0]) || !isFinite(yv[0])) {
         yv[0] = 0;
     }
@@ -95,7 +81,7 @@ function runBiquadStage(x, b0, b1, b2, a1, a2, xv, yv) {
 }
 
 // 🚀 🔒 【萬能真．八階最大平坦高低通級聯帶通元件】
-// 徹底根除局部補丁！實時在函數內部高精度調製專屬低通與高通係數，實現 100% 絕對平坦保真！ [INDEX]
+// 實時在函數內部高精度調製專屬低通與高通係數，實現 100% 絕對平坦保真，F2=16000Hz 振幅也絕對不崩塌！
 function runEightPoleCascadeBP(x, f1, f2, statePack) {
     let fs = window.currentSampleRate;
     let qVal = 0.70710678; // 巴特沃斯最大平坦 Q 值
@@ -125,7 +111,7 @@ function runEightPoleCascadeBP(x, f1, f2, statePack) {
     let h3 = runBiquadStage(h2, b0_H, b1_H, b2_H, a1_H, a2_H, hpState.xv3, hpState.yv3);
     let h4 = runBiquadStage(h3, b0_H, b1_H, b2_H, a1_H, a2_H, hpState.xv4, hpState.yv4);
 
-    // 4. 後級：低通 4 級級聯串聯（高達 8 階），0dB 絕對平坦保真！ [INDEX]
+    // 4. 後級：低通 4 級級聯串聯（高達 8 階），0dB 絕對平坦保真！
     let lpState = statePack.lp;
     let l1 = runBiquadStage(h4, b0_L, b1_L, b2_L, a1_L, a2_L, lpState.xv, lpState.yv);
     let l2 = runBiquadStage(l1, b0_L, b1_L, b2_L, a1_L, a2_L, lpState.xv2, lpState.yv2);
@@ -164,8 +150,7 @@ window.applyFilterRight = function(x) {
     if (window.currentFilterMode === 'RAW') return x;
     if (window.currentFilterMode === 'LP') return 0.0; // LP 模式下右耳單邊物理靜音 🔇
     
-    // 💡 HP 模式：右耳跑專屬 F1_HP ~ F2_HP 的真雙邊裁切帶通
-    // 🚀 🔒 【徹底修復塌陷 Bug】此處惡魔局部補丁被徹底砸毀！直接由 runEightPoleCascadeBP 內部實時動態改值重算！
+    // HP 模式：右耳跑專屬 F1_HP ~ F2_HP 的真雙邊裁切帶通
     if (window.currentFilterMode === 'HP') {
         let pack = { lp: window.filterStates.HP_ch2_LP, hp: window.filterStates.HP_ch2_HP };
         return runEightPoleCascadeBP(x, window.f1_HP, window.f2_HP, pack);
