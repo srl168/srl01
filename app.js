@@ -1,4 +1,4 @@
-//1281
+//1282
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
@@ -23,7 +23,7 @@ window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 
 window.currentFilterMode = 'RAW';
 
-// 🚀 🔒 【各別模式引數記憶池：調適極度方便，各就各位絕不干擾】
+// 🚀 🔒 【個別模式引數記憶池：調適極度方便，各就各位絕不干擾】
 window.f1_LP = 1000;
 window.f2_LP = 3000;
 
@@ -33,8 +33,8 @@ window.f2_HP = 3500;
 window.f1_BP = 800;
 window.f2_BP = 2500;
 
-// 🚀 🔒 【真．對稱多通道 8 階巴特沃斯狀態大內存矩陣絕對死鎖】
-// 100% 精確對齊第二部分呼叫指針，徹底砸毀 undefined 區域變數熔斷黑洞！🔒
+// 🚀 🔒 【對稱多通道 8 階巴特沃斯狀態大內存矩陣絕對鎖死】
+// 100% 精確開闢，徹底阻斷指標 undefined 區域變數熔斷黑洞！🔒
 window.filterStates = {
     LP_ch1_HP: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
     LP_ch1_LP: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
@@ -59,13 +59,12 @@ window.addEventListener('DOMContentLoaded', () => {
     window.fCanvas.width = 800;
     window.fCanvas.height = 400;
 });
-
 // ==========================================
 // 💡 2️⃣ 各自 F1, F2 精密係數計算公式（個別模式引數記憶池完全解耦）
 // ==========================================
 
 // 🚀 🔒 【真．正宗原裝中括號狀態迭代大腦】
-// 中括號下標數字 [2]、[1]、[0] 千真萬確 100% 鋼性歸位死鎖，指針直通全域大記憶池！🔒
+// 中括號下標數字[0]、[1]、[2] 千真萬確 100% 鋼性歸位死鎖，指針直通全域大記憶池！🔒
 function runBiquadStage(x, b0, b1, b2, a1, a2, xv, yv) {
     xv[2] = xv[1]; 
     xv[1] = xv[0]; 
@@ -163,7 +162,6 @@ window.applyFilterRight = function(x) {
     }
     return x;
 };
-
 // ==========================================
 // 💡 3️⃣ 數位立體聲空間音訊流管道（2通道直通水管，強控立體聲不串軌）
 // ==========================================
@@ -190,7 +188,7 @@ window.initAudioGlobal = function() {
         window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         window.gainNode = window.audioCtx.createGain(); 
         
-        // 🚀 🔒 【硬體聲道死鎖】強制 GainNode 通道為 explicit 雙聲道，徹底切斷 Up-mixing 自動混音黑洞！ [INDEX]
+        // 🚀 🔒 【硬體聲道死鎖】強制 GainNode 通道為 explicit 雙聲道，徹底切斷 Up-mixing 自動混音黑洞！
         window.gainNode.channelCount = 2;
         window.gainNode.channelCountMode = "explicit";
         window.gainNode.channelInterpretation = "speakers";
@@ -231,12 +229,12 @@ window.initAudioGlobal = function() {
                 let rightOutVal = rightVal;
                 
                 if (window.currentFilterMode === 'LP') {
-                    rightOutVal = 0.0; // LP 狀態下：右耳強制完全斷電靜音 🔇 [INDEX]
+                    rightOutVal = 0.0; // LP 狀態下：右耳強制完全斷電靜音 🔇
                 } else if (window.currentFilterMode === 'HP') {
-                    leftOutVal = 0.0;  // HP 狀態下：左耳強制完全靜音 🔇 [INDEX]
+                    leftOutVal = 0.0;  // HP 狀態下：左耳強制完全靜音 🔇
                 } else if (window.currentFilterMode === 'BP') {
                     leftOutVal = leftVal;
-                    rightOutVal = rightVal; // BP 狀態下：左右各就各位同時放音 [INDEX]
+                    rightOutVal = rightVal; // BP 狀態下：左右各就各位同時放音
                 } else if (window.currentFilterMode === 'RAW') {
                     leftOutVal = rawVal;
                     rightOutVal = rawVal;
@@ -463,7 +461,7 @@ window.globalRenderLoop = function() {
         window.tCtx.fillText(sign + currentLabelVolt.toFixed(2) + "V", 25, midY - (ratio * 145.0) + 4);
     });
     
-    // 🚀 🔒 【起點與迴圈中括號下標數字絕對鎖死 🔒】雙重轉義破天鎖護航，下標全數歸位
+    // 🚀 🔒 【時域自適應幾何繪圖起點與迴圈線路】中括號數字下標 [0], [j] 鐵證死鎖！🔒
     window.tCtx.strokeStyle = '#00ff66'; 
     window.tCtx.lineWidth = 2.5; 
     window.tCtx.beginPath(); 
@@ -539,21 +537,22 @@ window.renderFilterButtonLights = function() {
     let f1Slider = document.getElementById('f1Slider');
     let f2Slider = document.getElementById('f2Slider');
     
-    // 🚀 🔒 【雙通道對稱容器剛性死鎖】
+    // 🚀 🔒 【真．100% 雙通道對稱容器剛性死鎖】
+    // 精確錨定您最新重構的實體對稱 ID 節點 f1Container 與 f2Container，徹底消滅一切打架烏龍！
     let f1Box = document.getElementById('f1Container'); 
     let f2Box = document.getElementById('f2Container'); 
     
     if (f1Box && f2Box && f1Slider && f2Slider) {
         if (window.currentFilterMode === 'RAW') {
-            // RAW 直通模式下：雙通道拉桿外框大容器 100% 同步完全消失，徹底淨化，絕不冒出任何 F10 Hz 殘留文字！
+            // 💡 RAW 直通模式：雙通道外框大容器 100% 同步完全消失，徹底淨化，絕不冒出任何 F10 Hz 殘留文字！
             f1Box.style.setProperty('display', 'none', 'important');
             f2Box.style.setProperty('display', 'none', 'important');
         } else {
-            // LP, HP, BP 三大濾波模式下：F1、F2 控制外框大容器 100% 同步常開現身，永久留存不失蹤！
+            // 💡 LP, HP, BP 三大濾波模式：雙通道外框大容器 100% 同步 flex 永久全出！LP 模式下 F2 也絕對傲然挺立！
             f1Box.style.setProperty('display', 'flex', 'important');
             f2Box.style.setProperty('display', 'flex', 'important');
             
-            // 最高權限解鎖 0 ~ 20000 Hz 工業全頻段硬件邊界限制
+            // 最高權限一鍵全開 0 ~ 20000 Hz 工業全頻段 HTML 硬件邊界
             f1Slider.setAttribute('min', '0');
             f1Slider.setAttribute('max', '20000');
             f2Slider.setAttribute('min', '0');
@@ -566,7 +565,7 @@ window.renderFilterButtonLights = function() {
         }
     }
     
-    // 🚀 🔒 【精確看板針尖更新】徹底砸爛 nextElementSibling 亂抓黑洞，剛性死鎖實體 ID 看牌更新！
+    // 🚀 🔒 【精確看板針尖更新】
     let txt1 = document.getElementById('freq1Val');
     let txt2 = document.getElementById('freq2Val');
 
@@ -653,7 +652,7 @@ document.addEventListener('input', (e) => {
     }
     if (sliderId === "sinFreqSlider") window.currentSinFreq = parseInt(curVal);
     
-    // 🔒 【各別模式引數獨立記憶改值】拉動拉桿，0~20000Hz 數據直通專屬記憶池
+    // 🔒 【個別模式引數記憶動態改值引擎】拉動拉桿時，0 ~ 20000 Hz 全範圍無阻礙寫入專屬記憶池！
     if (sliderId === "f1Slider") { 
         if (window.currentFilterMode === 'LP') window.f1_LP = parseInt(curVal);
         else if (window.currentFilterMode === 'HP') window.f1_HP = parseInt(curVal);
@@ -677,7 +676,7 @@ document.addEventListener('input', (e) => {
 });
 
 window.onload = function() { 
-    // 🔒 🚀 【🚨 頂層計算大重構】將第二段的 updateFilterCoefficients 在此重新洗滌，
+    // 🔒 🚀 【頂層計算大重構】將第二段的 updateFilterCoefficients 在此重新洗滌，
     // 讓 LP, HP, BP 在底層運算時通通一體化，轉化為聽從專屬引數記憶池的「真雙截止帶通功能」！🔒
     window.updateFilterCoefficients = function() {
         let fs = window.currentSampleRate;
@@ -703,15 +702,12 @@ window.onload = function() {
         let a2_coef = (1.0 - W + C) / cBP;
         
         if (window.currentFilterMode === 'LP') {
-            // LP 模式：左耳跑專屬 F1~F2 帶通，右耳斷電完全靜音 🔇！
             window.b0 = b0_coef; window.b1 = b1_coef; window.b2 = b2_coef; window.a1 = a1_coef; window.a2 = a2_coef;
             window.b0R = window.b1R = window.b2R = window.a1R = window.a2R = 0;
         } else if (window.currentFilterMode === 'HP') {
-            // HP 模式：左耳斷電完全靜音 🔇，右耳跑專屬 F1~F2 帶通！
             window.b0 = window.b1 = window.b2 = window.a1 = window.a2 = 0;
             window.b0R = b0_coef; window.b1R = b1_coef; window.b2R = b2_coef; window.a1R = a1_coef; window.a2R = a2_coef;
         } else if (window.currentFilterMode === 'BP') {
-            // BP 模式：雙耳平行對稱大解調，左右耳同時吃專屬 F1~F2 帶通！
             window.b0 = b0_coef; window.b1 = b1_coef; window.b2 = b2_coef; window.a1 = a1_coef; window.a2 = a2_coef;
             window.b0R = b0_coef; window.b1R = b1_coef; window.b2R = b2_coef; window.a1R = a1_coef; window.a2R = a2_coef;
         }
