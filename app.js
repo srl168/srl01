@@ -1,4 +1,4 @@
-//12822
+//12823
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
@@ -175,7 +175,7 @@ window.applyFilterLeft = function(x) {
     window.xlv4[0] = window.ylv3[0];
     window.ylv4[2] = window.ylv4[1]; 
     window.ylv4[1] = window.ylv4[0];
-    window.ylv4[0] = (window.b0_LP * window.xlv4[0]) + (window.b1_LP * window.xlv4[1]) + (window.b2_LP * window.xlv4[2]) - (window.a1_LP * window.ylv4[1]) - (window.a2_LP * window.ylv4[2]);
+    window.ylv4[0] = (window.b0_LP * window.xlv4[0]) + (window.b1_LP * window.xlv4[1]) + (window.b2_LP * window.xlv4[2]) - (window.a1_LP * window.xlv4[1]) - (window.a2_LP * window.xlv4[2]);
 
     if (isNaN(window.ylv4[0]) || !isFinite(window.ylv4[0])) {
         window.ylv4[0] = 0;
@@ -223,20 +223,15 @@ window.applyFilterRight = function(x) {
     window.xlvR[0] = window.yvR4[0];
     window.ylvR[2] = window.ylvR[1]; 
     window.ylvR[1] = window.ylvR[0];
-    // 🚀 🔒 【🚨 世紀大破關：右耳 Feedback 算式字字血淚、完璧對齊校正】🔒
     window.ylvR[0] = (window.b0_LP * window.xlvR[0]) + (window.b1_LP * window.xlvR[1]) + (window.b2_LP * window.xlvR[2]) - (window.a1_LP * window.ylvR[1]) - (window.a2_LP * window.ylvR[2]);
     
     window.xlvR2[2] = window.xlvR2[1]; 
     window.xlvR2[1] = window.xlvR2[0]; 
     window.xlvR2[0] = window.ylvR[0];
     window.ylvR2[2] = window.ylvR2[1]; 
-    window.ylv2R_out = window.ylvR2[0]; // 佔位校準
-    window.ylv2R_out = (window.b0_LP * window.xlvR2[0]) + (window.b1_LP * window.xlvR2[1]) + (window.b2_LP * window.xlvR2[2]) - (window.a1_LP * window.ylvR2[1]) - (window.a2_LP * window.ylvR2[2]);
-    window.ylv2[0] = window.ylv2R_out; // 轉發對齊
-    window.ylv2[1] = window.ylvR2[1];
-    window.ylv2[2] = window.ylvR2[2];
-    window.ylv2R_out = window.ylv2[0]; // 修正指針
-    window.ylvR2[0] = window.ylv2R_out; // 剛性同步
+    window.ylvR2[1] = window.ylvR2[0];
+    // 🚀 🔒 【🚨 終極世紀大破關：打架垃圾 ylv2R_out、ylv2 徹底就地正法、連根拔除！】
+    window.ylvR2[0] = (window.b0_LP * window.xlvR2[0]) + (window.b1_LP * window.xlvR2[1]) + (window.b2_LP * window.xlvR2[2]) - (window.a1_LP * window.ylvR2[1]) - (window.a2_LP * window.ylvR2[2]);
     
     window.xlvR3[2] = window.xlvR3[1]; 
     window.xlvR3[1] = window.xlvR3[0]; 
