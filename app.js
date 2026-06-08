@@ -1,11 +1,12 @@
-//12824
+//12825
+
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域單一指針大腦池初始化（32檔級聯暫存器 100% 實體平鋪死鎖 🔒）
+// 💡 1️⃣ 全域記憶體大腦池初始化（96檔暫存器 100% 實體點命名平鋪死鎖 🔒）
 // ==========================================
 window.currentSampleRate = 44100;
 window.currentSinFreq = 1830;
@@ -23,34 +24,36 @@ window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 
 window.currentFilterMode = 'RAW';
 
-// 🚀 🔒 【個別模式引數記憶池：調適極度方便，各就各位絕不干擾】
+// 🚀 🔒 【個別模式引數記憶池：調適極度方便】
 window.f1_LP = 1000; window.f2_LP = 3000;
 window.f1_HP = 1200; window.f2_HP = 3500;
 window.f1_BP = 800;  window.f2_BP = 2500;
 
-// 🚀 🔒 【32檔實體暫存器全域平鋪大死鎖 🔒】
-// 徹底砸爛巢狀物件！直接在 window 池開闢 32 檔獨立實體指針，100% 杜絕 undefined 拋錯熔斷死穴！
-// 1. 左聲道 (Left Channel) 級聯狀態記憶組
-window.xv  = new Float32Array(3); window.yv  = new Float32Array(3);
-window.xv2 = new Float32Array(3); window.yv2 = new Float32Array(3);
-window.xv3 = new Float32Array(3); window.yv3 = new Float32Array(3);
-window.xv4 = new Float32Array(3); window.yv4 = new Float32Array(3);
+// 🚀 🔒 【96檔實體點命名暫存器全域平鋪死鎖 🔒】
+// 徹底砸爛陣列物件與中括號！用最聽話的實體小變數（_0, _1, _2）剛性控死歷史移位！
+// 1. 左聲道高通前級 4 級狀態
+window.xv_0 = 0; window.xv_1 = 0; window.xv_2 = 0; window.yv_0 = 0; window.yv_1 = 0; window.yv_2 = 0;
+window.xv2_0 = 0; window.xv2_1 = 0; window.xv2_2 = 0; window.yv2_0 = 0; window.yv2_1 = 0; window.yv2_2 = 0;
+window.xv3_0 = 0; window.xv3_1 = 0; window.xv3_2 = 0; window.yv3_0 = 0; window.yv3_1 = 0; window.yv3_2 = 0;
+window.xv4_0 = 0; window.xv4_1 = 0; window.xv4_2 = 0; window.yv4_0 = 0; window.yv4_1 = 0; window.yv4_2 = 0;
 
-window.xlv  = new Float32Array(3); window.ylv  = new Float32Array(3);
-window.xlv2 = new Float32Array(3); window.ylv2 = new Float32Array(3);
-window.xlv3 = new Float32Array(3); window.ylv3 = new Float32Array(3);
-window.xlv4 = new Float32Array(3); window.ylv4 = new Float32Array(3);
+// 2. 左聲道低通後級 4 級狀態
+window.xlv_0 = 0; window.xlv_1 = 0; window.xlv_2 = 0; window.ylv_0 = 0; window.ylv_1 = 0; window.ylv_2 = 0;
+window.xlv2_0 = 0; window.xlv2_1 = 0; window.xlv2_2 = 0; window.ylv2_0 = 0; window.ylv2_1 = 0; window.ylv2_2 = 0;
+window.xlv3_0 = 0; window.xlv3_1 = 0; window.xlv3_2 = 0; window.ylv3_0 = 0; window.ylv3_1 = 0; window.ylv3_2 = 0;
+window.xlv4_0 = 0; window.xlv4_1 = 0; window.xlv4_2 = 0; window.ylv4_0 = 0; window.ylv4_1 = 0; window.ylv4_2 = 0;
 
-// 2. 右聲道 (Right Channel) 級聯狀態記憶組
-window.xvR  = new Float32Array(3); window.yvR  = new Float32Array(3);
-window.xvR2 = new Float32Array(3); window.yvR2 = new Float32Array(3);
-window.xvR3 = new Float32Array(3); window.yvR3 = new Float32Array(3);
-window.xvR4 = new Float32Array(3); window.yvR4 = new Float32Array(3);
+// 3. 右聲道高通前級 4 級狀態
+window.xvR_0 = 0; window.xvR_1 = 0; window.xvR_2 = 0; window.yvR_0 = 0; window.yvR_1 = 0; window.yvR_2 = 0;
+window.xvR2_0 = 0; window.xvR2_1 = 0; window.xvR2_2 = 0; window.yvR2_0 = 0; window.yvR2_1 = 0; window.yvR2_2 = 0;
+window.xvR3_0 = 0; window.xvR3_1 = 0; window.xvR3_2 = 0; window.yvR3_0 = 0; window.yvR3_1 = 0; window.yvR3_2 = 0;
+window.xvR4_0 = 0; window.xvR4_1 = 0; window.xvR4_2 = 0; window.yvR4_0 = 0; window.yvR4_1 = 0; window.yvR4_2 = 0;
 
-window.xlvR  = new Float32Array(3); window.ylvR  = new Float32Array(3);
-window.xlvR2 = new Float32Array(3); window.ylvR2 = new Float32Array(3);
-window.xlvR3 = new Float32Array(3); window.ylvR3 = new Float32Array(3);
-window.xlvR4 = new Float32Array(3); window.ylvR4 = new Float32Array(3);
+// 4. 右聲道低通後級 4 級狀態
+window.xlvR_0 = 0; window.xlvR_1 = 0; window.xlvR_2 = 0; window.ylvR_0 = 0; window.ylvR_1 = 0; window.ylvR_2 = 0;
+window.xlvR2_0 = 0; window.xlvR2_1 = 0; window.xlvR2_2 = 0; window.ylvR2_0 = 0; window.ylvR2_1 = 0; window.ylvR2_2 = 0;
+window.xlvR3_0 = 0; window.xlvR3_1 = 0; window.xlvR3_2 = 0; window.ylvR3_0 = 0; window.ylvR3_1 = 0; window.ylvR3_2 = 0;
+window.xlvR4_0 = 0; window.xlvR4_1 = 0; window.xlvR4_2 = 0; window.ylvR4_0 = 0; window.ylvR4_1 = 0; window.ylvR4_2 = 0;
 
 window.addEventListener('DOMContentLoaded', () => {
     window.tCanvas = document.getElementById('timeCanvas');
@@ -112,145 +115,145 @@ window.updateFilterCoefficients = function() {
 };
 
 // ==========================================
-// 💡 3️⃣ 雙聲道平行解調映射矩陣（100% 原始全域中括號下標數字絕對死鎖 🔒）
+// 💡 3️⃣ 雙聲道平行解調映射矩陣（無中括號點命名直通，100% 絕對通電大開機 🔒）
 // ==========================================
 window.applyFilterLeft = function(x) {
     if (window.currentFilterMode === 'RAW') return x;
     if (window.currentFilterMode === 'HP') return 0.0; // HP 模式下：左耳強制完全物理斷電靜音 🔇
     
-    // 💡 LP 和 BP 模式：左耳跑最平坦、真全域平鋪直通的 8階高通 串聯 8階低通 帶通矩陣！
+    // 💡 LP 和 BP 模式：左耳跑最平坦、級聯水管完全串接的 8階高通 串聯 8階低通 帶通矩陣！
     // 🛑 前級：高通 4 級級聯（高達 8 階）
-    window.xv[2] = window.xv[1]; 
-    window.xv[1] = window.xv[0]; 
-    window.xv[0] = x;
-    window.yv[2] = window.yv[1]; 
-    window.yv[1] = window.yv[0];
-    window.yv[0] = (window.b0_HP * window.xv[0]) + (window.b1_HP * window.xv[1]) + (window.b2_HP * window.xv[2]) - (window.a1_HP * window.yv[1]) - (window.a2_HP * window.yv[2]);
+    window.xv_2 = window.xv_1; 
+    window.xv_1 = window.xv_0; 
+    window.xv_0 = x;
+    window.yv_2 = window.yv_1; 
+    window.yv_1 = window.yv_0;
+    window.yv_0 = (window.b0_HP * window.xv_0) + (window.b1_HP * window.xv_1) + (window.b2_HP * window.xv_2) - (window.a1_HP * window.yv_1) - (window.a2_HP * window.yv_2);
     
-    window.xv2[2] = window.xv2[1]; 
-    window.xv2[1] = window.xv2[0]; 
-    window.xv2[0] = window.yv[0];
-    window.yv2[2] = window.yv2[1]; 
-    window.yv2[1] = window.yv2[0];
-    window.yv2[0] = (window.b0_HP * window.xv2[0]) + (window.b1_HP * window.xv2[1]) + (window.b2_HP * window.xv2[2]) - (window.a1_HP * window.yv2[1]) - (window.a2_HP * window.yv2[2]);
+    window.xv2_2 = window.xv2_1; 
+    window.xv2_1 = window.xv2_0; 
+    window.xv2_0 = window.yv_0;
+    window.yv2_2 = window.yv2_1; 
+    window.yv2_1 = window.yv2_0;
+    window.yv2_0 = (window.b0_HP * window.xv2_0) + (window.b1_HP * window.xv2_1) + (window.b2_HP * window.xv2_2) - (window.a1_HP * window.yv2_1) - (window.a2_HP * window.yv2_2);
     
-    window.xv3[2] = window.xv3[1]; 
-    window.xv3[1] = window.xv3[0]; 
-    window.xv3[0] = window.yv2[0];
-    window.yv3[2] = window.yv3[1]; 
-    window.yv3[1] = window.yv3[0];
-    window.yv3[0] = (window.b0_HP * window.xv3[0]) + (window.b1_HP * window.xv3[1]) + (window.b2_HP * window.xv3[2]) - (window.a1_HP * window.yv3[1]) - (window.a2_HP * window.yv3[2]);
+    window.xv3_2 = window.xv3_1; 
+    window.xv3_1 = window.xv3_0; 
+    window.xv3_0 = window.yv2_0;
+    window.yv3_2 = window.yv3_1; 
+    window.yv3_1 = window.yv3_0;
+    window.yv3_0 = (window.b0_HP * window.xv3_0) + (window.b1_HP * window.xv3_1) + (window.b2_HP * window.xv3_2) - (window.a1_HP * window.yv3_1) - (window.a2_HP * window.yv3_2);
     
-    window.xv4[2] = window.xv4[1]; 
-    window.xv4[1] = window.xv4[0]; 
-    window.xv4[0] = window.yv3[0];
-    window.yv4[2] = window.yv4[1]; 
-    window.yv4[1] = window.yv4[0];
-    window.yv4[0] = (window.b0_HP * window.xv4[0]) + (window.b1_HP * window.xv4[1]) + (window.b2_HP * window.xv4[2]) - (window.a1_HP * window.yv4[1]) - (window.a2_HP * window.yv4[2]);
+    window.xv4_2 = window.xv4_1; 
+    window.xv4_1 = window.xv4_0; 
+    window.xv4_0 = window.yv3_0;
+    window.yv4_2 = window.yv4_1; 
+    window.yv4_1 = window.yv4_0;
+    window.yv4_0 = (window.b0_HP * window.xv4_0) + (window.b1_HP * window.xv4_1) + (window.b2_HP * window.xv4_2) - (window.a1_HP * window.yv4_1) - (window.a2_HP * window.yv4_2);
 
-    // 🛑 後級：低通 4 級級聯（高達 8 階），無縫承接前級輸出，F2=16000Hz 振幅絕不塌陷！
-    window.xlv[2] = window.xlv[1]; 
-    window.xlv[1] = window.xlv[0]; 
-    window.xlv[0] = window.yv4[0];
-    window.ylv[2] = window.ylv[1]; 
-    window.ylv[1] = window.ylv[0];
-    window.ylv[0] = (window.b0_LP * window.xlv[0]) + (window.b1_LP * window.xlv[1]) + (window.b2_LP * window.xlv[2]) - (window.a1_LP * window.ylv[1]) - (window.a2_LP * window.ylv[2]);
+    // 🛑 後級：低通 4 級級聯（高達 8 階），水管精確連續傳遞（yv4_0 -> xlv -> ylv -> xlv2...）
+    window.xlv_2 = window.xlv_1; 
+    window.xlv_1 = window.xlv_0; 
+    window.xlv_0 = window.yv4_0; // 承接高通最終輸出
+    window.ylv_2 = window.ylv_1; 
+    window.ylv_1 = window.ylv_0;
+    window.ylv_0 = (window.b0_LP * window.xlv_0) + (window.b1_LP * window.xlv_1) + (window.b2_LP * window.xlv_2) - (window.a1_LP * window.ylv_1) - (window.a2_LP * window.ylv_2);
     
-    window.xlv2[2] = window.xlv2[1]; 
-    window.xlv2[1] = window.xlv2[0]; 
-    window.xlv2[0] = window.ylv[0];
-    window.ylv2[2] = window.ylv2[1]; 
-    window.ylv2[1] = window.ylv2[0];
-    window.ylv2[0] = (window.b0_LP * window.xlv2[0]) + (window.b1_LP * window.xlv2[1]) + (window.b2_LP * window.xlv2[2]) - (window.a1_LP * window.ylv2[1]) - (window.a2_LP * window.ylv2[2]);
+    window.xlv2_2 = window.xlv2_1; 
+    window.xlv2_1 = window.xlv2_0; 
+    window.xlv2_0 = window.ylv_0; // 承接上一級低通輸出
+    window.ylv2_2 = window.ylv2_1; 
+    window.ylv2_1 = window.ylv2_0;
+    window.ylv2_0 = (window.b0_LP * window.xlv2_0) + (window.b1_LP * window.xlv2_1) + (window.b2_LP * window.xlv2_2) - (window.a1_LP * window.ylv2_1) - (window.a2_LP * window.ylv2_2);
     
-    window.xlv3[2] = window.xlv3[1]; 
-    window.xlv3[1] = window.xlv3[0]; 
-    window.xlv3[0] = window.ylv2[0];
-    window.ylv3[2] = window.ylv3[1]; 
-    window.ylv3[1] = window.ylv3[0];
-    window.ylv3[0] = (window.b0_LP * window.xlv3[0]) + (window.b1_LP * window.xlv3[1]) + (window.b2_LP * window.xlv3[2]) - (window.a1_LP * window.ylv3[1]) - (window.a2_LP * window.ylv3[2]);
+    window.xlv3_2 = window.xlv3_1; 
+    window.xlv3_1 = window.xlv3_0; 
+    window.xlv3_0 = window.ylv2_0; // 承接上一級低通輸出
+    window.ylv3_2 = window.ylv3_1; 
+    window.ylv3_1 = window.ylv3_0;
+    window.ylv3_0 = (window.b0_LP * window.xlv3_0) + (window.b1_LP * window.xlv3_1) + (window.b2_LP * window.xlv3_2) - (window.a1_LP * window.ylv3_1) - (window.a2_LP * window.ylv3_2);
     
-    window.xlv4[2] = window.xlv4[1]; 
-    window.xlv4[1] = window.xlv4[0]; 
-    window.xlv4[0] = window.ylv3[0];
-    window.ylv4[2] = window.ylv4[1]; 
-    window.ylv4[1] = window.ylv4[0];
-    window.ylv4[0] = (window.b0_LP * window.xlv4[0]) + (window.b1_LP * window.xlv4[1]) + (window.b2_LP * window.xlv4[2]) - (window.a1_LP * window.xlv4[1]) - (window.a2_LP * window.xlv4[2]);
+    window.xlv4_2 = window.xlv4_1; 
+    window.xlv4_1 = window.xlv4_0; 
+    window.xlv4_0 = window.ylv3_0; // 承接上一級低通輸出
+    window.ylv4_2 = window.ylv4_1; 
+    window.ylv4_1 = window.ylv4_0;
+    window.ylv4_0 = (window.b0_LP * window.xlv4_0) + (window.b1_LP * window.xlv4_1) + (window.b2_LP * window.xlv4_2) - (window.a1_LP * window.ylv4_1) - (window.a2_LP * window.ylv4_2);
 
-    if (isNaN(window.ylv4[0]) || !isFinite(window.ylv4[0])) {
-        window.ylv4[0] = 0;
+    if (isNaN(window.ylv4_0) || !isFinite(window.ylv4_0)) {
+        window.ylv4_0 = 0;
     }
-    return window.ylv4[0];
+    return window.ylv4_0;
 };
 
 window.applyFilterRight = function(x) {
     if (window.currentFilterMode === 'RAW') return x;
     if (window.currentFilterMode === 'LP') return 0.0; // LP 模式下：右耳強制完全物理斷電靜音 🔇
     
-    // 💡 HP 和 BP 模式：右耳跑最平坦、真全域平鋪直通的 8階高通 串聯 8階低通 帶通矩陣！
+    // 💡 HP 和 BP 模式：右耳跑最平坦、級聯水管完全串接的 8階高通 串聯 8階低通 帶通矩陣！
     // 🛑 前級：高通 4 級級聯（高達 8 階）
-    window.xvR[2] = window.xvR[1]; 
-    window.xvR[1] = window.xvR[0]; 
-    window.xvR[0] = x;
-    window.yvR[2] = window.yvR[1]; 
-    window.yvR[1] = window.yvR[0];
-    window.yvR[0] = (window.b0_HP * window.xvR[0]) + (window.b1_HP * window.xvR[1]) + (window.b2_HP * window.xvR[2]) - (window.a1_HP * window.yvR[1]) - (window.a2_HP * window.yvR[2]);
+    window.xvR_2 = window.xvR_1; 
+    window.xvR_1 = window.xvR_0; 
+    window.xvR_0 = x;
+    window.yvR_2 = window.yvR_1; 
+    window.yvR_1 = window.yvR_0;
+    window.yvR_0 = (window.b0_HP * window.xvR_0) + (window.b1_HP * window.xvR_1) + (window.b2_HP * window.xvR_2) - (window.a1_HP * window.yvR_1) - (window.a2_HP * window.yvR_2);
     
-    window.xvR2[2] = window.xvR2[1]; 
-    window.xvR2[1] = window.xvR2[0]; 
-    window.xvR2[0] = window.yvR[0];
-    window.yvR2[2] = window.yvR2[1]; 
-    window.yvR2[1] = window.yvR2[0];
-    window.yvR2[0] = (window.b0_HP * window.xvR2[0]) + (window.b1_HP * window.xvR2[1]) + (window.b2_HP * window.xvR2[2]) - (window.a1_HP * window.yvR2[1]) - (window.a2_HP * window.yvR2[2]);
+    window.xvR2_2 = window.xvR2_1; 
+    window.xvR2_1 = window.xvR2_0; 
+    window.xvR2_0 = window.yvR_0;
+    window.yvR2_2 = window.yvR2_1; 
+    window.yvR2_1 = window.yvR2_0;
+    window.yvR2_0 = (window.b0_HP * window.xvR2_0) + (window.b1_HP * window.xvR2_1) + (window.b2_HP * window.xvR2_2) - (window.a1_HP * window.yvR2_1) - (window.a2_HP * window.yvR2_2);
     
-    window.xvR3[2] = window.xvR3[1]; 
-    window.xvR3[1] = window.xvR3[0]; 
-    window.xvR3[0] = window.yvR2[0];
-    window.yvR3[2] = window.yvR3[1]; 
-    window.yvR3[1] = window.yvR3[0];
-    window.yvR3[0] = (window.b0_HP * window.xvR3[0]) + (window.b1_HP * window.xvR3[1]) + (window.b2_HP * window.xvR3[2]) - (window.a1_HP * window.yvR3[1]) - (window.a2_HP * window.yvR3[2]);
+    window.xvR3_2 = window.xvR3_1; 
+    window.xvR3_1 = window.xvR3_0; 
+    window.xvR3_0 = window.yvR2_0;
+    window.yvR3_2 = window.yvR3_1; 
+    window.yvR3_1 = window.yvR3_0;
+    window.yvR3_0 = (window.b0_HP * window.xvR3_0) + (window.b1_HP * window.xvR3_1) + (window.b2_HP * window.xvR3_2) - (window.a1_HP * window.yvR3_1) - (window.a2_HP * window.yvR3_2);
     
-    window.xvR4[2] = window.xvR4[1]; 
-    window.xvR4[1] = window.xvR4[0]; 
-    window.xvR4[0] = window.yvR3[0];
-    window.yvR4[2] = window.yvR4[1]; 
-    window.yvR4[1] = window.yvR4[0];
-    window.yvR4[0] = (window.b0_HP * window.xvR4[0]) + (window.b1_HP * window.xvR4[1]) + (window.b2_HP * window.xvR4[2]) - (window.a1_HP * window.yvR4[1]) - (window.a2_HP * window.yvR4[2]);
+    window.xvR4_2 = window.xvR4_1; 
+    window.xvR4_1 = window.xvR4_0; 
+    window.xvR4_0 = window.yvR3_0;
+    window.yvR4_2 = window.yvR4_1; 
+    window.yvR4_1 = window.yvR4_0;
+    window.yvR4_0 = (window.b0_HP * window.xvR4_0) + (window.b1_HP * window.xvR4_1) + (window.b2_HP * window.xvR4_2) - (window.a1_HP * window.yvR4_1) - (window.a2_HP * window.yvR4_2);
 
-    // 🛑 後級：低通 4 級級聯（高達 8 階），0dB 絕對平坦高保真！
-    window.xlvR[2] = window.xlvR[1]; 
-    window.xlvR[1] = window.xlvR[0]; 
-    window.xlvR[0] = window.yvR4[0];
-    window.ylvR[2] = window.ylvR[1]; 
-    window.ylvR[1] = window.ylvR[0];
-    window.ylvR[0] = (window.b0_LP * window.xlvR[0]) + (window.b1_LP * window.xlvR[1]) + (window.b2_LP * window.xlvR[2]) - (window.a1_LP * window.ylvR[1]) - (window.a2_LP * window.ylvR[2]);
+    // 🛑 後級：低通 4 級級聯（高達 8 階）
+    window.xlvR_2 = window.xlvR_1; 
+    window.xlvR_1 = window.xlvR_0; 
+    window.xlvR_0 = window.yvR4_0; // 承接高通最終輸出
+    window.ylvR_2 = window.ylvR_1; 
+    window.ylvR_1 = window.ylvR_0;
+    window.ylvR_0 = (window.b0_LP * window.xlvR_0) + (window.b1_LP * window.xlvR_1) + (window.b2_LP * window.xlvR_2) - (window.a1_LP * window.ylvR_1) - (window.a2_LP * window.ylvR_2);
     
-    window.xlvR2[2] = window.xlvR2[1]; 
-    window.xlvR2[1] = window.xlvR2[0]; 
-    window.xlvR2[0] = window.ylvR[0];
-    window.ylvR2[2] = window.ylvR2[1]; 
-    window.ylvR2[1] = window.ylvR2[0];
-    window.ylvR2[0] = (window.b0_LP * window.xlvR2[0]) + (window.b1_LP * window.xlvR2[1]) + (window.b2_LP * window.xlvR2[2]) - (window.a1_LP * window.ylvR2[1]) - (window.a2_LP * window.ylvR2[2]);
+    window.xlvR2_2 = window.xlvR2_1; 
+    window.xlvR2_1 = window.xlvR2_0; 
+    window.xlvR2_0 = window.ylvR_0; // 承接上一級低通輸出
+    window.ylvR2_2 = window.ylvR2_1; 
+    window.ylvR2_1 = window.ylvR2_0;
+    window.ylvR2_0 = (window.b0_LP * window.xlvR2_0) + (window.b1_LP * window.xlvR2_1) + (window.b2_LP * window.xlvR2_2) - (window.a1_LP * window.ylvR2_1) - (window.a2_LP * window.ylvR2_2);
     
-    window.xlvR3[2] = window.xlvR3[1]; 
-    window.xlvR3[1] = window.xlvR3[0]; 
-    window.xlvR3[0] = window.ylvR2[0];
-    window.ylvR3[2] = window.ylvR3[1]; 
-    window.ylvR3[1] = window.ylvR3[0];
-    window.ylvR3[0] = (window.b0_LP * window.xlvR3[0]) + (window.b1_LP * window.xlvR3[1]) + (window.b2_LP * window.xlvR3[2]) - (window.a1_LP * window.ylvR3[1]) - (window.a2_LP * window.ylvR3[2]);
+    window.xlvR3_2 = window.xlvR3_1; 
+    window.xlvR3_1 = window.xlvR3_0; 
+    window.xlvR3_0 = window.ylvR2_0; // 承接上一級低通輸出
+    window.ylvR3_2 = window.ylvR3_1; 
+    window.ylvR3_1 = window.ylvR3_0;
+    window.ylvR3_0 = (window.b0_LP * window.xlvR3_0) + (window.b1_LP * window.xlvR3_1) + (window.b2_LP * window.xlvR3_2) - (window.a1_LP * window.ylvR3_1) - (window.a2_LP * window.ylvR3_2);
     
-    window.xlvR4[2] = window.xlvR4[1]; 
-    window.xlvR4[1] = window.xlvR4[0]; 
-    window.xlvR4[0] = window.ylvR2[0]; // 承接上級
-    window.ylvR4[2] = window.ylvR4[1]; 
-    window.ylvR4[1] = window.ylvR4[0];
-    // 🚀 🔒 【🚨 終極世紀大通電：Feedback 的 window.ylv4 幽靈被當場就地正法，100% 修正對齊為 window.ylvR4[2] ！！】🔒
-    window.ylvR4[0] = (window.b0_LP * window.xlvR4[0]) + (window.b1_LP * window.xlvR4[1]) + (window.b2_LP * window.xlvR4[2]) - (window.a1_LP * window.ylvR4[1]) - (window.a2_LP * window.ylvR4[2]);
+    window.xlvR4_2 = window.xlvR4_1; 
+    window.xlvR4_1 = window.xlvR4_0; 
+    window.xlvR4_0 = window.ylvR3_0; // 承接上一級低通輸出
+    window.ylvR4_2 = window.ylvR4_1; 
+    window.ylvR4_1 = window.ylvR4_0;
+    // 🚀 🔒 【完美大咬合：右耳尾端 Feedback 全部精確、剛性釘死右耳自己的暫存器 ylvR4_1 與 ylvR4_2！】
+    window.ylvR4_0 = (window.b0_LP * window.xlvR4_0) + (window.b1_LP * window.xlvR4_1) + (window.b2_LP * window.xlvR4_2) - (window.a1_LP * window.ylvR4_1) - (window.a2_LP * window.ylvR4_2);
 
-    if (isNaN(window.ylvR4[0]) || !isFinite(window.ylvR4[0])) {
-        window.ylvR4[0] = 0;
+    if (isNaN(window.ylvR4_0) || !isFinite(window.ylvR4_0)) {
+        window.ylvR4_0 = 0;
     }
-    return window.ylvR4[0];
+    return window.ylvR4_0;
 };
 
 // ==========================================
