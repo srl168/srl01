@@ -93,7 +93,8 @@ function runBiquadStage(x, b0, b1, b2, a1, a2, xv, yv) {
 // 🚀 🔒 【正宗平頂型．真八階最大平坦級聯帶通組件】
 // F1 剛性賦予高通，F2 剛性賦予低通！採用正宗極點解耦分式矩陣，徹底修正數值溢出發散黑洞，通帶內全頻點天生絕對 1.00V 完美直通！
 function runEightPoleFilterBankBP(x, f1, f2, s) {
-    let fs = window.currentSampleRate || 44100;
+    //let fs = window.currentSampleRate || 44100;
+    let fs = window.currentSampleRate ;
     
     let f1Correct = f1;
     let f2Correct = f2;
