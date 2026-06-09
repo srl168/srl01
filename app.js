@@ -106,12 +106,12 @@ function runEightPoleFilterBankBP(x, f1, f2, chState) {
     // HP Stage 1 係數組 (q1)
     let cH1 = 1.0 + (oH / q1) + (oH * oH);
     let b0_H1 = 1.0 / cH1, b1_H1 = -2.0 * b0_H1, b2_H1 = b0_H1;
-    let a1_H1 = -2.0 * (1.0 - oH * oH) / cH1, a2_H1 = (1.0 - (oH / q1) + (oH * oH)) / cH1;
+    let a1_H1 = 2.0 * (1.0 - oH * oH) / cH1, a2_H1 = (1.0 - (oH / q1) + (oH * oH)) / cH1;
     
     // HP Stage 2 係數組 (q2)
     let cH2 = 1.0 + (oH / q2) + (oH * oH);
     let b0_H2 = 1.0 / cH2, b1_H2 = -2.0 * b0_H2, b2_H2 = b0_H2;
-    let a1_H2 = -2.0 * (1.0 - oH * oH) / cH2, a2_H2 = (1.0 - (oH / q2) + (oH * oH)) / cH2;
+    let a1_H2 = 2.0 * (1.0 - oH * oH) / cH2, a2_H2 = (1.0 - (oH / q2) + (oH * oH)) / cH2;
 
     // 🛑 2. 實時調製「後級 4 階低通邊界係數」（負責高頻截止上限 F2） [INDEX]
     let frL = fs / f2Correct; if (frL < 2.01) frL = 2.01;
