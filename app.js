@@ -1,4 +1,4 @@
-//1287
+//1288
 
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
@@ -24,13 +24,13 @@ window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 
 window.currentFilterMode = 'RAW';
 
-// 🚀 🔒 【個別模式引數記憶池：調適極度方便，各就各位絕不干擾】
+// 🚀 🔒 【個別模式引數記憶池：各就各位絕不干擾】
 window.f1_LP = 1000; window.f2_LP = 3000;
 window.f1_HP = 1200; window.f2_HP = 3500;
 window.f1_BP = 800;  window.f2_BP = 2500;
 
 // 🚀 🔒 【真．多通道立體聲絕對對稱狀態大內存池死鎖 🔒】
-// 硬編碼開闢最正宗的 Float32Array(3) 實體陣列，100% 剛性契合中括號移位天條！🔒 [INDEX]
+// 硬編碼開闢前級高通(xv, xv2)與後級低通(xlv, xlv2)所需的 Float32Array(3) 實體陣列！🔒
 window.filterStates = {
     LP_ch1: {
         xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
@@ -77,22 +77,22 @@ window.updateFilterCoefficients = function() {
 };
 
 // 🚀 🔒 【真．正宗原裝中括號狀態迭代大腦】
-// 雙重隔離防吞大復活！中括號下標數字 [0]、[1]、[2] 千真萬確 100% 鋼性歸位死鎖！🔒 [INDEX]
+// 中括號下標數字,, 在最高規格隔離隔離下 100% 原始完璧、死鎖復位！🔒
 function runBiquadStage(x, b0, b1, b2, a1, a2, xv, yv) {
-    xv&#91;2&#93; = xv&#91;1&#93;; 
-    xv&#91;1&#93; = xv&#91;0&#93;; 
-    xv&#91;0&#93; = x;
-    yv&#91;2&#93; = yv&#91;1&#93;; 
-    yv&#91;1&#93; = yv&#91;0&#93;;
-    yv&#91;0&#93; = (b0 * xv&#91;0&#93;) + (b1 * xv&#91;1&#93;) + (b2 * xv&#91;2&#93;) - (a1 * yv&#91;1&#93;) - (a2 * yv&#91;2&#93;);
-    if (isNaN(yv&#91;0&#93;) || !isFinite(yv&#91;0&#93;)) {
-        yv&#91;0&#93; = 0;
+    xv[2] = xv[1]; 
+    xv[1] = xv[0]; 
+    xv[0] = x;
+    yv[2] = yv[1]; 
+    yv[1] = yv[0];
+    yv[0] = (b0 * xv[0]) + (b1 * xv[1]) + (b2 * xv[2]) - (a1 * yv[1]) - (a2 * yv[2]);
+    if (isNaN(yv[0]) || !isFinite(yv[0])) {
+        yv[0] = 0;
     }
-    return yv&#91;0&#93;;
+    return yv[0];
 }
 
-// 🚀 🔒 【萬能解耦型．真八階最大平坦平行 Filter Bank 元件】
-// 4級巴特沃斯專屬 Q 值解析散射張開，通帶內全頻點天生 0dB 絕對平坦，20萬Hz極限拉高振幅也完璧卡死 1.00V 滿格高保真！ [INDEX]
+// 🚀 🔒 【解耦型．真八階最大平坦邊界級聯帶通元件 — 高低通物理徹底歸位正義版】
+// F1(下限)剛性指派給高通，F2(上限)剛性指派給低通！F2 拉到 20 萬 Hz 1830Hz 能量也 100% 天生平坦釘死 1.00V 滿格高保真！
 function runEightPoleFilterBankBP(x, f1, f2, s) {
     let fs = window.currentSampleRate || 44100;
     
@@ -100,11 +100,11 @@ function runEightPoleFilterBankBP(x, f1, f2, s) {
     let f2Correct = f2;
     if (f2Correct <= f1Correct) f2Correct = f1Correct + 10;
 
-    // 💡 🔒 【最高天條：正宗八階巴特沃斯極點解耦 Q 值矩陣剛性鎖死】 [INDEX]
+    // 💡 🔒 【最高天條：正宗八階巴特沃斯極點解耦 Q 值矩陣】
     let q1 = 0.54119610; // Stage 1 專屬 Q 因子
     let q2 = 1.30656296; // Stage 2 專屬 Q 因子
 
-    // 🛑 1. 實時調製「前級 4 階高通邊界係數」（負責下限 f1Correct）
+    // 🛑 1. 🛑 正確代位：由 f1Correct（低頻截點）來計算「前級 4 階高通係數」！
     let frH = fs / f1Correct; if (frH < 2.01) frH = 2.01;
     let oH = Math.tan(Math.PI / frH);
     
@@ -118,7 +118,7 @@ function runEightPoleFilterBankBP(x, f1, f2, s) {
     let b0_H2 = 1.0 / cH2, b1_H2 = -2.0 * b0_H2, b2_H2 = b0_H2;
     let a1_H2 = 2.0 * (1.0 - oH * oH) / cH2, a2_H2 = (1.0 - (oH / q2) + (oH * oH)) / cH2;
 
-    // 🛑 2. 實時調製「後級 4 階低通邊界係數」（負責上限 f2Correct）
+    // 🛑 2. 🛑 正確代位：由 f2Correct（高頻截點）來計算「後級 4 階低通係數」！
     let frL = fs / f2Correct; if (frL < 2.01) frL = 2.01;
     let oL = Math.tan(Math.PI / frL);
     
@@ -132,13 +132,12 @@ function runEightPoleFilterBankBP(x, f1, f2, s) {
     let b0_L2 = (oL * oL) / cL2, b1_L2 = 2.0 * b0_L2, b2_L2 = b0_L2;
     let a1_L2 = 2.0 * (oL * oL - 1.0) / cL2, a2_L2 = (1.0 - (oL / q2) + (oL * oL)) / cL2;
 
-    // 🚀 🔒 【正宗真八階最大平坦 4 級連環水管大嚙合 — 中括號實體歷史暫存器完全推移更新！】 [INDEX]
-    // 前級高通 2 級級聯（獨立 Q1, Q2 交叉，剛性構成 4 階最大平坦高通）
+    // 🚀 🔒 【真八階最大平坦 4 級水管大咬合 — 中括號與狀態記憶體 100% 完美嚙合！】
+    // 前級高通 2 級級聯（負責切低頻，1830Hz 毫無折損通過！）
     let h1 = runBiquadStage(x, b0_H1, b1_H1, b2_H1, a1_H1, a2_H1, s.xv, s.yv);
     let h2 = runBiquadStage(h1, b0_H2, b1_H2, b2_H2, a1_H2, a2_H2, s.xv2, s.yv2);
 
-    // 後級低通 2 級級聯（獨立 Q1, Q2 交叉，剛性構成 4 階最大平坦低通），無縫承接前級輸出！ [INDEX]
-    // 🚀 🔒 截止上限一路拖到 20 萬 Hz 天際，通帶內部 1830Hz 與所有未知隨機分量也天生 100% 絕對平坦直通！ [INDEX]
+    // 後級低通 2 級級聯（負責切高頻，F2拉到天際時，1830Hz 永遠穩居最平坦通帶平原核心，增益 100% 直通！）
     let l1 = runBiquadStage(h2, b0_L1, b1_L1, b2_L1, a1_L1, a2_L1, s.xlv, s.ylv);
     let l2 = runBiquadStage(l1, b0_L2, b1_L2, b2_L2, a1_L2, a2_L2, s.xlv2, s.ylv2);
     
@@ -147,33 +146,6 @@ function runEightPoleFilterBankBP(x, f1, f2, s) {
 
 // ==========================================
 // 💡 3️⃣ 雙聲道平行多通道解調映射矩陣 (一字不差，字字血淚鋼性嚙合 🔒)
-// ==========================================
-window.applyFilterLeft = function(x) {
-    if (window.currentFilterMode === 'RAW') return x;
-    if (window.currentFilterMode === 'LP') {
-        return runEightPoleFilterBankBP(x, window.f1_LP, window.f2_LP, window.filterStates.LP_ch1);
-    }
-    if (window.currentFilterMode === 'HP') return 0.0; 
-    if (window.currentFilterMode === 'BP') {
-        return runEightPoleFilterBankBP(x, window.f1_BP, window.f2_BP, window.filterStates.BP_ch1);
-    }
-    return x;
-};
-
-window.applyFilterRight = function(x) {
-    if (window.currentFilterMode === 'RAW') return x;
-    if (window.currentFilterMode === 'LP') return 0.0; 
-    if (window.currentFilterMode === 'HP') {
-        return runEightPoleFilterBankBP(x, window.f1_HP, window.f2_HP, window.filterStates.HP_ch2);
-    }
-    if (window.currentFilterMode === 'BP') {
-        return runEightPoleFilterBankBP(x, window.f1_BP, window.f2_BP, window.filterStates.BP_ch2);
-    }
-    return x;
-};
-
-// ==========================================
-// 💡 3️⃣ 雙聲道平行多通道解調映射矩陣 (與初始化大內存點結構 100% 剛性死鎖)
 // ==========================================
 window.applyFilterLeft = function(x) {
     if (window.currentFilterMode === 'RAW') return x;
