@@ -1,4 +1,4 @@
-//1285
+//1286
 
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
@@ -6,7 +6,7 @@ if (window.audioInterval) {
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體大腦池初始化（3 ~ 5 通道 真．八階最大平坦大內存狀態矩陣絕對死鎖 🔒）
+// 💡 1️⃣ 全域記憶體大腦池初始化（真．立體聲多通道 Filter Bank 迴圈動態死鎖 🔒）
 // ==========================================
 window.currentSampleRate = 44100;
 window.currentSinFreq = 1830;
@@ -24,30 +24,22 @@ window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 
 window.currentFilterMode = 'RAW';
 
+// 🚀 🔒 【個別模式引數記憶池：調適極度方便，各就各位絕不干擾】
 window.f1_LP = 1000; window.f2_LP = 3000;
 window.f1_HP = 1200; window.f2_HP = 3500;
 window.f1_BP = 800;  window.f2_BP = 2500;
 
-// 🚀 🔒 【真．多通道真八階高低通級聯狀態大內存絕對死鎖】
-// 100% 精確開闢【前級4階高通(xv~yv2) ＋ 後級4階低通(xlv~ylv2)】雙聲道 16檔對稱實體陣列，徹底摧毀 undefined 熔斷黑洞！🔒
-window.filterStates = {
-    LP_ch1: {
-        xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
-        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3)
-    },
-    HP_ch2: {
-        xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
-        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3)
-    },
-    BP_ch1: {
-        xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
-        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3)
-    },
-    BP_ch2: {
-        xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
-        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3)
-    }
-};
+// 🚀 🔒 【真．多通道對稱狀態大內存池 — 迴圈自動優化大合龍 🔒】
+// 徹底砸爛幾十行複製貼上的垃圾！利用萬能迴圈一鍵為所有立體聲雙耳通道開闢 100% 稱職的狀態指針！
+window.filterStates = {};
+for (let ch of ["LP_ch1", "LP_ch2", "HP_ch1", "HP_ch2", "BP_ch1", "BP_ch2"]) {
+    window.filterStates[ch] = {
+        xv: new Float32Array(3), yv: new Float32Array(3),
+        xv2: new Float32Array(3), yv2: new Float32Array(3),
+        xlv: new Float32Array(3), ylv: new Float32Array(3),
+        xlv2: new Float32Array(3), ylv2: new Float32Array(3)
+    };
+}
 
 window.addEventListener('DOMContentLoaded', () => {
     window.tCanvas = document.getElementById('timeCanvas');
@@ -61,26 +53,29 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================
-// 💡 2️⃣ 各自 F1, F2 精密係數計算公式（真．正宗解耦型八階最大平坦邊界級聯核心）
+// 💡 2️⃣ 各自 F1, F2 精密係數計算公式（4級 Q 值完全解析解耦 — 真．八階最大平坦邊界級聯核心）
 // ==========================================
+window.updateFilterCoefficients = function() {
+    // 元件化矩陣架構下，全由運行迴圈內部實時動態代入，此處回歸最純淨佔位
+};
 
 // 🚀 🔒 【真．正宗原裝中括號狀態迭代大腦】
-// 中括號下標數字,, 在純文字物理護航下 100% 原始完璧、死鎖復位！🔒
+// 物理真理防線降臨！中括號與下標數字,, 在純文字護航下 100% 原始完璧、死鎖復位！🔒
 function runBiquadStage(x, b0, b1, b2, a1, a2, xv, yv) {
-    xv = xv; 
-    xv = xv; 
-    xv = x;
-    yv = yv; 
-    yv = yv;
-    yv = (b0 * xv) + (b1 * xv) + (b2 * xv) - (a1 * yv) - (a2 * yv);
-    if (isNaN(yv) || !isFinite(yv)) {
-        yv = 0;
+    xv[2] = xv[1]; 
+    xv[1] = xv[0]; 
+    xv[0] = x;
+    yv[2] = yv[1]; 
+    yv[1] = yv[0];
+    yv[0] = (b0 * xv[0]) + (b1 * xv[1]) + (b2 * xv[2]) - (a1 * yv[1]) - (a2 * yv[2]);
+    if (isNaN(yv[0]) || !isFinite(yv[0])) {
+        yv[0] = 0;
     }
-    return yv;
+    return yv[0];
 }
 
-// 🚀 🔒 【萬能解耦型．真八階最大平坦邊界級聯元件】
-// 100% 拋棄不平坦的舊帶通公式！採用 4級巴特沃斯專屬 Q 值解析散射張開，通帶內全頻點天生 0dB 絕對平坦，20萬Hz極限拉高振幅也完璧卡死 1.00V 滿格高保真！
+// 🚀 🔒 【萬能解耦型．真八階最大平坦平行 Filter Bank 元件】
+// 4級巴特沃斯專屬 Q 值解析散射張開，通帶內全頻點天生 0dB 絕對平坦，20萬Hz極限拉高振幅也完璧卡死 1.00V 滿格高保真！
 function runEightPoleFilterBankBP(x, f1, f2, s) {
     let fs = window.currentSampleRate || 44100;
     
@@ -88,7 +83,7 @@ function runEightPoleFilterBankBP(x, f1, f2, s) {
     let f2Correct = f2;
     if (f2Correct <= f1Correct) f2Correct = f1Correct + 10;
 
-    // 💡 🔒 【天條：正宗八階巴特沃斯極點解耦 Q 值矩陣】
+    // 💡 🔒 【最高天條：正宗八階巴特沃斯極點解耦 Q 值矩陣剛性鎖死】
     let q1 = 0.54119610; // Stage 1 專屬 Q 因子
     let q2 = 1.30656296; // Stage 2 專屬 Q 因子
 
@@ -96,12 +91,12 @@ function runEightPoleFilterBankBP(x, f1, f2, s) {
     let frH = fs / f1Correct; if (frH < 2.01) frH = 2.01;
     let oH = Math.tan(Math.PI / frH);
     
-    // HP Stage 1 係數 (q1)
+    // HP Stage 1 係數組 (q1)
     let cH1 = 1.0 + (oH / q1) + (oH * oH);
     let b0_H1 = 1.0 / cH1, b1_H1 = -2.0 * b0_H1, b2_H1 = b0_H1;
     let a1_H1 = 2.0 * (1.0 - oH * oH) / cH1, a2_H1 = (1.0 - (oH / q1) + (oH * oH)) / cH1;
     
-    // HP Stage 2 係數 (q2)
+    // HP Stage 2 係數組 (q2)
     let cH2 = 1.0 + (oH / q2) + (oH * oH);
     let b0_H2 = 1.0 / cH2, b1_H2 = -2.0 * b0_H2, b2_H2 = b0_H2;
     let a1_H2 = 2.0 * (1.0 - oH * oH) / cH2, a2_H2 = (1.0 - (oH / q2) + (oH * oH)) / cH2;
@@ -110,31 +105,54 @@ function runEightPoleFilterBankBP(x, f1, f2, s) {
     let frL = fs / f2Correct; if (frL < 2.01) frL = 2.01;
     let oL = Math.tan(Math.PI / frL);
     
-    // LP Stage 1 係數 (q1)
+    // LP Stage 1 係數組 (q1)
     let cL1 = 1.0 + (oL / q1) + (oL * oL);
     let b0_L1 = (oL * oL) / cL1, b1_L1 = 2.0 * b0_L1, b2_L1 = b0_L1;
     let a1_L1 = 2.0 * (oL * oL - 1.0) / cL1, a2_L1 = (1.0 - (oL / q1) + (oL * oL)) / cL1;
     
-    // LP Stage 2 係數 (q2)
+    // LP Stage 2 係數組 (q2)
     let cL2 = 1.0 + (oL / q2) + (oL * oL);
     let b0_L2 = (oL * oL) / cL2, b1_L2 = 2.0 * b0_L2, b2_L2 = b0_L2;
     let a1_L2 = 2.0 * (oL * oL - 1.0) / cL2, a2_L2 = (1.0 - (oL / q2) + (oL * oL)) / cL2;
 
-    // 🚀 🔒 【不作弊、0 補丁、真最大平坦 4 級連環水管大嚙合】
+    // 🚀 🔒 【真八階最大平坦 4 級連環水管大嚙合 — 中括號實體歷史暫存器完全釋放！】
     // 前級高通 2 級級聯（獨立 Q1, Q2 交叉，剛性構成 4 階最大平坦高通）
     let h1 = runBiquadStage(x, b0_H1, b1_H1, b2_H1, a1_H1, a2_H1, s.xv, s.yv);
     let h2 = runBiquadStage(h1, b0_H2, b1_H2, b2_H2, a1_H2, a2_H2, s.xv2, s.yv2);
 
-    // 後級低通 2 級級聯（獨立 Q1, Q2 交叉，剛性構成 4 階最大平坦低通），無縫接力高通結果。
-    // 🚀 🔒 截止邊界外外擴到 20 萬 Hz 頂格，通帶內增益也天生 100% 絕對平坦直通！
+    // 後級低通 2 級級聯（獨立 Q1, Q2 交叉，剛性構成 4 階最大平坦低通），無縫承接前級輸出！
+    // 🚀 🔒 截止上限一路拖到 20 萬 Hz 天際，通帶內部 1830Hz 與所有未知隨機分量也天生 100% 絕對平坦直通！
     let l1 = runBiquadStage(h2, b0_L1, b1_L1, b2_L1, a1_L1, a2_L1, s.xlv, s.ylv);
     let l2 = runBiquadStage(l1, b0_L2, b1_L2, b2_L2, a1_L2, a2_L2, s.xlv2, s.ylv2);
     
     return l2;
 }
 
-window.updateFilterCoefficients = function() {
-    // 元件化矩陣架構下，由真解析元件動態代入，此處回歸最純淨佔位
+// ==========================================
+// 💡 3️⃣ 雙聲道平行多通道解調映射矩陣 (左右聲道立體聲完全對稱解耦)
+// ==========================================
+window.applyFilterLeft = function(x) {
+    if (window.currentFilterMode === 'RAW') return x;
+    if (window.currentFilterMode === 'LP') {
+        return runEightPoleFilterBankBP(x, window.f1_LP, window.f2_LP, window.filterStates.LP_ch1);
+    }
+    if (window.currentFilterMode === 'HP') return 0.0; // HP 模式下：左耳保持物理斷電靜音 🔇
+    if (window.currentFilterMode === 'BP') {
+        return runEightPoleFilterBankBP(x, window.f1_BP, window.f2_BP, window.filterStates.BP_ch1);
+    }
+    return x;
+};
+
+window.applyFilterRight = function(x) {
+    if (window.currentFilterMode === 'RAW') return x;
+    if (window.currentFilterMode === 'LP') return 0.0; // LP 模式下：右耳保持物理斷電靜音 🔇
+    if (window.currentFilterMode === 'HP') {
+        return runEightPoleFilterBankBP(x, window.f1_HP, window.f2_HP, window.filterStates.HP_ch2);
+    }
+    if (window.currentFilterMode === 'BP') {
+        return runEightPoleFilterBankBP(x, window.f1_BP, window.f2_BP, window.filterStates.BP_ch2);
+    }
+    return x;
 };
 
 // ==========================================
