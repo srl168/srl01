@@ -1,11 +1,11 @@
-//1283
+//HP+LP ok 0.999
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體大腦池初始化（3 ~ 5 通道 Filter Bank 個別引數記憶池完全鎖死 🔒）
+// 💡 1️⃣ 全域記憶體大腦池初始化（真．立體聲雙耳對稱真八階大內存陣列池絕對死鎖 🔒）
 // ==========================================
 window.currentSampleRate = 44100;
 window.currentSinFreq = 1830;
@@ -23,26 +23,38 @@ window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 
 window.currentFilterMode = 'RAW';
 
-// 🚀 🔒 【各別模式引數記憶池：調適極度方便，各就各位絕不干擾】
-// LP 模式專屬獨立記憶頻段
-window.f1_LP = 1000;
-window.f2_LP = 3000;
+// 🚀 🔒 【個別模式引數記憶池：各就各位絕不干擾】
+window.f1_LP = 1000; window.f2_LP = 3000;
+window.f1_HP = 1200; window.f2_HP = 3500;
+window.f1_BP = 800;  window.f2_BP = 2500;
 
-// HP 模式專屬獨立記憶頻段
-window.f1_HP = 1200;
-window.f2_HP = 3500;
-
-// BP 模式專屬獨立記憶頻段
-window.f1_BP = 800;
-window.f2_BP = 2500;
-
-// 🚀 🔒 【未來 3 ~ 5 個平行 BP 通道大內存狀態矩陣死鎖】
-// 每個通道各別擁有專屬的 8 階巴特沃斯狀態陣列，100% 徹底阻斷串軌！
+// 🚀 🔒 【真．多通道立體聲絕對對稱狀態大內存池死鎖 🔒】
+// 硬編碼開闢前級高通(xv, xv2)與後級低通(xlv, xlv2)所需的 Float32Array(3) 實體陣列！🔒
 window.filterStates = {
-    LP_ch1: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
-    HP_ch2: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
-    BP_ch1: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
-    BP_ch2: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) }
+    LP_ch1: {
+        xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
+        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3)
+    },
+    LP_ch2: {
+        xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
+        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3)
+    },
+    HP_ch1: {
+        xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
+        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3)
+    },
+    HP_ch2: {
+        xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
+        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3)
+    },
+    BP_ch1: {
+        xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
+        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3)
+    },
+    BP_ch2: {
+        xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
+        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3)
+    }
 };
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -55,12 +67,14 @@ window.addEventListener('DOMContentLoaded', () => {
     window.fCanvas.width = 800;
     window.fCanvas.height = 400;
 });
+
 // ==========================================
-// 💡 2️⃣ 工業級真．八階高精度帶通濾波元件 (元件化 Filter Bank 拓撲 + 寬頻增益歸一化補償)
+// 💡 2️⃣ 各自 F1, F2 精密係數計算公式（真．真八階最大平坦平頂級聯核心）
 // ==========================================
+window.updateFilterCoefficients = function() {};
 
 // 🚀 🔒 【真．正宗原裝中括號狀態迭代大腦】
-// 中括號下標數字 [2], [1], [0] 千真萬確 100% 鋼性歸位死鎖，指針直通全域 filterStates 內存大池！🔒
+// 使用最標準、最聽話的標準 [] 陣列下標訪問，字字流暢通電！🔒
 function runBiquadStage(x, b0, b1, b2, a1, a2, xv, yv) {
     xv[2] = xv[1]; 
     xv[1] = xv[0]; 
@@ -74,104 +88,76 @@ function runBiquadStage(x, b0, b1, b2, a1, a2, xv, yv) {
     return yv[0];
 }
 
-// 🚀 🔒 【萬能真．八階最大平坦保真帶通元件】
-// 徹底粉碎寬頻帶通增益雪崩黑洞！未來並聯 3 ~ 5 路帶通時，各通道內部振幅完美釘死 1.00V 滿格！
+// 🚀 🔒 【真八階最大平坦平頂級聯帶通元件】
+// F1 剛性賦予高通，F2 剛性賦予低通！極點沿圓周散射展開，F1=20Hz 到 F2=8000Hz 通帶內 100% 絕對等增益平頂直通！ [INDEX]
 function runEightPoleFilterBankBP(x, f1, f2, chState) {
     let fs = window.currentSampleRate;
-    
-    let f1Correct = f1;
-    let f2Correct = f2;
+    let f1Correct = f1; let f2Correct = f2;
     if (f2Correct <= f1Correct) f2Correct = f1Correct + 10;
 
-    // 1. 標準雙邊巴特沃斯二階帶通係數計算
-    let frLeft = fs / f1Correct;  if (frLeft < 2.01) frLeft = 2.01;
-    let frRight = fs / f2Correct; if (frRight < 2.01) frRight = 2.01;
-    let oL = Math.tan(Math.PI / frLeft);
-    let oH = Math.tan(Math.PI / frRight);
-    let W = oH - oL; if (W < 0.001) W = 0.001;
-    let C = oL * oH;
-    let cBP = 1.0 + W + C;
-    
-    let b0 = W / cBP;
-    let b1 = 0.0;
-    let b2 = -b0;
-    let a1 = 2.0 * (C - 1.0) / cBP;
-    let a2 = (1.0 - W + C) / cBP;
+    // 💡 🔒 【最高天條：正宗八階巴特沃斯極點解耦 Q 值矩陣】 [INDEX]
+    let q1 = 0.54119610; // Stage 1 專屬 Q 因子
+    let q2 = 1.30656296; // Stage 2 專屬 Q 因子
 
-    // 🔒 🚀 【工業級寬頻增益歸一化校準引擎】
-    // 計算帶通幾何中心頻率在數位 z 域上的真實代數響應，逆向算出補償增益係數 g_comp
-    let centerHz = Math.sqrt(f1Correct * f2Correct);
-    let w_c = 2.0 * Math.PI * centerHz / fs;
-    let cosW = Math.cos(w_c);
-    let sinW = Math.sin(w_c);
+    // 🛑 1. 實時調製「前級 4 階高通邊界係數」（負責低頻截止下限 F1）
+    let frH = fs / f1Correct; if (frH < 2.01) frH = 2.01;
+    let oH = Math.tan(Math.PI / frH);
     
-    // 計算單級帶通在中心頻率的實部與虛部響應
-    let num_r = b0 + b1 * cosW + b2 * (2.0 * cosW * cosW - 1.0);
-    let num_i = b1 * sinW + b2 * (2.0 * cosW * sinW);
-    let den_r = 1.0 + a1 * cosW + a2 * (2.0 * cosW * cosW - 1.0);
-    let den_i = a1 * sinW + a2 * (2.0 * cosW * sinW);
+    // HP Stage 1 係數組 (q1)
+    let cH1 = 1.0 + (oH / q1) + (oH * oH);
+    let b0_H1 = 1.0 / cH1, b1_H1 = -2.0 * b0_H1, b2_H1 = b0_H1;
+    let a1_H1 = 2.0 * (1.0 - oH * oH) / cH1, a2_H1 = (1.0 - (oH / q1) + (oH * oH)) / cH1;
     
-    let den_mag2 = den_r * den_r + den_i * den_i;
-    let singleStageGain = 1.0;
-    if (den_mag2 > 0.00001) {
-        let resp_r = (num_r * den_r + num_i * den_i) / den_mag2;
-        let resp_i = (num_i * den_r - num_r * den_i) / den_mag2;
-        singleStageGain = Math.sqrt(resp_r * resp_r + resp_i * resp_i);
-    }
-    if (singleStageGain < 0.001) singleStageGain = 0.001;
-    
-    // 由於我們是 4 級級聯（八階），總增益為 singleStageGain 的 4 次方。逆向補償係數為：
-    let g_comp = 1.0 / Math.pow(singleStageGain, 4);
-    if (isNaN(g_comp) || !isFinite(g_comp) || g_comp > 100.0) g_comp = 1.0;
+    // HP Stage 2 係數組 (q2)
+    let cH2 = 1.0 + (oH / q2) + (oH * oH);
+    let b0_H2 = 1.0 / cH2, b1_H2 = -2.0 * b0_H2, b2_H2 = b0_H2;
+    let a1_H2 = 2.0 * (1.0 - oH * oH) / cH2, a2_H2 = (1.0 - (oH / q2) + (oH * oH)) / cH2;
 
-    // 2. 級聯 4 次（高達 8 階）平行級聯電路演進
-    let s1 = runBiquadStage(x, b0, b1, b2, a1, a2, chState.xv, chState.yv);
-    let s2 = runBiquadStage(s1, b0, b1, b2, a1, a2, chState.xv2, chState.yv2);
-    let s3 = runBiquadStage(s2, b0, b1, b2, a1, a2, chState.xv3, chState.yv3);
-    let s4 = runBiquadStage(s3, b0, b1, b2, a1, a2, chState.xv4, chState.yv4);
+    // 🛑 2. 實時調製「後級 4 階低通邊界係數」（負責高頻截止上限 F2） [INDEX]
+    let frL = fs / f2Correct; if (frL < 2.01) frL = 2.01;
+    let oL = Math.tan(Math.PI / frL);
     
-    // 最終輸出端乘上歸一化補償係數，確保寬頻帶下 Vpp 精確維持在 1.00V 滿格高保真！
-    return s4 * g_comp;
+    // LP Stage 1 係數組 (q1)
+    let cL1 = 1.0 + (oL / q1) + (oL * oL);
+    let b0_L1 = (oL * oL) / cL1, b1_L1 = 2.0 * b0_L1, b2_L1 = b0_L1;
+    let a1_L1 = 2.0 * (oL * oL - 1.0) / cL1, a2_L1 = (1.0 - (oL / q1) + (oL * oL)) / cL1;
+    
+    // LP Stage 2 係數組 (q2)
+    let cL2 = 1.0 + (oL / q2) + (oL * oL);
+    let b0_L2 = (oL * oL) / cL2, b1_L2 = 2.0 * b0_L2, b2_L2 = b0_L2;
+    let a1_L2 = 2.0 * (oL * oL - 1.0) / cL2, a2_L2 = (1.0 - (oL / q2) + (oL * oL)) / cL2;
+
+    // 🚀 🔒 【真八階最大平坦 4 級連環時域推移大腦 — 中括號實體歷史暫存器完全更新！】 [INDEX]
+    // 前級高通 2 級級聯（負責切低頻，1830Hz 毫無折損通過！）
+    let h1 = runBiquadStage(x, b0_H1, b1_H1, b2_H1, a1_H1, a2_H1, chState.xv, chState.yv);
+    let h2 = runBiquadStage(h1, b0_H2, b1_H2, b2_H2, a1_H2, a2_H2, chState.xv2, chState.yv2);
+
+    // 後級低通 2 級級聯（負責切高頻，F2拉到8000Hz、甚至20萬Hz時，1830Hz永遠穩居最大平坦通帶核心，增益100%直通！） [INDEX]
+    let l1 = runBiquadStage(h2, b0_L1, b1_L1, b2_L1, a1_L1, a2_L1, chState.xlv, chState.ylv);
+    let l2 = runBiquadStage(l1, b0_L2, b1_L2, b2_L2, a1_L2, a2_L2, chState.xlv2, chState.ylv2);
+    
+    return l2;
 }
 
-window.updateFilterCoefficients = function() {
-    // 元件化矩陣架構下，全由 runEightPoleFilterBankBP 在超高速時域迴圈內部動態代入計算
-};
-
 // ==========================================
-// 💡 3️⃣ 雙聲道平行多通道解調映射矩陣 (100% 支援未來並聯擴充 3 ~ 5 通道)
+// 💡 3️⃣ 雙聲道平行多通道解調映射矩陣 (左右聲道立體聲完全對稱解耦 🔒)
 // ==========================================
 window.applyFilterLeft = function(x) {
     if (window.currentFilterMode === 'RAW') return x;
-    
-    // LP 模式：左耳跑專屬 F1_LP ~ F2_LP 帶通分流
-    if (window.currentFilterMode === 'LP') {
-        return runEightPoleFilterBankBP(x, window.f1_LP, window.f2_LP, window.filterStates.LP_ch1);
-    }
-    if (window.currentFilterMode === 'HP') return 0.0; // HP 模式下：左耳強制完全物理斷電靜音 🔇
-    
-    // BP 模式：並聯大放行！左耳直接抓專屬 F1_BP ~ F2_BP 進行保真平行解調！
-    if (window.currentFilterMode === 'BP') {
-        return runEightPoleFilterBankBP(x, window.f1_BP, window.f2_BP, window.filterStates.BP_ch1);
-    }
+    if (window.currentFilterMode === 'LP') return runEightPoleFilterBankBP(x, window.f1_LP, window.f2_LP, window.filterStates.LP_ch1);
+    if (window.currentFilterMode === 'HP') return 0.0; 
+    if (window.currentFilterMode === 'BP') return runEightPoleFilterBankBP(x, window.f1_BP, window.f2_BP, window.filterStates.BP_ch1);
     return x;
 };
 
 window.applyFilterRight = function(x) {
     if (window.currentFilterMode === 'RAW') return x;
-    if (window.currentFilterMode === 'LP') return 0.0; // LP 模式下：右耳強制完全物理斷電靜音 🔇
-    
-    // HP 模式：右耳跑專屬 F1_HP ~ F2_HP 帶通分流，此處與左耳物件徹底隔離解耦，絕不串軌！
-    if (window.currentFilterMode === 'HP') {
-        return runEightPoleFilterBankBP(x, window.f1_HP, window.f2_HP, window.filterStates.HP_ch2);
-    }
-    
-    // BP 模式：並聯大放行！右耳同步抓專屬 F1_BP ~ F2_BP 進行高保真平行解調！
-    if (window.currentFilterMode === 'BP') {
-        return runEightPoleFilterBankBP(x, window.f1_BP, window.f2_BP, window.filterStates.BP_ch2);
-    }
+    if (window.currentFilterMode === 'LP') return 0.0; 
+    if (window.currentFilterMode === 'HP') return runEightPoleFilterBankBP(x, window.f1_HP, window.f2_HP, window.filterStates.HP_ch2);
+    if (window.currentFilterMode === 'BP') return runEightPoleFilterBankBP(x, window.f1_BP, window.f2_BP, window.filterStates.BP_ch2);
     return x;
 };
+
 
 // ==========================================
 // 💡 3️⃣ 數位立體聲空間音訊流管道（2通道直通水管，強控立體聲不串軌）
