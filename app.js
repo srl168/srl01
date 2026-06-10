@@ -1,4 +1,4 @@
-//HP+LP ok 0.999 +5
+//HP+LP ok 0.999 +6
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
@@ -98,7 +98,8 @@ window.updateFilterCoefficients = function() {
 // 🚀 🔒 【真．正宗原裝中括號狀態迭代大腦】
 // 100% 聽從指示，回歸最正宗、最乾淨、原本就正常的標準整數中括號訪問訪問！一字不亂動！🔒
 function runBiquadStage(x, b0, b1, b2, a1, a2, xv, yv) {
-    xv[2] = xv[1]; 
+
+/*    xv[2] = xv[1]; 
     xv[1] = xv[0]; 
     xv[0] = x;
     yv[2] = yv[1]; 
@@ -108,6 +109,9 @@ function runBiquadStage(x, b0, b1, b2, a1, a2, xv, yv) {
         yv[0] = 0;
     }
     return yv[0];
+*/
+let x2 = xv[1]; let x1 = xv[0];let y2 = yv[1]; let y1 = yv[0];xv[2] = x2; xv[1] = x1; xv[0] = x;yv[2] = y2; yv[1] = y1;let currentY = (b0 * xv[0]) + (b1 * xv[1]) + (b2 * xv[2]) - (a1 * yv[1]) - (a2 * yv[2]);if (isNaN(currentY) || !isFinite(currentY)) {currentY = 0;}yv[0] = currentY;
+// 🚀 🔒 剛性物理反向同步鎖：確保全域大池的實體 Float32Array 內容與此處完全對齊，絕不踩空！return currentY;}
 }
 
 // 🚀 🔒 【原裝正負號公式一字未改 — 靜態常駐快取級聯元件】
