@@ -25,67 +25,73 @@
 </head>
 <body>
 
-<!-- ==========================================
-     💡 6️⃣ HTML 實體前端 UI 控制面板（高科技物聯網通信解調介面佈局）
-     ========================================== -->
-<div class="telemetry-panel" style="background: #111; color: #fff; font-family: monospace; padding: 20px; border-radius: 10px; max-width: 850px; margin: 20px auto; border: 2px solid #333;">
-    
-    <!-- 🛑 A. 藍牙硬體通訊連線狀態欄 -->
-    <div class="section ble-control" style="border-bottom: 1px solid #222; padding-bottom: 15px; margin-bottom: 15px;">
-        <h3 style="color: #00ff66; margin-top: 0;">📡 實體物聯網藍牙串流對接管線</h3>
-        <button id="bleConnectBtn" onclick="window.toggleBLEConnection()" style="background: #00ff66; color: #000; font-weight: bold; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-family: monospace;">
-            ⚡ 一鍵搜尋藍牙連線
-        </button>
-        <span id="bleStatusText" style="margin-left: 15px; color: #888;">⚪ 藍牙通訊管線目前處於閒置狀態</span>
-    </div>
-
-    <!-- 🛑 B. 系統起振與訊號源調製硬體開關 -->
-    <div class="section system-control" style="border-bottom: 1px solid #222; padding-bottom: 15px; margin-bottom: 15px; display: flex; gap: 15px;">
-        <button id="simBtn" class="filter-btn" data-mode="RAW" style="background: #222; color: #ffcc00; border: 1px solid #ffcc00; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-family: monospace; font-weight: bold;">
-            ⚡ 啟動模擬信號源
-        </button>
-        <button id="speakerBtn" style="background: #222; color: #00ff66; border: 1px solid #00ff66; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-family: monospace; font-weight: bold;">
-            🔇 喇叭靜音
-        </button>
-    </div>
-
-    <!-- 🛑 C. 4 通道獨立 Filter Bank 核心切換矩陣 -->
-    <div class="section mode-control" style="border-bottom: 1px solid #222; padding-bottom: 15px; margin-bottom: 15px;">
-        <h4 style="margin: 0 0 10px 0; color: #aaa;">🎛️ 真八階最大平坦平頂型解調模式切換</h4>
-        <div style="display: flex; gap: 10px;">
-            <button class="filter-btn" data-mode="RAW" style="background: #00ff66; color: #000; font-weight: bold; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-family: monospace;">RAW 直通</button>
-            <button class="filter-btn" data-mode="LP" style="background: #333; color: #fff; border: 1px solid #555; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-family: monospace;">LP 低通解調</button>
-            <button class="filter-btn" data-mode="HP" style="background: #333; color: #fff; border: 1px solid #555; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-family: monospace;">HP 高通解調</button>
-            <button class="filter-btn" data-mode="BP" style="background: #333; color: #fff; border: 1px solid #555; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-family: monospace;">BP 帶通解調</button>
+    <div class="card">
+        <h3>🔬 ESP32-C3 示波器與音訊 (純網頁離線模擬校正版)</h3>
+        <div class="btn-group">
+            <button id="connectBtn" class="btn-primary">🔌 連線實體設備</button>
+            <button id="simBtn" class="btn-sim">🛠️ 開啟本地資料模擬測試</button>
+            <button id="speakerBtn" class="btn-speaker muted">🔇 喇叭發聲：關閉</button>
+        </div>
+        <div id="status" style="font-size: 13px;">狀態：等待藍牙連線或本地模擬點火...</div>
+        <div class="control-row" style="background: #1f242c; margin-top: 8px;">
+            <div class="slider-group">
+                <label>📢 音量：</label>
+                <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="0.3">
+                <span id="volumeVal">30%</span>
+            </div>
         </div>
     </div>
 
-    <!-- 🛑 D. F1 與 F2 剛性連動精密拉桿 -->
-    <div class="section sliders" style="display: flex; flex-direction: column; gap: 15px;">
-        <div style="display: flex; align-items: center; justify-content: space-between;">
-            <label style="color: #aaa; width: 220px;">📉 F1 低頻截止下限 (高通邊界):</label>
-            <input type="range" id="f1Slider" min="20" max="4000" value="1200" step="1" style="flex-grow: 1; margin: 0 15px; accent-color: #00ff66;">
-            <span id="f1Val" style="color: #00ff66; width: 80px; text-align: right; font-weight: bold;">1200 Hz</span>
-        </div>
-        <div style="display: flex; align-items: center; justify-content: space-between;">
-            <label style="color: #aaa; width: 220px;">📈 F2 高頻截止上限 (低通邊界):</label>
-            <input type="range" id="f2Slider" min="100" max="20000" value="2900" step="1" style="flex-grow: 1; margin: 0 15px; accent-color: #ffcc00;">
-            <span id="f2Val" style="color: #ffcc00; width: 80px; text-align: right; font-weight: bold;">2900 Hz</span>
+    <div class="card" style="border: 1px solid #58a6ff;">
+        <h3>📡 參數控制（支援實體連線與本地模擬）</h3>
+        <div class="control-row" style="background: #1c2128;">
+            <div class="slider-group">
+                <label style="color: #ffad00;">⚡ 採樣率 (currentSampleRate):</label>
+                <input type="range" id="sampleRateSlider" min="1000" max="48000" step="1" value="44100">
+                <span id="boardSampleVal">44100 Hz</span>
+            </div>
+            <div class="slider-group">
+                <label style="color: #00ff66;">🎵 訊號頻率 (currentSinFreq):</label>
+                <input type="range" id="sinFreqSlider" min="20" max="20000" step="1" value="1830">
+                <span id="boardSinVal">1830 Hz</span>
+            </div>
         </div>
     </div>
-</div>
 
-<!-- 🛑 E. 工業級自適應時頻雙軸大畫布組件 -->
-<div class="canvas-container" style="display: flex; flex-direction: column; gap: 15px; align-items: center; margin-top: 20px;">
-    <div>
-        <div style="color: #00ff66; font-family: monospace; font-size: 12px; margin-bottom: 2px;">🟢 時域自適應雙軸波形示波器 (Standard Vpp 1.00V Canvas)</div>
-        <canvas id="timeCanvas" style="background: #0a0a0a; border: 1px solid #222; border-radius: 6px; box-shadow: 0 0 15px rgba(0,255,102,0.1);"></canvas>
+    <div class="card">
+        <h3>🎛️ 即時數位濾波器</h3>
+        <div class="btn-group">
+            <button id="filterRaw" class="filter-btn active">原始 (Raw)</button>
+            <button id="filterLP" class="filter-btn">低通 (LP)</button>
+            <button id="filterHP" class="filter-btn">高通 (HP)</button>
+            <button id="filterBP" class="filter-btn">帶通 (BP)</button>
+        </div>
+        <div class="control-row">
+            <div class="slider-group" id="f1Container" style="display: none;">
+                <label> F1:</label>
+                <input type="range" id="f1Slider" min="0" max="20000" step="1" value="100">
+                <span id="freq1Val">100 Hz</span>
+            </div>
+            <div class="slider-group" id="f2Container" style="display: none;">
+                <label> F2:</label>
+                <input type="range" id="f2Slider" min="0" max="20000" step="1" value="500">
+                <span id="freq2Val">500 Hz</span>
+            </div>
+        </div>
     </div>
-    <div>
-        <div style="color: #ffcc00; font-family: monospace; font-size: 12px; margin-bottom: 2px;">💛 頻域傅立葉實時分貝分佈折線 (0dB Max-Flat Spectrum)</div>
-        <canvas id="freqCanvas" style="background: #0a0a0a; border: 1px solid #222; border-radius: 6px; box-shadow: 0 0 15px rgba(255,204,0,0.1);"></canvas>
+
+    <div class="card">
+        <div class="metrics">
+            <div class="metric-box"><div>均方根值 (RMS)</div><div id="rmsVal" class="metric-val">0.00 V</div></div>
+            <div class="metric-box"><div>峰對峰值 (Vpp)</div><div id="vppVal" class="metric-val">0.00 V</div></div>
+            <div class="metric-box"><div>FFT 主頻率</div><div id="freqVal" class="metric-val" style="color: #ffad00;">0.0 Hz</div></div>
+        </div>
     </div>
-</div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 15px;">
+        <div class="card"><h3>增益波形</h3><canvas id="timeCanvas"></canvas></div>
+        <div class="card"><h3>頻譜分析 (FFT)</h3><canvas id="freqCanvas"></canvas></div>
+    </div>
 
     <script src="app.js"></script>
 </body>
