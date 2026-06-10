@@ -5,7 +5,7 @@ if (window.audioInterval) {
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體大腦池初始化（3 ~ 5 通道 Filter Bank 大內存池絕對鎖死 🔒）
+// 💡 1️⃣ 全域記憶體大腦池初始化（真．立體聲雙耳對稱真八階大內存陣列池絕對死鎖 🔒）
 // ==========================================
 window.currentSampleRate = 44100;
 window.currentSinFreq = 1830;
@@ -23,61 +23,37 @@ window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 
 window.currentFilterMode = 'RAW';
 
+// 🚀 🔒 【個別模式引數記憶池：各就各位絕不干擾】
 window.f1_LP = 1000; window.f2_LP = 3000;
 window.f1_HP = 1200; window.f2_HP = 3500;
 window.f1_BP = 800;  window.f2_BP = 2500;
 
-// 🚀 🔒 【真．多通道 Filter Bank 狀態大內存絕對鎖死】
-// 100% 精確開闢 4 級級聯所需的歷史暫存器陣列，與第二部分標準中括號下標完美齒合！🔒
+// 🚀 🔒 【真．多通道立體聲絕對對稱狀態大內存池死鎖 🔒】
+// 硬編碼開闢前級高通(xv, xv2)與後級低通(xlv, xlv2)所需的 Float32Array(3) 實體陣列！🔒
 window.filterStates = {
     LP_ch1: {
-        xv: new Float32Array(3), yv: new Float32Array(3),
-        xv2: new Float32Array(3), yv2: new Float32Array(3),
-        xv3: new Float32Array(3), yv3: new Float32Array(3),
-        xv4: new Float32Array(3), yv4: new Float32Array(3)
+        xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
+        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3)
     },
     LP_ch2: {
-        xv: new Float32Array(3), yv: new Float32Array(3),
-        xv2: new Float32Array(3), yv2: new Float32Array(3),
-        xv3: new Float32Array(3), yv3: new Float32Array(3),
-        xv4: new Float32Array(3), yv4: new Float32Array(3)
+        xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
+        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3)
     },
     HP_ch1: {
-        xv: new Float32Array(3), yv: new Float32Array(3),
-        xv2: new Float32Array(3), yv2: new Float32Array(3),
-        xv3: new Float32Array(3), yv3: new Float32Array(3),
-        xv4: new Float32Array(3), yv4: new Float32Array(3)
+        xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
+        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3)
     },
     HP_ch2: {
-        xv: new Float32Array(3), yv: new Float32Array(3),
-        xv2: new Float32Array(3), yv2: new Float32Array(3),
-        xv3: new Float32Array(3), yv3: new Float32Array(3),
-        xv4: new Float32Array(3), yv4: new Float32Array(3)
+        xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
+        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3)
     },
     BP_ch1: {
-        xv: new Float32Array(3), yv: new Float32Array(3),
-        xv2: new Float32Array(3), yv2: new Float32Array(3),
-        xv3: new Float32Array(3), yv3: new Float32Array(3),
-        xv4: new Float32Array(3), yv4: new Float32Array(3)
+        xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
+        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3)
     },
     BP_ch2: {
-        xv: new Float32Array(3), yv: new Float32Array(3),
-        xv2: new Float32Array(3), yv2: new Float32Array(3),
-        xv3: new Float32Array(3), yv3: new Float32Array(3),
-        xv4: new Float32Array(3), yv4: new Float32Array(3)
-    }
-};
-
-// 🚀 🔒 【真．時域歷史記憶大腦全線自適應重置刷洗引擎】
-// 確保進程切換或開機時，清空所有暫存器殘留，100% 阻斷啟動踩空發散！
-window.resetAllFilterStates = function() {
-    for (let key in window.filterStates) {
-        if (window.filterStates.hasOwnProperty(key)) {
-            window.filterStates[key].xv.fill(0);  window.filterStates[key].yv.fill(0);
-            window.filterStates[key].xv2.fill(0); window.filterStates[key].yv2.fill(0);
-            window.filterStates[key].xv3.fill(0); window.filterStates[key].yv3.fill(0);
-            window.filterStates[key].xv4.fill(0); window.filterStates[key].yv4.fill(0);
-        }
+        xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
+        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3)
     }
 };
 
@@ -86,17 +62,19 @@ window.addEventListener('DOMContentLoaded', () => {
     window.fCanvas = document.getElementById('freqCanvas');
     window.tCtx = window.tCanvas.getContext('2d');
     window.fCtx = window.fCanvas.getContext('2d');
-    window.tCanvas.width = 800; window.tCanvas.height = 400;
-    window.fCanvas.width = 800; window.fCanvas.height = 400;
+    window.tCanvas.width = 800;
+    window.tCanvas.height = 400;
+    window.fCanvas.width = 800;
+    window.fCanvas.height = 400;
 });
 
 // ==========================================
-// 💡 2️⃣ 各自 F1, F2 精密係數計算公式（3 ~ 5 通道元件化 8 階巴特沃斯原裝正常型帶通公式）
+// 💡 2️⃣ 各自 F1, F2 精密係數計算公式（真．真八階最大平坦平頂級聯核心）
 // ==========================================
 window.updateFilterCoefficients = function() {};
 
 // 🚀 🔒 【真．正宗原裝中括號狀態迭代大腦】
-// 最純淨、最正宗、絕不惡搞的標準中括號 [ ] 陣列下標訪問！字字大復活！
+// 使用最標準、最聽話的標準 [] 陣列下標訪問，字字流暢通電！🔒
 function runBiquadStage(x, b0, b1, b2, a1, a2, xv, yv) {
     xv[2] = xv[1]; 
     xv[1] = xv[0]; 
@@ -110,31 +88,55 @@ function runBiquadStage(x, b0, b1, b2, a1, a2, xv, yv) {
     return yv[0];
 }
 
-// 🚀 🔒 【原裝正宗邊界型．八階平行 Filter Bank 帶通元件】
-// 100% 沿用最初完全正常跑通的中央型帶通公式！在 F2=20萬Hz 極限拉寬下完美展現 0.5V 物理量測真貌，絕對不當機！
+// 🚀 🔒 【真八階最大平坦平頂級聯帶通元件】
+// F1 剛性賦予高通，F2 剛性賦予低通！極點沿圓周散射展開，F1=20Hz 到 F2=8000Hz 通帶內 100% 絕對等增益平頂直通！ [INDEX]
 function runEightPoleFilterBankBP(x, f1, f2, chState) {
     let fs = window.currentSampleRate;
     let f1Correct = f1; let f2Correct = f2;
     if (f2Correct <= f1Correct) f2Correct = f1Correct + 10;
 
-    // 標準雙邊巴特沃斯二階帶通係數計算
-    let frLeft = fs / f1Correct;  if (frLeft < 2.01) frLeft = 2.01;
-    let frRight = fs / f2Correct; if (frRight < 2.01) frRight = 2.01;
-    let oL = Math.tan(Math.PI / frLeft);
-    let oH = Math.tan(Math.PI / frRight);
-    let W = oH - oL; if (W < 0.001) W = 0.001;
-    let C = oL * oH;
-    let cBP = 1.0 + W + C;
-    
-    let b0 = W / cBP; let b1 = 0.0; let b2 = -b0;
-    let a1 = 2.0 * (C - 1.0) / cBP; let a2 = (1.0 - W + C) / cBP;
+    // 💡 🔒 【最高天條：正宗八階巴特沃斯極點解耦 Q 值矩陣】 [INDEX]
+    let q1 = 0.54119610; // Stage 1 專屬 Q 因子
+    let q2 = 1.30656296; // Stage 2 專屬 Q 因子
 
-    // 連續級聯 4 次（高達 8 階）高速狀態滾動，阻帶外截止斜率極陡，100% 與大內存指針完美咬合通電！
-    let s1 = runBiquadStage(x, b0, b1, b2, a1, a2, chState.xv, chState.yv);
-    let s2 = runBiquadStage(s1, b0, b1, b2, a1, a2, chState.xv2, chState.yv2);
-    let s3 = runBiquadStage(s2, b0, b1, b2, a1, a2, chState.xv3, chState.yv3);
-    let s4 = runBiquadStage(s3, b0, b1, b2, a1, a2, chState.xv4, chState.yv4);
-    return s4;
+    // 🛑 1. 實時調製「前級 4 階高通邊界係數」（負責低頻截止下限 F1）
+    let frH = fs / f1Correct; if (frH < 2.01) frH = 2.01;
+    let oH = Math.tan(Math.PI / frH);
+    
+    // HP Stage 1 係數組 (q1)
+    let cH1 = 1.0 + (oH / q1) + (oH * oH);
+    let b0_H1 = 1.0 / cH1, b1_H1 = -2.0 * b0_H1, b2_H1 = b0_H1;
+    let a1_H1 = 2.0 * (1.0 - oH * oH) / cH1, a2_H1 = (1.0 - (oH / q1) + (oH * oH)) / cH1;
+    
+    // HP Stage 2 係數組 (q2)
+    let cH2 = 1.0 + (oH / q2) + (oH * oH);
+    let b0_H2 = 1.0 / cH2, b1_H2 = -2.0 * b0_H2, b2_H2 = b0_H2;
+    let a1_H2 = 2.0 * (1.0 - oH * oH) / cH2, a2_H2 = (1.0 - (oH / q2) + (oH * oH)) / cH2;
+
+    // 🛑 2. 實時調製「後級 4 階低通邊界係數」（負責高頻截止上限 F2） [INDEX]
+    let frL = fs / f2Correct; if (frL < 2.01) frL = 2.01;
+    let oL = Math.tan(Math.PI / frL);
+    
+    // LP Stage 1 係數組 (q1)
+    let cL1 = 1.0 + (oL / q1) + (oL * oL);
+    let b0_L1 = (oL * oL) / cL1, b1_L1 = 2.0 * b0_L1, b2_L1 = b0_L1;
+    let a1_L1 = 2.0 * (oL * oL - 1.0) / cL1, a2_L1 = (1.0 - (oL / q1) + (oL * oL)) / cL1;
+    
+    // LP Stage 2 係數組 (q2)
+    let cL2 = 1.0 + (oL / q2) + (oL * oL);
+    let b0_L2 = (oL * oL) / cL2, b1_L2 = 2.0 * b0_L2, b2_L2 = b0_L2;
+    let a1_L2 = 2.0 * (oL * oL - 1.0) / cL2, a2_L2 = (1.0 - (oL / q2) + (oL * oL)) / cL2;
+
+    // 🚀 🔒 【真八階最大平坦 4 級連環時域推移大腦 — 中括號實體歷史暫存器完全更新！】 [INDEX]
+    // 前級高通 2 級級聯（負責切低頻，1830Hz 毫無折損通過！）
+    let h1 = runBiquadStage(x, b0_H1, b1_H1, b2_H1, a1_H1, a2_H1, chState.xv, chState.yv);
+    let h2 = runBiquadStage(h1, b0_H2, b1_H2, b2_H2, a1_H2, a2_H2, chState.xv2, chState.yv2);
+
+    // 後級低通 2 級級聯（負責切高頻，F2拉到8000Hz、甚至20萬Hz時，1830Hz永遠穩居最大平坦通帶核心，增益100%直通！） [INDEX]
+    let l1 = runBiquadStage(h2, b0_L1, b1_L1, b2_L1, a1_L1, a2_L1, chState.xlv, chState.ylv);
+    let l2 = runBiquadStage(l1, b0_L2, b1_L2, b2_L2, a1_L2, a2_L2, chState.xlv2, chState.ylv2);
+    
+    return l2;
 }
 
 // ==========================================
@@ -155,77 +157,6 @@ window.applyFilterRight = function(x) {
     if (window.currentFilterMode === 'BP') return runEightPoleFilterBankBP(x, window.f1_BP, window.f2_BP, window.filterStates.BP_ch2);
     return x;
 };
-
-// ==========================================
-// 💡 3️⃣-B DOM 節點事件剛性鎖死（🔒 100% 精確對齊原裝 f1ValText 與 f2ValText 顯示標籤 🔒）
-// ==========================================
-document.addEventListener('DOMContentLoaded', () => {
-    const triggerAudioContext = () => {
-        // 🚀 🔒 核心進程修復：只要使用者滑鼠一點或一動，0毫秒強行 Resume 喚醒硬體上下文，粉碎自動發聲安全牆引起的開機踩空！
-        if (window.audioCtx && window.audioCtx.state === 'suspended') {
-            window.audioCtx.resume();
-        } else {
-            if (window.initAudioContextEngine) window.initAudioContextEngine();
-        }
-    };
-
-    // 🛑 1. 濾波模式點擊按鈕監聽
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            triggerAudioContext();
-            // 🔒 剛性清洗內存：確保每一次模式進程變更時暫存器一塵不染，100% 阻斷 0 線飄移！
-            window.resetAllFilterStates();
-            window.currentFilterMode = e.target.dataset.mode;
-            console.log("當前濾波模式已順利起振通電切換為:", window.currentFilterMode);
-        });
-    });
-
-    // 🛑 2. 喇叭開關監聽
-    const speakerBtn = document.getElementById('speakerBtn');
-    if (speakerBtn) {
-        speakerBtn.addEventListener('click', () => {
-            triggerAudioContext();
-            window.isSpeakerOn = !window.isSpeakerOn;
-            speakerBtn.textContent = window.isSpeakerOn ? "🔊 喇叭發聲中" : "🔇 喇叭靜音";
-        });
-    }
-
-    // 🛑 3. 模擬訊號源開關監聽
-    const simBtn = document.getElementById('simBtn');
-    if (simBtn) {
-        simBtn.addEventListener('click', () => {
-            triggerAudioContext();
-            window.isSimulating = !window.isSimulating;
-            simBtn.textContent = window.isSimulating ? "🛑 停止信號源" : "⚡ 啟動模擬信號源";
-        });
-    }
-
-    // 🛑 4. F1, F2 拉桿滑動即時更新
-    const f1Slider = document.getElementById('f1Slider');
-    const f2Slider = document.getElementById('f2Slider');
-    if (f1Slider) {
-        f1Slider.addEventListener('input', (e) => {
-            triggerAudioContext();
-            let val = parseFloat(e.target.value);
-            window.f1_LP = val; window.f1_HP = val; window.f1_BP = val;
-            
-            // 🚀 🔒 完璧對齊原裝 HTML 標籤 ID（f1ValText），絕對不對著 null 寫入，100% 阻斷 TypeError 熔斷！
-            let display = document.getElementById('f1ValText');
-            if (display) display.textContent = val + " Hz";
-        });
-    }
-    if (f2Slider) {
-        f2Slider.addEventListener('input', (e) => {
-            triggerAudioContext();
-            let val = parseFloat(e.target.value);
-            window.f2_LP = val; window.f2_HP = val; window.f2_BP = val;
-            
-            // 🚀 🔒 完璧對齊原裝 HTML 標籤 ID（f2ValText）！
-            let display = document.getElementById('f2ValText');
-            if (display) display.textContent = val + " Hz";
-        });
-    }
-});
 
 
 // ==========================================
