@@ -709,8 +709,10 @@ window.onload = function() {
             window.b0R = b0_coef; window.b1R = b1_coef; window.b2R = b2_coef; window.a1R = a1_coef; window.a2R = a2_coef;
         }
     };
+	
+    setTimeout(() => {console.log("延遲0.3秒啟動");}, 300);
     
-    window.updateFilterCoefficients(); 
+	window.updateFilterCoefficients(); 
     window.renderFilterButtonLights(); 
     window.globalRenderLoop(); 
 };
