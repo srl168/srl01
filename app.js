@@ -61,7 +61,9 @@ window.addEventListener('DOMContentLoaded', () => {
 // ==========================================
 // 💡 2️⃣ 各自 F1, F2 精密係數計算公式（一字完全不改動 — 最正宗原生整數中括號平鋪版 🔒）
 // ==========================================
-window.updateFilterCoefficients = function() {};
+window.updateFilterCoefficients = function() {
+	window.resetAllFilterStates();
+};
 
 // 🚀 🔒 【真八階解耦級聯元件 — 正宗原生整數中括號 [0],[1],[2] 函數展平極速防線】
 // 核心公式與正負號 100% 一字未改！完全消滅 Function Call 開銷，徹底解鎖主執行緒，聲音按鈕恢復神速響應！
