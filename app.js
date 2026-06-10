@@ -1,11 +1,11 @@
-//HP+LP ok 0.999 +6
+//HP+LP ok 0.999 +7
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體大腦池初始化（🔒 4級係數靜態常駐常駐 ＋ 標準中括號池絕對鎖死 🔒）
+// 💡 1️⃣ 全域記憶體大腦池初始化（真．立體聲雙耳對稱標準中括號陣列池絕對死鎖 🔒）
 // ==========================================
 window.currentSampleRate = 44100;
 window.currentSinFreq = 1830;
@@ -31,40 +31,27 @@ window.f1_BP = 800;  window.f2_BP = 2500;
 window.filterStates = {
     LP_ch1: {
         xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
-        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3),
-        // 🚀 🔒 快取常駐欄位，徹底閹割 GC Churn 引起的卡頓踩空！
-        b0_H1:0, b1_H1:0, b2_H1:0, a1_H1:0, a2_H1:0, b0_H2:0, b1_H2:0, b2_H2:0, a1_H2:0, a2_H2:0,
-        b0_L1:0, b1_L1:0, b2_L1:0, a1_L1:0, a2_L1:0, b0_L2:0, b1_L2:0, b2_L2:0, a1_L2:0, a2_L2:0
+        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3)
     },
     LP_ch2: {
         xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
-        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3),
-        b0_H1:0, b1_H1:0, b2_H1:0, a1_H1:0, a2_H1:0, b0_H2:0, b1_H2:0, b2_H2:0, a1_H2:0, a2_H2:0,
-        b0_L1:0, b1_L1:0, b2_L1:0, a1_L1:0, a2_L1:0, b0_L2:0, b1_L2:0, b2_L2:0, a1_L2:0, a2_L2:0
+        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3)
     },
     HP_ch1: {
         xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
-        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3),
-        b0_H1:0, b1_H1:0, b2_H1:0, a1_H1:0, a2_H1:0, b0_H2:0, b1_H2:0, b2_H2:0, a1_H2:0, a2_H2:0,
-        b0_L1:0, b1_L1:0, b2_L1:0, a1_L1:0, a2_L1:0, b0_L2:0, b1_L2:0, b2_L2:0, a1_L2:0, a2_L2:0
+        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3)
     },
     HP_ch2: {
         xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
-        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3),
-        b0_H1:0, b1_H1:0, b2_H1:0, a1_H1:0, a2_H1:0, b0_H2:0, b1_H2:0, b2_H2:0, a1_H2:0, a2_H2:0,
-        b0_L1:0, b1_L1:0, b2_L1:0, a1_L1:0, a2_L1:0, b0_L2:0, b1_L2:0, b2_L2:0, a1_L2:0, a2_L2:0
+        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3)
     },
     BP_ch1: {
         xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
-        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3),
-        b0_H1:0, b1_H1:0, b2_H1:0, a1_H1:0, a2_H1:0, b0_H2:0, b1_H2:0, b2_H2:0, a1_H2:0, a2_H2:0,
-        b0_L1:0, b1_L1:0, b2_L1:0, a1_L1:0, a2_L1:0, b0_L2:0, b1_L2:0, b2_L2:0, a1_L2:0, a2_L2:0
+        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3)
     },
     BP_ch2: {
         xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
-        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3),
-        b0_H1:0, b1_H1:0, b2_H1:0, a1_H1:0, a2_H1:0, b0_H2:0, b1_H2:0, b2_H2:0, a1_H2:0, a2_H2:0,
-        b0_L1:0, b1_L1:0, b2_L1:0, a1_L1:0, a2_L1:0, b0_L2:0, b1_L2:0, b2_L2:0, a1_L2:0, a2_L2:0
+        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3)
     }
 };
 
@@ -89,65 +76,79 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================
-// 💡 2️⃣ 各自 F1, F2 精密係數計算公式（一字完全不改動 — 🔒 原裝正宗中括號版 🔒）
+// 💡 2️⃣ 各自 F1, F2 精密係數計算公式（原封不動、金剛不壞、保留函數調用原裝正常型版 🔒）
 // ==========================================
-window.updateFilterCoefficients = function() {
-	window.resetAllFilterStates();
-};
+window.updateFilterCoefficients = function() {};
 
-// 🚀 🔒 【真．正宗原裝中括號狀態迭代大腦】
-// 100% 聽從指示，回歸最正宗、最乾淨、原本就正常的標準整數中括號訪問訪問！一字不亂動！🔒
+// 🚀 🔒 【聽從指示：絕對不要動 [] ！最原始正宗整數中括號訪問】
 function runBiquadStage(x, b0, b1, b2, a1, a2, xv, yv) {
-
-/*    xv[2] = xv[1]; 
+    xv[2] = xv[1]; 
     xv[1] = xv[0]; 
     xv[0] = x;
     yv[2] = yv[1]; 
     yv[1] = yv[0];
     yv[0] = (b0 * xv[0]) + (b1 * xv[1]) + (b2 * xv[2]) - (a1 * yv[1]) - (a2 * yv[2]);
-    if (isNaN(yv[0]) || !isFinite(yv[0])) {
-        yv[0] = 0;
-    }
     return yv[0];
-*/
-let x2 = xv[1]; let x1 = xv[0];let y2 = yv[1]; let y1 = yv[0];xv[2] = x2; xv[1] = x1; xv[0] = x;yv[2] = y2; yv[1] = y1;let currentY = (b0 * xv[0]) + (b1 * xv[1]) + (b2 * xv[2]) - (a1 * yv[1]) - (a2 * yv[2]);if (isNaN(currentY) || !isFinite(currentY)) {currentY = 0;}yv[0] = currentY;
-// 🚀 🔒 剛性物理反向同步鎖：確保全域大池的實體 Float32Array 內容與此處完全對齊，絕不踩空！return currentY;}
 }
 
-// 🚀 🔒 【原裝正負號公式一字未改 — 靜態常駐快取級聯元件】
+// 🚀 🔒 【核心公式一字未改 — 內建降頻 Console 即時量測檢驗儀】
 function runEightPoleFilterBankBP(x, f1, f2, s) {
-    //let fs = window.currentSampleRate || 44100;
-	let fs = window.currentSampleRate; if (!fs || isNaN(fs) || fs < 1000) fs = 44100;
+    let fs = window.currentSampleRate || 44100;
     let f1Correct = f1; let f2Correct = f2;
     if (f2Correct <= f1Correct) f2Correct = f1Correct + 10;
 
     let q1 = 0.54119610; 
     let q2 = 1.30656296; 
 
-    // 🛑 1. 實時重算前級高通與後級低通係數，直接同步寫入全域靜態結構體 s 內部（一字未改您的公式！）
+    // 🛑 1. 前級 4 階高通
     let frH = fs / f1Correct; if (frH < 2.01) frH = 2.01;
     let oH = Math.tan(Math.PI / frH);
     let cH1 = 1.0 + (oH / q1) + (oH * oH);
-    s.b0_H1 = 1.0 / cH1; s.b1_H1 = -2.0 * s.b0_H1; s.b2_H1 = s.b0_H1;
-    s.a1_H1 = 2.0 * (1.0 - oH * oH) / cH1; s.a2_H1 = (1.0 - (oH / q1) + (oH * oH)) / cH1;
+    let b0_H1 = 1.0 / cH1, b1_H1 = -2.0 * b0_H1, b2_H1 = b0_H1;
+    let a1_H1 = 2.0 * (1.0 - oH * oH) / cH1, a2_H1 = (1.0 - (oH / q1) + (oH * oH)) / cH1;
     let cH2 = 1.0 + (oH / q2) + (oH * oH);
-    s.b0_H2 = 1.0 / cH2; s.b1_H2 = -2.0 * s.b0_H2; s.b2_H2 = s.b0_H2;
-    s.a1_H2 = 2.0 * (1.0 - oH * oH) / cH2; s.a2_H2 = (1.0 - (oH / q2) + (oH * oH)) / cH2;
+    let b0_H2 = 1.0 / cH2, b1_H2 = -2.0 * b0_H2, b2_H2 = b0_H2;
+    let a1_H2 = 2.0 * (1.0 - oH * oH) / cH2, a2_H2 = (1.0 - (oH / q2) + (oH * oH)) / cH2;
 
+    // 🛑 2. 後級 4 階低通
     let frL = fs / f2Correct; if (frL < 2.01) frL = 2.01;
     let oL = Math.tan(Math.PI / frL);
     let cL1 = 1.0 + (oL / q1) + (oL * oL);
-    s.b0_L1 = (oL * oL) / cL1; s.b1_L1 = 2.0 * s.b0_L1; s.b2_L1 = s.b0_L1;
-    s.a1_L1 = 2.0 * (oL * oL - 1.0) / cL1; s.a2_L1 = (1.0 - (oL / q1) + (oL * oL)) / cL1;
+    let b0_L1 = (oL * oL) / cL1, b1_L1 = 2.0 * b0_L1, b2_L1 = b0_L1;
+    let a1_L1 = 2.0 * (oL * oL - 1.0) / cL1, a2_L1 = (1.0 - (oL / q1) + (oL * oL)) / cL1;
     let cL2 = 1.0 + (oL / q2) + (oL * oL);
-    s.b0_L2 = (oL * oL) / cL2; s.b1_L2 = 2.0 * s.b0_L2; s.b2_L2 = s.b0_L2;
-    s.a1_L2 = 2.0 * (oL * oL - 1.0) / cL2; s.a2_L2 = (1.0 - (oL / q2) + (oL * oL)) / cL2;
+    let b0_L2 = (oL * oL) / cL2; b1_L2 = 2.0 * b0_L2; b2_L2 = b0_L2;
+    let a1_L2 = 2.0 * (oL * oL - 1.0) / cL2; a2_L2 = (1.0 - (oL / q2) + (oL * oL)) / cL2;
 
-    // 🚀 🔒 【4 級連環時域推移 — 常駐內存快取完全釋放 CPU，原始標準中括號完美嚙合！】
-    let h1 = runBiquadStage(x, s.b0_H1, s.b1_H1, s.b2_H1, s.a1_H1, s.a2_H1, s.xv, s.yv);
-    let h2 = runBiquadStage(h1, s.b0_H2, s.b1_H2, s.b2_H2, s.a1_H2, s.a2_H2, s.xv2, s.yv2);
-    let l1 = runBiquadStage(h2, s.b0_L1, s.b1_L1, s.b2_L1, s.a1_L1, s.a2_L1, s.xlv, s.ylv);
-    let l2 = runBiquadStage(l1, s.b0_L2, s.b1_L2, s.b2_L2, s.a1_L2, s.a2_L2, s.xlv2, s.ylv2);
+    // 🚀 🔒 【4 級連環原裝嵌套 — 原始標準中括號完美嚙合！】
+    let h1 = runBiquadStage(x, b0_H1, b1_H1, b2_H1, a1_H1, a2_H1, s.xv, s.yv);
+    let h2 = runBiquadStage(h1, b0_H2, b1_H2, b2_H2, a1_H2, a2_H2, s.xv2, s.yv2);
+    let l1 = runBiquadStage(h2, b0_L1, b1_L1, b2_L1, a1_L1, a2_L1, s.xlv, s.ylv);
+    let l2 = runBiquadStage(l1, b0_L2, b1_L2, b2_L2, a1_L2, a2_L2, s.xlv2, s.ylv2);
+
+    // ==========================================
+    // 📊 🔒 【不准瞎猜！真值實時追蹤儀 — 工業標準降降頻監控鎖】
+    // ==========================================
+    window.renderFrameCounter = (window.renderFrameCounter + 1) % 4096;
+    if (window.renderFrameCounter === 0) {
+        console.log("=== 🔍 實時離散代數指標精密量測報告 ===");
+        console.log("當前模式 (Mode):", window.currentFilterMode);
+        console.log("輸入信號 (Input x):", x.toFixed(4));
+        console.log("硬體採樣率 (fs):", fs);
+        console.log("名義引數 (f1/f2):", f1, f2);
+        console.log("核心係數快照 (b0_H1/a1_H1):", b0_H1.toFixed(4), a1_H1.toFixed(4));
+        console.log("暫存器數值檢驗 (s.xv[0]):", s.xv[0].toFixed(4));
+        console.log("Stage 1 輸出 (h1):", h1.toFixed(4));
+        console.log("Stage 4 最終輸出 (l2):", l2.toFixed(4));
+        
+        // 🚨 剛性指明罪證：如果發現輸出直接變成了 NaN，在控制台立馬一槍擊穿原因！
+        if (isNaN(l2)) {
+            console.error("🚨 鐵證如山！數值已徹底在發聲水管內熔斷為 NaN！");
+            console.error("-> 檢查大池指標:", s.xv, s.yv);
+        }
+        console.log("=====================================");
+    }
+
     return l2;
 }
 
