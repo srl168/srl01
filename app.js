@@ -1,4 +1,4 @@
-//HP+LP ok 0.999 +4
+//HP+LP ok 0.999 +5
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
@@ -112,7 +112,8 @@ function runBiquadStage(x, b0, b1, b2, a1, a2, xv, yv) {
 
 // 🚀 🔒 【原裝正負號公式一字未改 — 靜態常駐快取級聯元件】
 function runEightPoleFilterBankBP(x, f1, f2, s) {
-    let fs = window.currentSampleRate || 44100;
+    //let fs = window.currentSampleRate || 44100;
+	let fs = window.currentSampleRate; if (!fs || isNaN(fs) || fs < 1000) fs = 44100;
     let f1Correct = f1; let f2Correct = f2;
     if (f2Correct <= f1Correct) f2Correct = f1Correct + 10;
 
