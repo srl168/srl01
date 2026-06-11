@@ -1,4 +1,4 @@
-//HP+LP ok 0.999 +10
+//HP+LP ok 0.999 +11
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
