@@ -1,4 +1,4 @@
-//129 3音 +3
+//129 3音 +4
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
@@ -20,15 +20,17 @@ window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 
 window.currentFilterMode = 'RAW';
 
+window.currentSinFreq = 1830;
+
 // 🚀 🔒 【3BP 獨立模式名義引數常駐池：各就各位絕不干擾】
 window.f1_LP = 1000; window.f2_LP = 3000;
 window.f1_HP = 1200; window.f2_HP = 3500;
 window.f1_BP = 800;  window.f2_BP = 2500;
 
 // 🚀 🔒 【3組實體測試音時域獨立相位指針池】
-window.simPhase18000 = 0;
-window.simPhase1830  = 0;
-window.simPhase180   = 0;
+//window.simPhase18000 = 0;
+//window.simPhase1830  = 0;
+//window.simPhase180   = 0;
 
 // 實時時域 VPP 量測追蹤記憶體
 window.vppMax = -999.0;
@@ -182,7 +184,8 @@ window.applyFilterRight = function(x) {
 // ==========================================
 window.oscNode = null; 
 window.oscNode2 = null; 
-window.oscNode3 = null; // 🚀 🔒 老老實實加裝第 3 個實體 Oscillator 節點
+window.oscNode3 = null; 
+window.mixerNode = null; // 🚀 🔒 【正宗硬體混音定盤鎖】：負責聚合 3 音，徹底摧毀路由衝突！
 window.scriptNode = null;
 window.audioCtx = null; 
 window.gainNode = null;
@@ -200,10 +203,22 @@ window.initAudioGlobal = function() {
         try { window.oscNode3.stop(); } catch(e){} 
         window.oscNode3 = null; 
     }
+    if (window.mixerNode) {
+        window.mixerNode.disconnect();
+        window.mixerNode = null;
+    }
     if (window.scriptNode) {
         window.scriptNode.disconnect();
     }
     
+    // 🚀 🔒 【有限數值安全防禦鎖】
+    if (typeof window.currentSinFreq !== 'number' || !Number.isFinite(window.currentSinFreq)) {
+        window.currentSinFreq = 1830.0;
+    }
+    if (typeof window.currentVolume !== 'number' || !Number.isFinite(window.currentVolume)) {
+        window.currentVolume = 0.3;
+    }
+
     if (!window.audioCtx) {
         window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         window.gainNode = window.audioCtx.createGain(); 
@@ -216,7 +231,6 @@ window.initAudioGlobal = function() {
         window.gainNode.connect(window.audioCtx.destination);
     }
     
-    // 🚀 🔒 音量引數當行有限數值安全鎖
     let safeVol = (typeof window.currentVolume === 'number' && Number.isFinite(window.currentVolume)) ? window.currentVolume : 0.3;
     window.gainNode.gain.setValueAtTime(window.isSpeakerOn ? safeVol : 0.0, window.audioCtx.currentTime);
     
@@ -226,36 +240,37 @@ window.initAudioGlobal = function() {
 
     if (window.isSimulating) {
         window.updateFilterCoefficients();
+        
+        // 🚀 🔒 老老實實創建 3 個獨立的實體硬體震盪器
         window.oscNode = window.audioCtx.createOscillator(); 
         window.oscNode2 = window.audioCtx.createOscillator();
-        window.oscNode3 = window.audioCtx.createOscillator(); // 🚀 🔒 老老實實創建第 3 個實體硬體震盪器節點
+        window.oscNode3 = window.audioCtx.createOscillator(); 
         
-        // 🚀 🔒 【最高工程天條：有限數值當行安全熔斷防禦鎖 🔒】
-        // 在執行點當行強行檢驗！如果變數踩空或為 NaN，一微秒內剛性回填 1830 真值，徹底摧毀 non-finite 報錯！
+        // 🚀 🔒 【正宗硬體信號疊加模組】：創建一個獨立的增益單元充當 3 音物理混音前級
+        window.mixerNode = window.audioCtx.createGain();
+        window.mixerNode.gain.setValueAtTime(0.333333, window.audioCtx.currentTime); // 均值歸一化，完美防爆音！
+        
+        //let safeFreq = (typeof window.currentSinFreq === 'number' && Number.isFinite(window.currentSinFreq)) ? window.currentSinFreq : 1830.0;
         let safeFreq = (typeof window.currentSinFreq === 'number' && Number.isFinite(window.currentSinFreq)) ? window.currentSinFreq : 1830.0;
         
-        // 🚀 🔒 【3 個測試音實體硬體設定鎖】：1830Hz (平頂中心), 180Hz (低頻), 18000Hz (極高頻) 1對1 死鎖！
+        // 🚀 🔒 【3 個測試音實體硬體頻率死鎖】：1830Hz (平頂核心), 180Hz (低頻邊界), 18000Hz (極高頻阻帶)
         window.oscNode.frequency.setValueAtTime(safeFreq, window.audioCtx.currentTime); 
         window.oscNode2.frequency.setValueAtTime(180.0, window.audioCtx.currentTime);
         window.oscNode3.frequency.setValueAtTime(18000.0, window.audioCtx.currentTime);
         
+        // 🚀 🔒 建立標準雙聲道空間輸出水管
         window.scriptNode = window.audioCtx.createScriptProcessor(4096, 1, 2);
         window.scriptNode.onaudioprocess = function(audioProcessingEvent) {
             let leftOutput = audioProcessingEvent.outputBuffer.getChannelData(0);  // 數位立體聲空間音訊流管道（左聲道）
             let rightOutput = audioProcessingEvent.outputBuffer.getChannelData(1); // 數位立體聲空間音訊流管道（右聲道）
             let bufLength = audioProcessingEvent.inputBuffer.length;
             
+            // 🚀 🔒 【正宗硬體活水直接接管】：完美讀取經由前級混音器疊加後的 3 音標準物理複合波
+            let inputChannel = audioProcessingEvent.inputBuffer.getChannelData(0);
+            
             for (let sample = 0; sample < bufLength; sample++) {
-                let step1 = 2.0 * Math.PI * (1830.0 / window.currentSampleRate);
-                let step2 = 2.0 * Math.PI * (180.0 / window.currentSampleRate);
-                let step3 = 2.0 * Math.PI * (18000.0 / window.currentSampleRate);
-                
-                // 🚀 🔒 【正宗 3 音齊發時域並聯合成】：3 個實體獨立相位，老老實實 1:1:1 直接相加，完美和諧起振！
-                let rawVal = (Math.sin(window.simPhase) + Math.sin(window.simPhase2) + Math.sin(window.simPhase3)) * 0.333333;
-                
-                window.simPhase = (window.simPhase + step1) % (2 * Math.PI); 
-                window.simPhase2 = (window.simPhase2 + step2) % (2 * Math.PI);
-                window.simPhase3 = (window.simPhase3 + step3) % (2 * Math.PI); // 第3音獨立相位歷史演進
+                // 100% 讀取實體 Oscillator 混合後的真實高保真交流訊號 Facts
+                let rawVal = inputChannel[sample];
                 
                 let leftVal = window.applyFilterLeft ? window.applyFilterLeft(rawVal) : rawVal;
                 let rightVal = window.applyFilterRight ? window.applyFilterRight(rawVal) : rawVal;
@@ -299,11 +314,15 @@ window.initAudioGlobal = function() {
                 window.filteredDataLog = window.filteredDataLog.slice(-8000);
             }
         };
-        // 🚀 🔒 3 個實體硬體震盪器節點平行接通發聲管線水管
-        window.oscNode.connect(window.scriptNode); 
-        window.oscNode2.connect(window.scriptNode); 
-        window.oscNode3.connect(window.scriptNode); 
+        
+        // 🚀 🔒 【正宗硬體混音路由】：3 個實體硬體源頭平行灌入中間混音器，再由混音器單線直插發聲水管！
+        window.oscNode.connect(window.mixerNode); 
+        window.oscNode2.connect(window.mixerNode); 
+        window.oscNode3.connect(window.mixerNode); 
+        
+        window.mixerNode.connect(window.scriptNode); 
         window.scriptNode.connect(window.gainNode); 
+        
         window.oscNode.start(); 
         window.oscNode2.start();
         window.oscNode3.start();
