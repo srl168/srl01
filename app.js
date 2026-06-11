@@ -1,11 +1,11 @@
-//HP+LP ok 0.999 +11
+//HP+LP ok 0.999 +12
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體大腦池初始化（🔒 實體多通道變數名稱 1對1 剛性死鎖版 🔒）
+// 💡 1️⃣ 全域記憶體大腦池初始化（真．立體聲雙耳對稱標準中括號陣列池絕對死鎖 🔒）
 // ==========================================
 window.currentSampleRate = 44100;
 window.currentSinFreq = 1830;
@@ -33,8 +33,8 @@ window.vppMin = 999.0;
 window.vppSampleCount = 0;
 window.currentVPP = 0.0;
 
-// 🚀 🔒 【真．多通道立體聲 1對1 完璧對齊大內存陣列池】
-// 統一命名為 xv, xv2, xv3, xv4，徹底摧毀高通模式下的 TypeError 踩空黑洞！🔒
+// 🚀 🔒 【真．多通道立體聲 1對1 完全咬合大內存陣列池】
+// 剛性將三大模式、六大通道的暫存器名稱全部統一咬死為 xv, xv2, xv3, xv4！100% 物理切除踩空黑洞！🔒
 window.filterStates = {
     LP_ch1: {
         xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
@@ -113,74 +113,64 @@ function estimateDominantFrequency(buffer) {
     return Math.round(freq);
 }
 
-// 🚀 🔒 【真．巴特沃斯 Q 值散射展開 — 正宗真八階平頂型電路組件】
-// 100% 採用級聯散射因子（q1=0.5412, q2=1.3065），通帶內 1830Hz 振幅雷打不動、100% 頂格直通完美 1.00V 平頂！🔒
+// 🚀 🔒 【巴特沃斯真八階平頂型元件 — 1對1名字完全死鎖版】
 function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let fs = window.currentSampleRate || 44100;
     let f1Correct = f1; let f2Correct = f2;
     if (f2Correct <= f1Correct) f2Correct = f1Correct + 10;
 
-    // 💡 🔒 【最高工程天條：正宗 4 階巴特沃斯複數極點共鳴對齊因子】
     let q1 = 0.54119610; 
     let q2 = 1.30656296; 
 
-    // 🛑 A. 前級 4 階最大平坦高通多項式計算 (主導 F1 截止線，阻帶斜率 -24dB/Oct)
+    // 🛑 A. 前級高通多項式計算
     let frH = fs / f1Correct; if (frH < 2.01) frH = 2.01;
     let oH = Math.tan(Math.PI / frH);
-    // 級聯 Stage 1 (q1)
     let cH1 = 1.0 + (oH / q1) + (oH * oH);
     let b0_H1 = 1.0 / cH1, b1_H1 = -2.0 * b0_H1, b2_H1 = b0_H1;
     let a1_H1 = 2.0 * (1.0 - oH * oH) / cH1, a2_H1 = (1.0 - (oH / q1) + (oH * oH)) / cH1;
-    // 級聯 Stage 2 (q2)
     let cH2 = 1.0 + (oH / q2) + (oH * oH);
     let b0_H2 = 1.0 / cH2, b1_H2 = -2.0 * b0_H2, b2_H2 = b0_H2;
     let a1_H2 = 2.0 * (1.0 - oH * oH) / cH2, a2_H2 = (1.0 - (oH / q2) + (oH * oH)) / cH2;
 
-    // 🛑 B. 後級 4 階最大平坦低通多項式計算 (主導 F2 截止線，阻帶斜率 -24dB/Oct)
+    // 🛑 B. 後級低通多項式計算
     let frL = fs / f2Correct; if (frL < 2.01) frL = 2.01;
     let oL = Math.tan(Math.PI / frL);
-    // 級聯 Stage 3 (q1)
     let cL1 = 1.0 + (oL / q1) + (oL * oL);
     let b0_L1 = (oL * oL) / cL1, b1_L1 = 2.0 * b0_L1, b2_L1 = b0_L1;
     let a1_L1 = 2.0 * (oL * oL - 1.0) / cL1, a2_L1 = (1.0 - (oL / q1) + (oL * oL)) / cL1;
-    // 級聯 Stage 4 (q2)
     let cL2 = 1.0 + (oL / q2) + (oL * oL);
     let b0_L2 = (oL * oL) / cL2, b1_L2 = 2.0 * b0_L2, b2_L2 = b0_L2;
     let a1_L2 = 2.0 * (oL * oL - 1.0) / cL2, a2_L2 = (1.0 - (oL / q2) + (oL * oL)) / cL2;
 
-    // 🚀 🔒 【三大模式實時動力拓撲矩陣齒合】
     let b0_1=0, b1_1=0, b2_1=0, a1_1=0, a2_1=0;
     let b0_2=0, b1_2=0, b2_2=0, a1_2=0, a2_2=0;
     let b0_3=0, b1_3=0, b2_3=0, a1_3=0, a2_3=0;
     let b0_4=0, b1_4=0, b2_4=0, a1_4=0, a2_4=0;
 
     if (mode === 'LP') {
-        // 全低通模式：4 階連續最大平坦低通串聯
         b0_1 = b0_L1; b1_1 = b1_L1; b2_1 = b2_L1; a1_1 = a1_L1; a2_1 = a2_L1;
         b0_2 = b0_L2; b1_2 = b1_L2; b2_2 = b2_L2; a1_2 = a1_L2; a2_2 = a2_L2;
         b0_3 = b0_L1; b1_3 = b1_L1; b2_3 = b2_L1; a1_3 = a1_L1; a2_3 = a2_L1;
         b0_4 = b0_L2; b1_4 = b1_L2; b2_4 = b2_L2; a1_4 = a1_L2; a2_4 = a2_L2;
     } else if (mode === 'HP') {
-        // 全高通模式：4 階連續最大平坦高通串聯
         b0_1 = b0_H1; b1_1 = b1_H1; b2_1 = b2_H1; a1_1 = a1_H1; a2_1 = a2_H1;
         b0_2 = b0_H2; b1_2 = b1_H2; b2_2 = b2_H2; a1_2 = a1_H2; a2_2 = a2_H2;
         b0_3 = b0_H1; b1_3 = b1_H1; b2_3 = b2_H1; a1_3 = a1_H1; a2_3 = a2_H1;
         b0_4 = b0_H2; b1_4 = b1_H2; b2_4 = b2_H2; a1_4 = a1_H2; a2_4 = a2_H2;
     } else {
-        // 🚀 🔒 【真八階最大平坦平頂帶通模式 (BP)】：前級 4 階高通(q1,q2) 串聯 後級 4 階低通(q1,q2)！天生絕對平頂直通！
         b0_1 = b0_H1; b1_1 = b1_H1; b2_1 = b2_H1; a1_1 = a1_H1; a2_1 = a2_H1;
         b0_2 = b0_H2; b1_2 = b1_H2; b2_2 = b2_H2; a1_2 = a1_H2; a2_2 = a2_H2;
         b0_3 = b0_L1; b1_3 = b1_L1; b2_3 = b2_L1; a1_3 = a1_L1; a2_3 = a2_L1;
         b0_4 = b0_L2; b1_4 = b1_L2; b2_4 = b2_L2; a1_4 = a1_L2; a2_4 = a2_L2;
     }
 
-    // 🚀 🔒 連續 4 級連環完璧嵌套 — 狀態中括號一個不少、實時完美前進移位！
+    // 🚀 🔒 四級連環串聯 — 實體大池欄位 100% 完璧咬合，徹底消滅 TypeError 崩潰！
     let s1 = runBiquadStage(x, b0_1, b1_1, b2_1, a1_1, a2_1, chState.xv, chState.yv);
     let s2 = runBiquadStage(s1, b0_2, b1_2, b2_2, a1_2, a2_2, chState.xv2, chState.yv2);
     let s3 = runBiquadStage(s2, b0_3, b1_3, b2_3, a1_3, a2_3, chState.xv3, chState.yv3);
     let s4 = runBiquadStage(s3, b0_4, b1_4, b2_4, a1_4, a2_4, chState.xv4, chState.yv4);
 
-    // 🚀 🔒 實時時域 VPP（峰峰值）動態統計窗
+    // 實時時域 VPP 動態滑動統計
     if (s4 > window.vppMax) window.vppMax = s4;
     if (s4 < window.vppMin) window.vppMin = s4;
     window.vppSampleCount++;
@@ -194,9 +184,7 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
         window.analysisBuffer[window.bufferIndex % window.FFT_SIZE] = s4;
     }
 
-    // ==========================================
-    // 📊 🔒 【工業級實時量測儀表盤 — 內建 VPP 與 FFT 主頻】
-    // ==========================================
+    // 控制台量測報告
     window.renderFrameCounter = (window.renderFrameCounter + 1) % 4096;
     if (window.renderFrameCounter === 0) {
         let fftFreq = estimateDominantFrequency(window.analysisBuffer);
@@ -218,7 +206,7 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
 window.applyFilterLeft = function(x) {
     if (window.currentFilterMode === 'RAW') return x;
     if (window.currentFilterMode === 'LP') return runEightPoleFilterBankBP(x, window.f1_LP, window.f2_LP, window.filterStates.LP_ch1, 'LP');
-    if (window.currentFilterMode === 'HP') return 0.0; 
+    if (window.currentFilterMode === 'HP') return runEightPoleFilterBankBP(x, window.f1_HP, window.f2_HP, window.filterStates.HP_ch1, 'HP'); 
     if (window.currentFilterMode === 'BP') return runEightPoleFilterBankBP(x, window.f1_BP, window.f2_BP, window.filterStates.BP_ch1, 'BP');
     return x;
 };
@@ -230,6 +218,8 @@ window.applyFilterRight = function(x) {
     if (window.currentFilterMode === 'BP') return runEightPoleFilterBankBP(x, window.f1_BP, window.f2_BP, window.filterStates.BP_ch2, 'BP');
     return x;
 };
+
+
 // ==========================================
 // 💡 3️⃣ 數位立體聲空間音訊流管道（2通道直通水管，強控立體聲不串軌）
 // ==========================================
