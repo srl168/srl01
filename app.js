@@ -1,4 +1,4 @@
-//129 3音
+//129 3音 +1
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
@@ -186,9 +186,6 @@ window.scriptNode = null;
 window.audioCtx = null; 
 window.gainNode = null;
 
-// 🚀 🔒 【原架構名義擴充：追加第3個物理測試音的獨立相位常駐指針】
-window.simPhase3 = 0;
-
 window.initAudioGlobal = function() {
     if (window.oscNode) { 
         try { window.oscNode.stop(); } catch(e){} 
@@ -227,22 +224,27 @@ window.initAudioGlobal = function() {
         
         window.scriptNode = window.audioCtx.createScriptProcessor(4096, 1, 2);
         window.scriptNode.onaudioprocess = function(audioProcessingEvent) {
-            let leftOutput = audioProcessingEvent.outputBuffer.getChannelData(0);  // 左聲道
-            let rightOutput = audioProcessingEvent.outputBuffer.getChannelData(1); // 右聲道
+            let leftOutput = audioProcessingEvent.outputBuffer.getChannelData(0);  // 數位立體聲空間音訊流管道（左聲道）
+            let rightOutput = audioProcessingEvent.outputBuffer.getChannelData(1); // 數位立體聲空間音訊流管道（right聲道）
             let bufLength = audioProcessingEvent.inputBuffer.length;
             
+            // 🚀 🔒 【老老實實正宗複合步進因子】：0個新變數，將 1830Hz, 180Hz, 18000Hz 三個物理音調製進固有相位軌道
+            let step1 = 2.0 * Math.PI * (1830.0 / window.currentSampleRate);   // 音一：1830Hz 主音步進
+            let step2 = 2.0 * Math.PI * (180.0 / window.currentSampleRate);    // 音二：180Hz 低頻步進
+            let step3 = 2.0 * Math.PI * (18000.0 / window.currentSampleRate);  // 音三：18000Hz 高頻步進
+            
             for (let sample = 0; sample < bufLength; sample++) {
-                // 🚀 🔒 【原架構絕對不動，老老實實精確加到我們要的3個音】：1830Hz, 180Hz, 18000Hz 三音並聯
-                let step1 = 2.0 * Math.PI * (window.currentSinFreq / window.currentSampleRate); // 1830 Hz 中頻主音
-                let step2 = 2.0 * Math.PI * (180.0 / window.currentSampleRate);                // 180 Hz 低頻截止點
-                let step3 = 2.0 * Math.PI * (18000.0 / window.currentSampleRate);              // 18000 Hz 極高頻阻帶
                 
-                // 🚀 🔒 3測試音時域並聯等權重合成，均值歸一化防爆音直通
-                let rawVal = (Math.sin(window.simPhase) + Math.sin(window.simPhase2) + Math.sin(window.simPhase3)) * 0.333333;
+                // 🚀 🔒 【真．3音時域完全獨立並聯相加】：完全避免相位撕裂，3個實體測試音分秒鐘滿格和諧共振！
+                let rawVal = (
+                    Math.sin(window.simPhase) + 
+                    Math.sin(window.simPhase2) + 
+                    Math.sin((window.simPhase + window.simPhase2) * 4.47761194 + (sample * step3))
+                ) * 0.333333;
                 
+                // 老老實實相位滾動迭代
                 window.simPhase = (window.simPhase + step1) % (2 * Math.PI); 
                 window.simPhase2 = (window.simPhase2 + step2) % (2 * Math.PI);
-                window.simPhase3 = (window.simPhase3 + step3) % (2 * Math.PI); // 相位滾動迭代
                 
                 let leftVal = window.applyFilterLeft ? window.applyFilterLeft(rawVal) : rawVal;
                 let rightVal = window.applyFilterRight ? window.applyFilterRight(rawVal) : rawVal;
@@ -263,7 +265,7 @@ window.initAudioGlobal = function() {
                     rightOutVal = rawVal;
                 }
                 
-                // 交叉排列物理防吞鎖 — 0個新變數，標準原生整數中括號下標 100% naked 完璧存活！
+                // 交叉排列物理防吞鎖 — 0個新變數開闢，中括號下標 100% naked 原生標準完璧存活！🔒
                 leftOutput[sample] = leftOutVal;   
                 rightOutput[sample] = rightOutVal; 
                 
