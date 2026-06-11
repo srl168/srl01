@@ -1,4 +1,4 @@
-//129 3音 +4
+//129 3音 +5
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
@@ -23,14 +23,14 @@ window.currentFilterMode = 'RAW';
 window.currentSinFreq = 1830;
 
 // 🚀 🔒 【3BP 獨立模式名義引數常駐池：各就各位絕不干擾】
-//window.f1_LP = 1000; window.f2_LP = 3000;
-//window.f1_HP = 1200; window.f2_HP = 3500;
-//window.f1_BP = 800;  window.f2_BP = 2500;
+window.f1_LP = 1000; window.f2_LP = 3000;
+window.f1_HP = 1200; window.f2_HP = 3500;
+window.f1_BP = 800;  window.f2_BP = 2500;
 
 // 🚀 🔒 【3組實體測試音時域獨立相位指針池】
-window.simPhase18000 = 0;
-window.simPhase1830  = 0;
-window.simPhase180   = 0;
+//window.simPhase18000 = 0;
+//window.simPhase1830  = 0;
+//window.simPhase180   = 0;
 
 // 實時時域 VPP 量測追蹤記憶體
 window.vppMax = -999.0;
