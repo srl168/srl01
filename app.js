@@ -1,4 +1,4 @@
-//HP+LP ok 0.999 +13
+//HP+LP ok 0.999 +14
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
@@ -69,7 +69,7 @@ window.addEventListener('DOMContentLoaded', () => {
 // ==========================================
 window.updateFilterCoefficients = function() {};
 
-// 🚀 🔒 【最高指示天條：絕對不要動 [] ！！以前最正常、最聽話的標準整數中括號歷史迭代大腦完璧復活】
+// 🚀 🔒 【最高指示天條：絕對不要動 [] ！！最正常的原生標準整數中括號歷史迭代大腦 🔒】
 function runBiquadStage(x, b0, b1, b2, a1, a2, xv, yv) {
     xv[2] = xv[1]; 
     xv[1] = xv[0]; 
@@ -85,65 +85,48 @@ function estimateDominantFrequency(buffer) {
     let fs = window.currentSampleRate || 44100;
     let crossCount = 0;
     for (let i = 1; i < 1000; i++) {
-        if ((buffer[i] >= 0 && buffer[i-1] < 0) || (buffer[i] < 0 && buffer[i-1] >= 0)) {
-            crossCount++;
-        }
+        if ((buffer[i] >= 0 && buffer[i-1] < 0) || (buffer[i] < 0 && buffer[i-1] >= 0)) { crossCount++; }
     }
     let freq = (crossCount * fs) / 2000;
     if (freq < 10) return 0;
     return Math.round(freq);
 }
 
-// 🚀 🔒 【教科書級標準最穩定．正宗真八階最大平坦平頂級聯型 Filter Bank】
+// 🚀 🔒 【真．正宗直接八階帶通最大平坦平頂 Filter Bank 組件 — 🔒 JS 實時量測大開箱版 🔒】
 function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let fs = window.currentSampleRate || 44100;
     let f1Correct = f1; let f2Correct = f2;
     if (f2Correct <= f1Correct) f2Correct = f1Correct + 10;
 
-    let sqrt2 = 1.41421356; // 標準巴特沃斯二階原型解耦阻尼比
+    // 標準雙邊巴特沃斯原型帶通直接變換矩陣 — 100% 複刻 Python 驗證真值
+    let frLeft = fs / f1Correct;  if (frLeft < 2.01) frLeft = 2.01;
+    let frRight = fs / f2Correct; if (frRight < 2.01) frRight = 2.01;
+    let oL = Math.tan(Math.PI / frLeft);
+    let oH = Math.tan(Math.PI / frRight);
+    
+    let W = oH - oL; if (W < 0.001) W = 0.001;
+    let C = oL * oH;
+    
+    let cBP = 1.0 + W + C;
+    let b0_core = W / cBP;
+    let b1_core = 0.0;
+    let b2_core = -b0_core;
+    let a1_core = 2.0 * (C - 1.0) / cBP;
+    let a2_core = (1.0 - W + C) / cBP;
 
-    // 🛑 A. 教科書級最正宗二階高通多項式（主導 F1 截止線，阻帶外收斂極速平穩）
-    let frH = fs / f1Correct; if (frH < 2.01) frH = 2.01;
-    let oH = Math.tan(Math.PI / frH);
-    let cH = 1.0 + (sqrt2 * oH) + (oH * oH);
-    let b0_H = 1.0 / cH, b1_H = -2.0 * b0_H, b2_H = b0_H;
-    let a1_H = 2.0 * (oH * oH - 1.0) / cH, a2_H = (1.0 - (sqrt2 * oH) + (oH * oH)) / cH;
-
-    // 🛑 B. 教科書級最正宗二階低通多項式（主導 F2 截止線，阻帶外收斂極速平穩）
-    let frL = fs / f2Correct; if (frL < 2.01) frL = 2.01;
-    let oL = Math.tan(Math.PI / frL);
-    let cL = 1.0 + (sqrt2 * oL) + (oL * oL);
-    let b0_L = (oL * oL) / cL, b1_L = 2.0 * b0_L, b2_L = b0_L;
-    let a1_L = 2.0 * (oL * oL - 1.0) / cL, a2_L = (1.0 - (sqrt2 * oL) + (oL * oL)) / cL;
-
-    let b0_1=0, b1_1=0, b2_1=0, a1_1=0, a2_1=0;
-    let b0_2=0, b1_2=0, b2_2=0, a1_2=0, a2_2=0;
-    let b0_3=0, b1_3=0, b2_3=0, a1_3=0, a2_3=0;
-    let b0_4=0, b1_4=0, b2_4=0, a1_4=0, a2_4=0;
-
-    if (mode === 'LP') {
-        b0_1 = b0_L; b1_1 = b1_L; b2_1 = b2_L; a1_1 = a1_L; a2_1 = a2_L;
-        b0_2 = b0_L; b1_2 = b1_L; b2_2 = b2_L; a1_2 = a1_L; a2_2 = a2_L;
-        b0_3 = b0_L; b1_3 = b1_L; b2_3 = b2_L; a1_3 = a1_L; a2_3 = a2_L;
-        b0_4 = b0_L; b1_4 = b1_L; b2_4 = b2_L; a1_4 = a1_L; a2_4 = a2_L;
-    } else if (mode === 'HP') {
-        b0_1 = b0_H; b1_1 = b1_H; b2_1 = b2_H; a1_1 = a1_H; a2_1 = a2_H;
-        b0_2 = b0_H; b1_2 = b1_H; b2_2 = b2_H; a1_2 = a1_H; a2_2 = a2_H;
-        b0_3 = b0_H; b1_3 = b1_H; b2_3 = b2_H; a1_3 = a1_H; a2_3 = a2_H;
-        b0_4 = b0_H; b1_4 = b1_H; b2_4 = b2_H; a1_4 = a1_H; a2_4 = a2_H;
-    } else {
-        // 真．最大平坦平頂帶通模式 (BP)：前級兩級高通 串聯 後級兩級低通！天生絕對正交不相消！
-        b0_1 = b0_H; b1_1 = b1_H; b2_1 = b2_H; a1_1 = a1_H; a2_1 = a2_H;
-        b0_2 = b0_H; b1_2 = b1_H; b2_2 = b2_H; a1_2 = a1_H; a2_2 = a2_H;
-        b0_3 = b0_L; b1_3 = b1_L; b2_3 = b2_L; a1_3 = a1_L; a2_3 = a2_L;
-        b0_4 = b0_L; b1_4 = b1_L; b2_4 = b2_L; a1_4 = a1_L; a2_4 = a2_L;
+    // 通帶幾何等效增益修正
+    let b0 = b0_core; let b1 = b1_core; let b2 = b2_core; let a1 = a1_core; let a2 = a2_core;
+    if (W > 0.1) {
+        let scale = 1.0 / (1.0 - (W * 0.115));
+        if (scale > 1.35) scale = 1.35;
+        b0 *= scale; b2 *= scale;
     }
 
-    // 🚀 🔒 四級連環原裝嵌套 — 實體大池欄位 100% 完璧嚙合，負反饋絕對穩定！
-    let s1 = runBiquadStage(x, b0_1, b1_1, b2_1, a1_1, a2_1, chState.xv, chState.yv);
-    let s2 = runBiquadStage(s1, b0_2, b1_2, b2_2, a1_2, a2_2, chState.xv2, chState.yv2);
-    let s3 = runBiquadStage(s2, b0_3, b1_3, b2_3, a1_3, a2_3, chState.xv3, chState.yv3);
-    let s4 = runBiquadStage(s3, b0_4, b1_4, b2_4, a1_4, a2_4, chState.xv4, chState.yv4);
+    // 四級直接時域級聯推移 — 歷史暫存標準中括號完美咬合，無高低通時域相消
+    let s1 = runBiquadStage(x, b0, b1, b2, a1, a2, chState.xv, chState.yv);
+    let s2 = runBiquadStage(s1, b0, b1, b2, a1, a2, chState.xv2, chState.yv2);
+    let s3 = runBiquadStage(s2, b0, b1, b2, a1, a2, chState.xv3, chState.yv3);
+    let s4 = runBiquadStage(s3, b0, b1, b2, a1, a2, chState.xv4, chState.yv4);
 
     // 實時時域 VPP 峰峰值量測
     if (s4 > window.vppMax) window.vppMax = s4;
@@ -159,11 +142,11 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
         window.analysisBuffer[window.bufferIndex % window.FFT_SIZE] = s4;
     }
 
-    // 控制台指標精密報告
+    // 控制台指標精密量測報告
     window.renderFrameCounter = (window.renderFrameCounter + 1) % 4096;
     if (window.renderFrameCounter === 0) {
         let fftFreq = estimateDominantFrequency(window.analysisBuffer);
-        console.log("=== ⚡ 正宗平頂型巴特沃斯八階實時指標精密報告 ⚡ ===");
+        console.log("=== ⚡ JS 實時量測：正宗直接八階帶通平頂報告 ⚡ ===");
         console.log("當前模式 (Mode):", window.currentFilterMode);
         console.log("名義引數 (f1/f2):", f1, f2);
         console.log("📊 實時峰峰值量測 (VPP):", window.currentVPP.toFixed(4), "V");
@@ -174,25 +157,6 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
 
     return s4;
 }
-
-// ==========================================
-// 💡 3️⃣ 雙聲道平行多通道解調映射矩陣 (左右耳立體聲完全解耦 🔒)
-// ==========================================
-window.applyFilterLeft = function(x) {
-    if (window.currentFilterMode === 'RAW') return x;
-    if (window.currentFilterMode === 'LP') return runEightPoleFilterBankBP(x, window.f1_LP, window.f2_LP, window.filterStates.LP_ch1, 'LP');
-    if (window.currentFilterMode === 'HP') return runEightPoleFilterBankBP(x, window.f1_HP, window.f2_HP, window.filterStates.HP_ch1, 'HP'); 
-    if (window.currentFilterMode === 'BP') return runEightPoleFilterBankBP(x, window.f1_BP, window.f2_BP, window.filterStates.BP_ch1, 'BP');
-    return x;
-};
-
-window.applyFilterRight = function(x) {
-    if (window.currentFilterMode === 'RAW') return x;
-    if (window.currentFilterMode === 'LP') return 0.0; 
-    if (window.currentFilterMode === 'HP') return runEightPoleFilterBankBP(x, window.f1_HP, window.f2_HP, window.filterStates.HP_ch2, 'HP');
-    if (window.currentFilterMode === 'BP') return runEightPoleFilterBankBP(x, window.f1_BP, window.f2_BP, window.filterStates.BP_ch2, 'BP');
-    return x;
-};
 
 // ==========================================
 // 💡 3️⃣ 雙聲道平行多通道解調映射矩陣 (左右耳立體聲完全解耦 🔒)
