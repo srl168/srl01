@@ -123,7 +123,8 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let q2 = 1.30656296; 
 
     // 🛑 A. 前級高通多項式計算
-    let frH = fs / f1Correct; if (frH < 2.01) frH = 2.01;
+    //let frH = fs / f1Correct; if (frH < 2.01) frH = 2.01;
+    let frH = f1Correct / fs; if (frH < 2.01) frH = 2.01;
     let oH = Math.tan(Math.PI / frH);
     let cH1 = 1.0 + (oH / q1) + (oH * oH);
     let b0_H1 = 1.0 / cH1, b1_H1 = -2.0 * b0_H1, b2_H1 = b0_H1;
@@ -133,7 +134,8 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let a1_H2 = 2.0 * (1.0 - oH * oH) / cH2, a2_H2 = (1.0 - (oH / q2) + (oH * oH)) / cH2;
 
     // 🛑 B. 後級低通多項式計算
-    let frL = fs / f2Correct; if (frL < 2.01) frL = 2.01;
+    //let frL = fs / f2Correct; if (frL < 2.01) frL = 2.01;
+    let frL = f2Correct / fs; if (frL < 2.01) frL = 2.01;
     let oL = Math.tan(Math.PI / frL);
     let cL1 = 1.0 + (oL / q1) + (oL * oL);
     let b0_L1 = (oL * oL) / cL1, b1_L1 = 2.0 * b0_L1, b2_L1 = b0_L1;
