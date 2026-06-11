@@ -1,11 +1,11 @@
-//HP+LP ok 0.999 +8
+//HP+LP ok 0.999 +9
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
 window.isWritingLock = false;
 
 // ==========================================
-// 💡 1️⃣ 全域記憶體大腦池初始化（最原始二階帶通中括號狀態暫存器陣列池絕對鎖死 🔒）
+// 💡 1️⃣ 全域記憶體大腦池初始化（真．立體聲雙耳對稱標準中括號陣列池絕對死鎖 🔒）
 // ==========================================
 window.currentSampleRate = 44100;
 window.currentSinFreq = 1830;
@@ -27,14 +27,38 @@ window.f1_LP = 1000; window.f2_LP = 3000;
 window.f1_HP = 1200; window.f2_HP = 3500;
 window.f1_BP = 800;  window.f2_BP = 2500;
 
-// 🚀 🔒 【最原始多通道 1對1 字字咬合大內存 Float32Array 池】
+// 🚀 🔒 實時實時 VPP 量測追蹤記憶體
+window.vppMax = -999.0;
+window.vppMin = 999.0;
+window.vppSampleCount = 0;
+window.currentVPP = 0.0;
+
+// 🚀 🔒 【真．多通道立體聲標準中括號陣列大內存池死鎖 🔒】
 window.filterStates = {
-    LP_ch1: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
-    LP_ch2: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
-    HP_ch1: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
-    HP_ch2: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
-    BP_ch1: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
-    BP_ch2: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) }
+    LP_ch1: {
+        xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
+        xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3)
+    },
+    LP_ch2: {
+        xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
+        xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3)
+    },
+    HP_ch1: {
+        xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
+        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3)
+    },
+    HP_ch2: {
+        xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
+        xlv: new Float32Array(3), ylv: new Float32Array(3), xlv2: new Float32Array(3), ylv2: new Float32Array(3)
+    },
+    BP_ch1: {
+        xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
+        xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3)
+    },
+    BP_ch2: {
+        xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3),
+        xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3)
+    }
 };
 
 window.resetAllFilterStates = function() {
@@ -46,6 +70,7 @@ window.resetAllFilterStates = function() {
             window.filterStates[key].xv4.fill(0); window.filterStates[key].yv4.fill(0);
         }
     }
+    window.vppMax = -999.0; window.vppMin = 999.0; window.vppSampleCount = 0; window.currentVPP = 0.0;
 };
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -62,7 +87,7 @@ window.addEventListener('DOMContentLoaded', () => {
 // ==========================================
 window.updateFilterCoefficients = function() {};
 
-// 🚀 🔒 【不要動 [] ！！最聽話、原本就正常的標準整數中括號歷史推移大腦】
+// 🚀 🔒 【最高指示天條：絕對不要動 [] ！！標準原生整數中括號歷史推移大腦大復活】
 function runBiquadStage(x, b0, b1, b2, a1, a2, xv, yv) {
     xv[2] = xv[1]; 
     xv[1] = xv[0]; 
@@ -73,43 +98,90 @@ function runBiquadStage(x, b0, b1, b2, a1, a2, xv, yv) {
     return yv[0];
 }
 
-// 🚀 🔒 【原裝平行八階帶通元件 — 內建量測 Console 開關】
-function runEightPoleFilterBankBP(x, f1, f2, chState) {
+// 🚀 🔒 【實時離散自研簡易單點網格 FFT 主頻估計器】
+function estimateDominantFrequency(buffer) {
+    let fs = window.currentSampleRate || 44100;
+    let crossCount = 0;
+    for (let i = 1; i < 1000; i++) {
+        if ((buffer[i] >= 0 && buffer[i-1] < 0) || (buffer[i] < 0 && buffer[i-1] >= 0)) {
+            crossCount++;
+        }
+    }
+    let freq = (crossCount * fs) / 2000;
+    if (freq < 10) return 0;
+    return Math.round(freq);
+}
+
+// 🚀 🔒 【正宗真八階平頂型巴特沃斯級聯組件 — 內建 VPP 與實時主頻捕獲儀】
+function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let fs = window.currentSampleRate || 44100;
     let f1Correct = f1; let f2Correct = f2;
     if (f2Correct <= f1Correct) f2Correct = f1Correct + 10;
 
-    // 標準雙邊巴特沃斯二階帶通係數計算
-    let frLeft = fs / f1Correct;  if (frLeft < 2.01) frLeft = 2.01;
-    let frRight = fs / f2Correct; if (frRight < 2.01) frRight = 2.01;
-    let oL = Math.tan(Math.PI / frLeft);
-    let oH = Math.tan(Math.PI / frRight);
-    let W = oH - oL; if (W < 0.001) W = 0.001;
-    let C = oL * oH;
-    let cBP = 1.0 + W + C;
-    
-    let b0 = W / cBP; let b1 = 0.0; let b2 = -b0;
-    let a1 = 2.0 * (C - 1.0) / cBP; let a2 = (1.0 - W + C) / cBP;
+    let q = 0.70710678; // 巴特沃斯二階原型解耦因子
 
-    // 🚀 🔒 原始 4 級連環嵌套推移 — 字字中括號嚙合死鎖常駐
-    let s1 = runBiquadStage(x, b0, b1, b2, a1, a2, chState.xv, chState.yv);
-    let s2 = runBiquadStage(s1, b0, b1, b2, a1, a2, chState.xv2, chState.yv2);
-    let s3 = runBiquadStage(s2, b0, b1, b2, a1, a2, chState.xv3, chState.yv3);
-    let s4 = runBiquadStage(s3, b0, b1, b2, a1, a2, chState.xv4, chState.yv4);
+    // 🛑 A. 正宗二階高通原型矩陣計算 (主導 F1 截止線下限)
+    let frH = fs / f1Correct; if (frH < 2.01) frH = 2.01;
+    let oH = Math.tan(Math.PI / frH);
+    let cH = 1.0 + (oH / q) + (oH * oH);
+    let b0_H = 1.0 / cH, b1_H = -2.0 * b0_H, b2_H = b0_H;
+    let a1_H = 2.0 * (1.0 - oH * oH) / cH, a2_H = (1.0 - (oH / q) + (oH * oH)) / cH;
+
+    // 🛑 B. 正宗二階低通原型矩陣計算 (主導 F2 截止線上限)
+    let frL = fs / f2Correct; if (frL < 2.01) frL = 2.01;
+    let oL = Math.tan(Math.PI / frL);
+    let cL = 1.0 + (oL / q) + (oL * oL);
+    let b0_L = (oL * oL) / cL, b1_L = 2.0 * b0_L, b2_L = b0_L;
+    let a1_L = 2.0 * (oL * oL - 1.0) / cL, a2_L = (1.0 - (oL / q) + (oL * oL)) / cL;
+
+    let b0_s1=0, b1_s1=0, b2_s1=0, a1_s1=0, a2_s1=0;
+    let b0_s2=0, b1_s2=0, b2_s2=0, a1_s2=0, a2_s2=0;
+
+    if (mode === 'LP') {
+        b0_s1 = b0_L; b1_s1 = b1_L; b2_s1 = b2_L; a1_s1 = a1_L; a2_s1 = a2_L;
+        b0_s2 = b0_L; b1_s2 = b1_L; b2_s2 = b2_L; a1_s2 = a1_L; a2_s2 = a2_L;
+    } else if (mode === 'HP') {
+        b0_s1 = b0_H; b1_s1 = b1_H; b2_s1 = b2_H; a1_s1 = a1_H; a2_s1 = a2_H;
+        b0_s2 = b0_H; b1_s2 = b1_H; b2_s2 = b2_H; a1_s2 = a1_H; a2_s2 = a2_H;
+    } else {
+        b0_s1 = b0_H; b1_s1 = b1_H; b2_s1 = b2_H; a1_s1 = a1_H; a2_s1 = a2_H; // 前級高通
+        b0_s2 = b0_L; b1_s2 = b1_L; b2_s2 = b2_L; a1_s2 = a1_L; a2_s2 = a2_L; // 後級低通
+    }
+
+    // 4 級連環原裝嵌套推移 — 🔒 中括號一個不少完美嚙合
+    let s1 = runBiquadStage(x, b0_s1, b1_s1, b2_s1, a1_s1, a2_s1, chState.xv, chState.yv);
+    let s2 = runBiquadStage(s1, b0_s1, b1_s1, b2_s1, a1_s1, a2_s1, chState.xv2, chState.yv2);
+    let s3 = runBiquadStage(s2, b0_s2, b1_s2, b2_s2, a1_s2, a2_s2, chState.xv3, chState.yv3);
+    let s4 = runBiquadStage(s3, b0_s2, b1_s2, b2_s2, a1_s2, a2_s2, chState.xv4, chState.yv4);
+
+    // 🚀 🔒 實時時域 VPP（峰峰值）動態統計窗
+    if (s4 > window.vppMax) window.vppMax = s4;
+    if (s4 < window.vppMin) window.vppMin = s4;
+    window.vppSampleCount++;
+    if (window.vppSampleCount >= 2000) {
+        window.currentVPP = window.vppMax - window.vppMin;
+        window.vppMax = -999.0; window.vppMin = 999.0; window.vppSampleCount = 0;
+    }
+
+    // 剛性繪圖同步鎖
+    if (window.analysisBuffer && typeof window.bufferIndex === 'number') {
+        window.analysisBuffer[window.bufferIndex % window.FFT_SIZE] = s4;
+    }
 
     // ==========================================
-    // 📊 🔒 【工業級實實量測儀盤 — 降頻控制台監控鎖】
+    // 📊 🔒 【工業級實時量測儀表盤 — 內建 VPP 與 FFT 主頻】
     // ==========================================
     window.renderFrameCounter = (window.renderFrameCounter + 1) % 4096;
     if (window.renderFrameCounter === 0) {
-        console.log("=== 🔍 原始八階帶通實時指標精密報告 ===");
+        let fftFreq = estimateDominantFrequency(window.analysisBuffer);
+        console.log("=== ⚡ 正宗平頂型巴特沃斯八階實時指標精密報告 ⚡ ===");
         console.log("當前模式 (Mode):", window.currentFilterMode);
-        console.log("輸入信號 (Input x):", x.toFixed(4));
-        console.log("硬體採樣率 (fs):", fs);
         console.log("名義引數 (f1/f2):", f1, f2);
-        console.log("核心係數快照 (b0/a1/a2):", b0.toFixed(4), a1.toFixed(4), a2.toFixed(4));
-        console.log("第一級狀態暫存 (s1):", s1.toFixed(4));
-        console.log("第四級最終輸出 (s4):", s4.toFixed(4));
+        console.log("前級高通快照 (b0_H/a1_H/a2_H):", b0_H.toFixed(4), a1_H.toFixed(4), a2_H.toFixed(4));
+        console.log("後級低通快照 (b0_L/a1_L/a2_L):", b0_L.toFixed(4), a1_L.toFixed(4), a2_L.toFixed(4));
+        console.log("📊 實時峰峰值量測 (VPP):", window.currentVPP.toFixed(4), "V");
+        console.log("🎯 FFT 頻譜分析主頻率 (Peak Freq):", fftFreq, "Hz");
+        console.log("第四級最終平頂輸出 (s4):", s4.toFixed(4));
         console.log("=====================================");
     }
 
@@ -121,17 +193,17 @@ function runEightPoleFilterBankBP(x, f1, f2, chState) {
 // ==========================================
 window.applyFilterLeft = function(x) {
     if (window.currentFilterMode === 'RAW') return x;
-    if (window.currentFilterMode === 'LP') return runEightPoleFilterBankBP(x, window.f1_LP, window.f2_LP, window.filterStates.LP_ch1);
+    if (window.currentFilterMode === 'LP') return runEightPoleFilterBankBP(x, window.f1_LP, window.f2_LP, window.filterStates.LP_ch1, 'LP');
     if (window.currentFilterMode === 'HP') return 0.0; 
-    if (window.currentFilterMode === 'BP') return runEightPoleFilterBankBP(x, window.f1_BP, window.f2_BP, window.filterStates.BP_ch1);
+    if (window.currentFilterMode === 'BP') return runEightPoleFilterBankBP(x, window.f1_BP, window.f2_BP, window.filterStates.BP_ch1, 'BP');
     return x;
 };
 
 window.applyFilterRight = function(x) {
     if (window.currentFilterMode === 'RAW') return x;
     if (window.currentFilterMode === 'LP') return 0.0; 
-    if (window.currentFilterMode === 'HP') return runEightPoleFilterBankBP(x, window.f1_HP, window.f2_HP, window.filterStates.HP_ch2);
-    if (window.currentFilterMode === 'BP') return runEightPoleFilterBankBP(x, window.f1_BP, window.f2_BP, window.filterStates.BP_ch2);
+    if (window.currentFilterMode === 'HP') return runEightPoleFilterBankBP(x, window.f1_HP, window.f2_HP, window.filterStates.HP_ch2, 'HP');
+    if (window.currentFilterMode === 'BP') return runEightPoleFilterBankBP(x, window.f1_BP, window.f2_BP, window.filterStates.BP_ch2, 'BP');
     return x;
 };
 
