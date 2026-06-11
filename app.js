@@ -1,4 +1,4 @@
-//129 3音 +3
+//129 3音 +4
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
@@ -20,10 +20,12 @@ window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 
 window.currentFilterMode = 'RAW';
 
+window.currentSinFreq = 1830;
+
 // 🚀 🔒 【3BP 獨立模式名義引數常駐池：各就各位絕不干擾】
-window.f1_LP = 1000; window.f2_LP = 3000;
-window.f1_HP = 1200; window.f2_HP = 3500;
-window.f1_BP = 800;  window.f2_BP = 2500;
+//window.f1_LP = 1000; window.f2_LP = 3000;
+//window.f1_HP = 1200; window.f2_HP = 3500;
+//window.f1_BP = 800;  window.f2_BP = 2500;
 
 // 🚀 🔒 【3組實體測試音時域獨立相位指針池】
 window.simPhase18000 = 0;
@@ -248,6 +250,7 @@ window.initAudioGlobal = function() {
         window.mixerNode = window.audioCtx.createGain();
         window.mixerNode.gain.setValueAtTime(0.333333, window.audioCtx.currentTime); // 均值歸一化，完美防爆音！
         
+        //let safeFreq = (typeof window.currentSinFreq === 'number' && Number.isFinite(window.currentSinFreq)) ? window.currentSinFreq : 1830.0;
         let safeFreq = (typeof window.currentSinFreq === 'number' && Number.isFinite(window.currentSinFreq)) ? window.currentSinFreq : 1830.0;
         
         // 🚀 🔒 【3 個測試音實體硬體頻率死鎖】：1830Hz (平頂核心), 180Hz (低頻邊界), 18000Hz (極高頻阻帶)
