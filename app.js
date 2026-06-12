@@ -1,4 +1,4 @@
-//129 3音 +41
+//129 3音 +42
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
@@ -252,9 +252,10 @@ window.initAudioGlobal = function() {
         let safeFreq = (typeof window.currentSinFreq === 'number' && Number.isFinite(window.currentSinFreq)) ? window.currentSinFreq : 1830.0;
         
         // 🚀 🔒 【3 個測試音實體硬體頻率死鎖】：1830Hz (平頂核心), 180Hz (低頻邊界), 18000Hz (極高頻阻帶)
-        window.oscNode.frequency.setValueAtTime(safeFreq, window.audioCtx.currentTime); 
-        window.oscNode2.frequency.setValueAtTime(180.0, window.audioCtx.currentTime);
-        window.oscNode3.frequency.setValueAtTime(18000.0, window.audioCtx.currentTime);
+        //window.oscNode.frequency.setValueAtTime(safeFreq, window.audioCtx.currentTime); 
+        window.oscNode.frequency.setValueAtTime(window.currentSinFreq, window.audioCtx.currentTime); 
+        window.oscNode2.frequency.setValueAtTime(280.0, window.audioCtx.currentTime);
+        window.oscNode3.frequency.setValueAtTime(10000.0, window.audioCtx.currentTime);
         
         // 🚀 🔒 建立標準雙聲道空間輸出水管
         window.scriptNode = window.audioCtx.createScriptProcessor(4096, 1, 2);
