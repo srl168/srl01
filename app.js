@@ -146,6 +146,7 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
         let fftFreq = estimateDominantFrequency(window.analysisBuffer);
         console.log("=== ⚡ 3測試音並聯 ＋ 正宗直接八階帶通管道報告 ⚡ ===");
         console.log("當前模式 (Mode):", window.currentFilterMode);
+        console.log("當前頻率 (Mode):", window.currentSinFreq);
         console.log("名義引數邊界 (f1/f2):", f1, f2);
         console.log("📊 複合波實時輸出 VPP:", window.currentVPP.toFixed(4), "V");
         console.log("🎯 FFT 頻譜分析主頻 (Peak Freq):", fftFreq, "Hz");
