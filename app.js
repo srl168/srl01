@@ -25,7 +25,6 @@ window.f1_LP = 1000; window.f2_LP = 3000;
 window.f1_HP = 1200; window.f2_HP = 3500;
 window.f1_BP = 800;  window.f2_BP = 2500;
 
-/*
 // 🚀 🔒 【3組實體測試音時域獨立相位指針池】
 window.simPhase18000 = 0;
 window.simPhase1830  = 0;
@@ -37,6 +36,7 @@ window.vppMin = 999.0;
 window.vppSampleCount = 0;
 window.currentVPP = 0.0;
 
+/*
 // 🚀 🔒 【真．多通道立體聲標準整數中括號陣列大內存池物件 — 左右耳 1對1 完全對稱 🔒】
 window.filterStates = {
     LP_ch1: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
