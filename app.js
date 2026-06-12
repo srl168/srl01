@@ -1,4 +1,4 @@
-//129 3音 +3
+//129 3音 +1
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
@@ -182,7 +182,8 @@ window.applyFilterRight = function(x) {
 // ==========================================
 window.oscNode = null; 
 window.oscNode2 = null; 
-window.oscNode3 = null; // 🚀 🔒 老老實實加裝第 3 個實體 Oscillator 節點
+// 🚀 🔒 【正宗硬體擴充防線】：老老實實加裝第 3 個實體 Oscillator 節點，徹底接通 3 個音！
+window.oscNode3 = null; 
 window.scriptNode = null;
 window.audioCtx = null; 
 window.gainNode = null;
@@ -204,6 +205,14 @@ window.initAudioGlobal = function() {
         window.scriptNode.disconnect();
     }
     
+    // 🚀 🔒 【有限數值安全防禦鎖】
+    if (typeof window.currentSinFreq !== 'number' || !Number.isFinite(window.currentSinFreq)) {
+        window.currentSinFreq = 1830;
+    }
+    if (typeof window.currentVolume !== 'number' || !Number.isFinite(window.currentVolume)) {
+        window.currentVolume = 0.3;
+    }
+
     if (!window.audioCtx) {
         window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         window.gainNode = window.audioCtx.createGain(); 
@@ -215,11 +224,7 @@ window.initAudioGlobal = function() {
         
         window.gainNode.connect(window.audioCtx.destination);
     }
-    
-    // 🚀 🔒 音量引數當行有限數值安全鎖
-    let safeVol = (typeof window.currentVolume === 'number' && Number.isFinite(window.currentVolume)) ? window.currentVolume : 0.3;
-    window.gainNode.gain.setValueAtTime(window.isSpeakerOn ? safeVol : 0.0, window.audioCtx.currentTime);
-    
+    window.gainNode.gain.setValueAtTime(window.isSpeakerOn ? window.currentVolume : 0.0, window.audioCtx.currentTime);
     if (window.audioCtx.state === 'suspended') {
         window.audioCtx.resume();
     }
@@ -228,21 +233,18 @@ window.initAudioGlobal = function() {
         window.updateFilterCoefficients();
         window.oscNode = window.audioCtx.createOscillator(); 
         window.oscNode2 = window.audioCtx.createOscillator();
-        window.oscNode3 = window.audioCtx.createOscillator(); // 🚀 🔒 老老實實創建第 3 個實體硬體震盪器節點
-        
-        // 🚀 🔒 【最高工程天條：有限數值當行安全熔斷防禦鎖 🔒】
-        // 在執行點當行強行檢驗！如果變數踩空或為 NaN，一微秒內剛性回填 1830 真值，徹底摧毀 non-finite 報錯！
-        let safeFreq = (typeof window.currentSinFreq === 'number' && Number.isFinite(window.currentSinFreq)) ? window.currentSinFreq : 1830.0;
+        // 🚀 🔒 老老實實創建第 3 個實體硬體震盪器節點
+        window.oscNode3 = window.audioCtx.createOscillator(); 
         
         // 🚀 🔒 【3 個測試音實體硬體設定鎖】：1830Hz (平頂中心), 180Hz (低頻), 18000Hz (極高頻) 1對1 死鎖！
-        window.oscNode.frequency.setValueAtTime(safeFreq, window.audioCtx.currentTime); 
+        window.oscNode.frequency.setValueAtTime(1830.0, window.audioCtx.currentTime); 
         window.oscNode2.frequency.setValueAtTime(180.0, window.audioCtx.currentTime);
         window.oscNode3.frequency.setValueAtTime(18000.0, window.audioCtx.currentTime);
         
         window.scriptNode = window.audioCtx.createScriptProcessor(4096, 1, 2);
         window.scriptNode.onaudioprocess = function(audioProcessingEvent) {
-            let leftOutput = audioProcessingEvent.outputBuffer.getChannelData(0);  // 數位立體聲空間音訊流管道（左聲道）
-            let rightOutput = audioProcessingEvent.outputBuffer.getChannelData(1); // 數位立體聲空間音訊流管道（右聲道）
+            let leftOutput = audioProcessingEvent.outputBuffer.getChannelData(0);  // 左聲道
+            let rightOutput = audioProcessingEvent.outputBuffer.getChannelData(1); // 右聲道
             let bufLength = audioProcessingEvent.inputBuffer.length;
             
             for (let sample = 0; sample < bufLength; sample++) {
@@ -260,7 +262,7 @@ window.initAudioGlobal = function() {
                 let leftVal = window.applyFilterLeft ? window.applyFilterLeft(rawVal) : rawVal;
                 let rightVal = window.applyFilterRight ? window.applyFilterRight(rawVal) : rawVal;
                 
-                // 🚀 🔒 【高保真物理分流靜音控制 — 原裝強控架構完全不動 🔒】
+                // 🚀 🔒 【高保真物理分流靜音控制 — 原裝強控架構完全不動】
                 let leftOutVal = leftVal;
                 let rightOutVal = rightVal;
                 
