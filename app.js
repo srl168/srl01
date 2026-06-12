@@ -1,4 +1,4 @@
-//129 3音 +1
+//129 3音 +2
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
