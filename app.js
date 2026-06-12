@@ -1,4 +1,4 @@
-//129 3音 +42
+//129 3音 +43
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
@@ -476,7 +476,7 @@ window.globalRenderLoop = function() {
     let magnitudes = new Float32Array(window.FFT_SIZE / 2);
     let maxMag = 0;
     let peakBinIndex = 0; 
-    
+/*    
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { 
         magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); 
         if (m > 2) { 
@@ -486,12 +486,29 @@ window.globalRenderLoop = function() {
             }
         }
     }
+*/
+    for (let m = 0; m < window.FFT_SIZE / 2; m++) { 
+        magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); 
+        if (m > 2) { 
+            if (magnitudes[m] > maxMag) {
+                maxMag = magnitudes[m];
+                peakBinIndex = m; 
+            }
+        }
+        if (Math.abs(window.analysisBuffer[m]) > 0.005) {
+            let foundFreq = (m * fs) / window.FFT_SIZE;
+            if (foundFreq > maxDisplayFreq) {
+                maxDisplayFreq = foundFreq * 1.15; // 動態預留 15% 科技感幾何邊界
+            }
+        }
+    }
+    if (maxDisplayFreq > fs / 2.0) maxDisplayFreq = fs / 2.0;
     
     let hzPerBin = window.currentSampleRate / window.FFT_SIZE; 
-    let maxDisplayFreq = window.currentSinFreq * 1.5;
-    let htmlMaxFreq = parseFloat(document.getElementById('sinFreqSlider')?.max) || 5000;
+    //let maxDisplayFreq = window.currentSinFreq * 1.5;
+    //let htmlMaxFreq = parseFloat(document.getElementById('sinFreqSlider')?.max) || 5000;
     if (maxDisplayFreq < 200) maxDisplayFreq = 200; 
-    if (maxDisplayFreq > htmlMaxFreq) maxDisplayFreq = htmlMaxFreq;
+    //if (maxDisplayFreq > htmlMaxFreq) maxDisplayFreq = htmlMaxFreq;
     
     let currentFrameMaxMag = maxMag; 
     if (currentFrameMaxMag < 0.001) currentFrameMaxMag = 0.001;
