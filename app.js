@@ -1,4 +1,4 @@
-//129 3音 +3
+//129 3音 +31
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
@@ -19,6 +19,7 @@ window.renderFrameCounter = 0;
 window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 
 window.currentFilterMode = 'RAW';
+window.currentSinFreq = 1830.0;
 
 // 🚀 🔒 【3BP 獨立模式名義引數常駐池：各就各位絕不干擾】
 window.f1_LP = 1000; window.f2_LP = 3000;
