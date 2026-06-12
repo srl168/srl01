@@ -25,6 +25,7 @@ window.f1_LP = 1000; window.f2_LP = 3000;
 window.f1_HP = 1200; window.f2_HP = 3500;
 window.f1_BP = 800;  window.f2_BP = 2500;
 
+/*
 // 🚀 🔒 【3組實體測試音時域獨立相位指針池】
 window.simPhase18000 = 0;
 window.simPhase1830  = 0;
@@ -57,6 +58,29 @@ window.resetAllFilterStates = function() {
     }
     window.vppMax = -999.0; window.vppMin = 999.0; window.vppSampleCount = 0; window.currentVPP = 0.0;
 };
+*/
+// 老老實實用標準的！列出全系統所有解調模式名稱，1秒鐘自動模組化合龍！
+//let modesToInit = ['LP', 'LP2', 'LP3', 'HP', 'HP2', 'HP3', 'BP'];
+let modesToInit = ['LP', 'HP', 'BP'];
+
+for (let m = 0; m < modesToInit.length; m++) {
+    let mName = modesToInit[m];
+    
+    // 左右雙聲道（ch1 與 ch2）平行遍歷分配專屬 4級級聯差分 Float32Array 歷史暫存池 🔒
+    window.filterStates[mName + '_ch1'] = {
+        xv:  new Float32Array(3), yv:  new Float32Array(3),
+        xv2: new Float32Array(3), yv2: new Float32Array(3),
+        xv3: new Float32Array(3), yv3: new Float32Array(3),
+        xv4: new Float32Array(3), yv4: new Float32Array(3)
+    };
+    
+    window.filterStates[mName + '_ch2'] = {
+        xv:  new Float32Array(3), yv:  new Float32Array(3),
+        xv2: new Float32Array(3), yv2: new Float32Array(3),
+        xv3: new Float32Array(3), yv3: new Float32Array(3),
+        xv4: new Float32Array(3), yv4: new Float32Array(3)
+    };
+}
 
 window.addEventListener('DOMContentLoaded', () => {
     window.tCanvas = document.getElementById('timeCanvas');
