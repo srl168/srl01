@@ -60,7 +60,7 @@ window.resetAllFilterStates = function() {
 };
 */
 // 老老實實用標準的！列出全系統所有解調模式名稱，1秒鐘自動模組化合龍！
-let window.filterStates = {};
+window.filterStates = {};
 
 //let modesToInit = ['LP', 'LP2', 'LP3', 'HP', 'HP2', 'HP3', 'BP'];
 let modesToInit = ['LP', 'HP', 'BP'];
