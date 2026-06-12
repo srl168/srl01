@@ -1,4 +1,4 @@
-//130 3音+3LP +2
+//130 3音+3LP合龍 +4
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
@@ -20,9 +20,15 @@ window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 
 window.currentFilterMode = 'RAW';
 
-// 🚀 🔒 【3BP 獨立模式名義引數常駐池：各就各位絕不干擾】
-window.f1_LP = 1000; window.f2_LP = 3000;
-window.f1_HP = 1200; window.f2_HP = 3500;
+// 🚀 🔒 【6模式名義引數常駐池：各就各位絕不干擾】
+window.f1_LP = 1000;  window.f2_LP = 3000;
+window.f1_LP2 = 800;  window.f2_LP2 = 2500;
+window.f1_LP3 = 600;  window.f2_LP3 = 2000;
+
+window.f1_HP = 1200;  window.f2_HP = 3500;
+window.f1_HP2 = 1500; window.f2_HP2 = 4000;
+window.f1_HP3 = 2000; window.f2_HP3 = 5000;
+
 window.f1_BP = 800;  window.f2_BP = 2500;
 
 // 🚀 🔒 【3組實體測試音時域獨立相位指針池】
@@ -59,9 +65,11 @@ window.resetAllFilterStates = function() {
     window.vppMax = -999.0; window.vppMin = 999.0; window.vppSampleCount = 0; window.currentVPP = 0.0;
 };
 */
-// 老老實實用標準的！列出全系統所有解調模式名稱，1秒鐘自動模組化合龍！
+
+// 🚀 🔒 【真．多通道立體聲大內存池 FOR LOOP 自動初始化防線】
 window.filterStates = {};
 
+// 老老實實用標準的！列出全系統所有解調模式名稱，1秒鐘自動模組化合龍！
 //let modesToInit = ['LP', 'LP2', 'LP3', 'HP', 'HP2', 'HP3', 'BP'];
 let modesToInit = ['LP', 'HP', 'BP'];
 
@@ -513,6 +521,8 @@ window.globalRenderLoop = function() {
         }
     }
 */
+    let fs = window.currentSampleRate;
+
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { 
         magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); 
         if (m > 2) { 
