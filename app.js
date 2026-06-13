@@ -538,7 +538,7 @@ window.globalRenderLoop = function() {
                 peakBinIndex = m; 
             }
         }
-        if (Math.abs(window.analysisBuffer[m]) > 0.005) {
+        if (Math.abs(window.analysisBuffer[m]) > 0.05) {
             foundFreq = (m * fs) / window.FFT_SIZE;
             if (foundFreq > maxDisplayFreq) {
                 maxDisplayFreq = foundFreq * 1.15; // 動態預留 15% 科技感幾何邊界
