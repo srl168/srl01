@@ -182,7 +182,7 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
         let fftFreq = estimateDominantFrequency(window.analysisBuffer);
         console.log("=== ⚡ 3測試音並聯 ＋ 正宗直接八階帶通管道報告 ⚡ ===");
         console.log("當前模式 (Mode):", window.currentFilterMode);
-        console.log("當前頻率 (SinF):", window.currentSinFreq);
+        console.log("驗證頻率 (SinF):", window.currentSinFreq);
         console.log("最高頻率 (Test):", window.test);
         console.log("名義引數邊界 (f1/f2):", f1, f2);
         console.log("📊 複合波實時輸出 VPP:", window.currentVPP.toFixed(4), "V");
@@ -535,7 +535,7 @@ window.globalRenderLoop = function() {
                 peakBinIndex = m; 
             }
         }
-        if (Math.abs(window.analysisBuffer[m]) > 0.005) {
+        if (Math.abs(window.analysisBuffer[m]) > 0.05) {
             let foundFreq = (m * fs) / window.FFT_SIZE;
             if (foundFreq > maxDisplayFreq) {
                 maxDisplayFreq = foundFreq * 1.15; // 動態預留 15% 科技感幾何邊界
