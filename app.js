@@ -529,6 +529,7 @@ window.globalRenderLoop = function() {
     let fs = window.currentSampleRate;
     let foundFreq = 0;
     let maxDisplayFreq = 0;
+    let foundinIndex = 0; 
 
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { 
         magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); 
@@ -543,12 +544,13 @@ window.globalRenderLoop = function() {
 window.test = foundFreq;
             if (foundFreq > maxDisplayFreq) {
                 maxDisplayFreq = foundFreq * 1.15; // 動態預留 15% 科技感幾何邊界
+                foundinIndex = m; 
             }
         }
     }
 	
     if (maxDisplayFreq > fs / 2.0) maxDisplayFreq = fs / 2.0;
-window.test1 = maxDisplayFreq;
+window.test1 = foundinIndex;
     
     let hzPerBin = window.currentSampleRate / window.FFT_SIZE; 
     //let maxDisplayFreq = window.currentSinFreq * 1.5;
