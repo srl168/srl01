@@ -184,6 +184,7 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
         console.log("當前模式 (Mode):", window.currentFilterMode);
         console.log("驗證頻率 (SinF):", window.currentSinFreq);
         console.log("最高頻率 (Test):", window.test);
+        console.log("最高頻率 (Test1):", window.test1);
         console.log("名義引數邊界 (f1/f2):", f1, f2);
         console.log("📊 複合波實時輸出 VPP:", window.currentVPP.toFixed(4), "V");
         console.log("🎯 FFT 頻譜分析主頻 (Peak Freq):", fftFreq, "Hz");
@@ -535,16 +536,17 @@ window.globalRenderLoop = function() {
                 peakBinIndex = m; 
             }
         }
-        if (Math.abs(window.analysisBuffer[m]) > 0.5) {
+        if (Math.abs(window.analysisBuffer[m]) > 0.05) {
             let foundFreq = (m * fs) / window.FFT_SIZE;
             if (foundFreq > maxDisplayFreq) {
                 maxDisplayFreq = foundFreq * 1.15; // 動態預留 15% 科技感幾何邊界
             }
         }
     }
-    //if (maxDisplayFreq > fs / 2.0) maxDisplayFreq = fs / 2.0;
 	
+    if (maxDisplayFreq > fs / 2.0) maxDisplayFreq = fs / 2.0;
 	window.test = foundFreq;
+	window.test1 = maxDisplayFreq;
     
     let hzPerBin = window.currentSampleRate / window.FFT_SIZE; 
     //let maxDisplayFreq = window.currentSinFreq * 1.5;
