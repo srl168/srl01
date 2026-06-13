@@ -539,12 +539,13 @@ window.globalRenderLoop = function() {
                 peakBinIndex = m; 
             }
         }
+		
         if (Math.abs(window.analysisBuffer[m]) > 0.5) {
             foundFreq = (m * fs) / window.FFT_SIZE;
 window.test = foundFreq;
             if (foundFreq > maxDisplayFreq) {
                 maxDisplayFreq = foundFreq * 1.15; // 動態預留 15% 科技感幾何邊界
-                foundinIndex = m; 
+                foundinIndex = Math.abs(window.analysisBuffer[m]); 
             }
         }
     }
