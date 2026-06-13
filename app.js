@@ -535,7 +535,7 @@ window.globalRenderLoop = function() {
                 peakBinIndex = m; 
             }
         }
-        if (Math.abs(window.analysisBuffer[m]) > 0.05) {
+        if (Math.abs(window.analysisBuffer[m]) > 0.5) {
             let foundFreq = (m * fs) / window.FFT_SIZE;
             if (foundFreq > maxDisplayFreq) {
                 maxDisplayFreq = foundFreq * 1.15; // 動態預留 15% 科技感幾何邊界
@@ -544,7 +544,7 @@ window.globalRenderLoop = function() {
     }
     if (maxDisplayFreq > fs / 2.0) maxDisplayFreq = fs / 2.0;
 	
-	window.test = maxDisplayFreq;
+	window.test = foundFreq;
     
     let hzPerBin = window.currentSampleRate / window.FFT_SIZE; 
     //let maxDisplayFreq = window.currentSinFreq * 1.5;
