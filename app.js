@@ -542,7 +542,7 @@ window.globalRenderLoop = function() {
             }
         }
     }
-    if (maxDisplayFreq > fs / 2.0) maxDisplayFreq = fs / 2.0;
+    //if (maxDisplayFreq > fs / 2.0) maxDisplayFreq = fs / 2.0;
 	
 	window.test = foundFreq;
     
