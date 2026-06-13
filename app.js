@@ -540,7 +540,7 @@ window.globalRenderLoop = function() {
             }
         }
 		
-        if (Math.abs(window.analysisBuffer[m]) > 0.005) {
+        if (Math.abs(window.analysisBuffer[m]) > 0.3) {
             foundFreq = (m * fs) / window.FFT_SIZE;
 window.test = foundFreq;
             if (foundFreq > maxDisplayFreq) {
