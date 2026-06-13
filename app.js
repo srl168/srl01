@@ -1,4 +1,4 @@
-//130 3音+3LP合龍 +41
+//130 3音+3LP合龍 +4
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
@@ -793,6 +793,7 @@ document.addEventListener('input', (e) => {
 window.onload = function() { 
     // 🔒 🚀 【頂層計算大重構】將第二段的 updateFilterCoefficients 在此重新洗滌，
     // 讓 LP, HP, BP 在底層運算時通通一體化，轉化為聽從專屬引數記憶池的「真雙截止帶通功能」！🔒
+/*
     window.updateFilterCoefficients = function() {
         let fs = window.currentSampleRate;
         let f1_cur = 1000, f2_cur = 3000;
@@ -827,7 +828,7 @@ window.onload = function() {
             window.b0R = b0_coef; window.b1R = b1_coef; window.b2R = b2_coef; window.a1R = a1_coef; window.a2R = a2_coef;
         }
     };
-    
+*/
     window.updateFilterCoefficients(); 
     window.renderFilterButtonLights(); 
     window.globalRenderLoop(); 
