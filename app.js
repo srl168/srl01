@@ -43,6 +43,7 @@ window.vppSampleCount = 0;
 window.currentVPP = 0.0;
 
 window.test = 0.0;
+window.test1 = 0.0;
 
 /*
 // 🚀 🔒 【真．多通道立體聲標準整數中括號陣列大內存池物件 — 左右耳 1對1 完全對稱 🔒】
