@@ -1,4 +1,4 @@
-//130 3音+3LP合龍 +4
+//130 3音+3LP合龍 +4 ok
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
