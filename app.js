@@ -1,4 +1,4 @@
-//130 3音+3LP合龍 +4
+//130 3音+3LP合龍 +41
 if (window.audioInterval) {
     clearInterval(window.audioInterval);
 }
@@ -120,24 +120,24 @@ function runBiquadStage(x, b0, b1, b2, a1, a2, xv, yv) {
 
 // 🚀 🔒 【實時離散自研簡易單點網格 FFT 主頻估計器】
 function estimateDominantFrequency(buffer) {
-    //let fs = window.currentSampleRate || 44100;
+    let fs = window.currentSampleRate || 44100;
     let crossCount = 0;
     for (let i = 1; i < 1000; i++) {
         if ((buffer[i] >= 0 && buffer[i-1] < 0) || (buffer[i] < 0 && buffer[i-1] >= 0)) { crossCount++; }
     }
-    let freq = (crossCount * window.currentSampleRate) / 2000;
+    let freq = (crossCount * fs) / 2000;
     if (freq < 10) return 0;
     return Math.round(freq);
 }
 
 // 🚀 🔒 【真．正宗直接八階帶通最大平坦平頂 Filter Bank 組件】
 function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
-    //let fs = window.currentSampleRate || 44100;
+    let fs = window.currentSampleRate || 44100;
     let f1Correct = f1; let f2Correct = f2;
     if (f2Correct <= f1Correct) f2Correct = f1Correct + 10;
 
-    let frLeft = window.currentSampleRate / f1Correct;  if (frLeft < 2.01) frLeft = 2.01;
-    let frRight = window.currentSampleRate / f2Correct; if (frRight < 2.01) frRight = 2.01;
+    let frLeft = fs / f1Correct;  if (frLeft < 2.01) frLeft = 2.01;
+    let frRight = fs / f2Correct; if (frRight < 2.01) frRight = 2.01;
     let oL = Math.tan(Math.PI / frLeft);
     let oH = Math.tan(Math.PI / frRight);
     
@@ -425,7 +425,6 @@ function localFFT(re, im) {
 }
 
 window.globalRenderLoop = function() {
-    //let fs = window.currentSampleRate || 44100;
     requestAnimationFrame(window.globalRenderLoop); 
     window.renderFrameCounter++; 
     if (window.renderFrameCounter % 2 !== 0) return;
@@ -522,6 +521,7 @@ window.globalRenderLoop = function() {
         }
     }
 */
+    let fs = window.currentSampleRate;
     let maxDisplayFreq = 0;
 
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { 
@@ -533,13 +533,13 @@ window.globalRenderLoop = function() {
             }
         }
         if (Math.abs(window.analysisBuffer[m]) > 0.005) {
-            let foundFreq = (m * window.currentSampleRate) / window.FFT_SIZE;
+            let foundFreq = (m * fs) / window.FFT_SIZE;
             if (foundFreq > maxDisplayFreq) {
                 maxDisplayFreq = foundFreq * 1.15; // 動態預留 15% 科技感幾何邊界
             }
         }
     }
-    if (maxDisplayFreq > window.currentSampleRate / 2.0) maxDisplayFreq = window.currentSampleRate / 2.0;
+    if (maxDisplayFreq > fs / 2.0) maxDisplayFreq = fs / 2.0;
     
     let hzPerBin = window.currentSampleRate / window.FFT_SIZE; 
     //let maxDisplayFreq = window.currentSinFreq * 1.5;
@@ -793,9 +793,8 @@ document.addEventListener('input', (e) => {
 window.onload = function() { 
     // 🔒 🚀 【頂層計算大重構】將第二段的 updateFilterCoefficients 在此重新洗滌，
     // 讓 LP, HP, BP 在底層運算時通通一體化，轉化為聽從專屬引數記憶池的「真雙截止帶通功能」！🔒
-/*
     window.updateFilterCoefficients = function() {
-        //let fs = window.currentSampleRate;
+        let fs = window.currentSampleRate;
         let f1_cur = 1000, f2_cur = 3000;
         
         if (window.currentFilterMode === 'LP') { f1_cur = window.f1_LP; f2_cur = window.f2_LP; }
@@ -803,8 +802,8 @@ window.onload = function() {
         else if (window.currentFilterMode === 'BP') { f1_cur = window.f1_BP; f2_cur = window.f2_BP; }
         
         if (f2_cur <= f1_cur) f2_cur = f1_cur + 10;
-        let fr_L = window.currentSampleRate / f1_cur; if (fr_L < 2.01) fr_L = 2.01;
-        let fr_H = window.currentSampleRate / f2_cur; if (fr_H < 2.01) fr_H = 2.01;
+        let fr_L = fs / f1_cur; if (fr_L < 2.01) fr_L = 2.01;
+        let fr_H = fs / f2_cur; if (fr_H < 2.01) fr_H = 2.01;
         let o_L = Math.tan(Math.PI / fr_L);
         let o_H = Math.tan(Math.PI / fr_H);
         let W = o_H - o_L; if (W < 0.001) W = 0.001;
@@ -828,7 +827,7 @@ window.onload = function() {
             window.b0R = b0_coef; window.b1R = b1_coef; window.b2R = b2_coef; window.a1R = a1_coef; window.a2R = a2_coef;
         }
     };
-*/    
+    
     window.updateFilterCoefficients(); 
     window.renderFilterButtonLights(); 
     window.globalRenderLoop(); 
