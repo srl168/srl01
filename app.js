@@ -529,7 +529,7 @@ window.globalRenderLoop = function() {
     let fs = window.currentSampleRate;
     let foundFreq = 0;
     let maxDisplayFreq = 0;
-    let foundinIndex = 0; 
+    let foundinIndex = 0.0; 
 
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { 
         magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); 
@@ -540,7 +540,7 @@ window.globalRenderLoop = function() {
             }
         }
 		
-        if (Math.abs(window.analysisBuffer[m]) > 0.5) {
+        if (Math.abs(window.analysisBuffer[m]) > 0.005) {
             foundFreq = (m * fs) / window.FFT_SIZE;
 window.test = foundFreq;
             if (foundFreq > maxDisplayFreq) {
