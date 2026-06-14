@@ -527,7 +527,7 @@ window.globalRenderLoop = function() {
         //if (Math.abs(window.analysisBuffer[b]) > 0.36) {
         binF = Math.abs(window.analysisBuffer[b];
 window.test = binF;
-        if (binF > 0.36) {
+        if (binF > 0.6) {
             binFreq = (b * fs / 2.0) / window.FFT_SIZE;
             if (binFreq > maxDisplayFreq) {
                 maxDisplayFreq = binFreq * 1.15; // 動態預留 15% 科技感幾何邊界
