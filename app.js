@@ -521,9 +521,10 @@ window.globalRenderLoop = function() {
     
     // 🚀 🔒 【真實有效最高頻率動態探測鎖 🔒】
     // 從高頻深水區往回倒著掃描，尋找當前實際信號內容存在的最後一根實體高頻波柱！
-    for (let b = totalBins - 1; b >= 0; b--) {
+    //for (let b = totalBins - 1; b >= 0; b--) {
+    for (let b = window.FFT_SIZE - 1; b >= 0; b--) {
         if (Math.abs(window.analysisBuffer[b]) > 0.05) {
-            binFreq = (b * fs) / window.FFT_SIZE;
+            binFreq = (b * fs / 2.0) / window.FFT_SIZE;
             if (binFreq > maxDisplayFreq) {
                 maxDisplayFreq = binFreq * 1.15; // 動態預留 15% 科技感幾何邊界
                 break;
@@ -544,6 +545,8 @@ window.globalRenderLoop = function() {
             peakBinIndex = m; 
         }
 	}
+window.test2 = m;
+window.test1 = binFreq;
 
 /*    
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { 
@@ -583,8 +586,6 @@ window.globalRenderLoop = function() {
             currentActiveFreq = binFreq * 1.15; // 預留 15% 科技感幾何邊界
             if (currentActiveFreq > maxDisplayFreq) {
                 maxDisplayFreq = currentActiveFreq;
-window.test2 = m;
-window.test1 = binFreq;
             }
         }
 	
