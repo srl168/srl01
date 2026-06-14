@@ -549,7 +549,7 @@ window.globalRenderLoop = function() {
     maxDisplayFreq = maxFreq * hzPerBin * 1.15; // 動態預留 15% 科技感幾何邊界
 	
 //let SinFreq = 0;
-let SinFreq = Math.round(window.currentSinFreq / hzPerBin) + 1;
+let SinFreq = Math.round(window.currentSinFreq / hzPerBin) - 1;
 window.test = SinFreq * hzPerBin;
 window.test1 = maxFreq * hzPerBin;
 window.test2 = peakBinIndex * hzPerBin;
