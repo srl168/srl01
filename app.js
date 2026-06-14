@@ -525,7 +525,7 @@ window.globalRenderLoop = function() {
     //for (let b = totalBins - 1; b >= 0; b--) {
     for (let b = window.FFT_SIZE - 1; b >= 0; b--) {
         //if (Math.abs(window.analysisBuffer[b]) > 0.36) {
-        binF = Math.abs(window.analysisBuffer[b];
+        binF = Math.abs(window.analysisBuffer[b]);
 window.test = binF;
         if (binF > 0.6) {
             binFreq = (b * fs / 2.0) / window.FFT_SIZE;
