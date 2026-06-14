@@ -527,12 +527,15 @@ window.globalRenderLoop = function() {
             binFreq = (b * fs / 2.0) / window.FFT_SIZE;
             if (binFreq > maxDisplayFreq) {
                 maxDisplayFreq = binFreq * 1.15; // 動態預留 15% 科技感幾何邊界
-                break;
+window.test2 = b;
+window.test1 = binFreq;
+                 break;
             }
         }
     }
-    // 剛性鎖定在奈奎斯特極限之內
+   // 剛性鎖定在奈奎斯特極限之內
     if (maxDisplayFreq > fs / 2.0) maxDisplayFreq = fs / 2.0;
+window.test = maxDisplayFreq;
     
     let magnitudes = new Float32Array(window.FFT_SIZE / 2);
     let maxMag = 0;
@@ -545,8 +548,6 @@ window.globalRenderLoop = function() {
             peakBinIndex = m; 
         }
 	}
-window.test2 = m;
-window.test1 = binFreq;
 
 /*    
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { 
@@ -591,7 +592,6 @@ window.test1 = binFreq;
 	
     if (maxDisplayFreq > fs / 2.0) maxDisplayFreq = fs / 2.0;
 	
-window.test = maxDisplayFreq;
 */
 
     
