@@ -567,7 +567,8 @@ window.test2 = b;
     let maxFreq = 0;
     let peakBinIndex = 0; 
 	
-    for (let m = 0; m < totalBins; m++) { 
+//    for (let m = 0; m < totalBins; m++) { 
+    for (let m = 0; m < window.FFT_SIZE / 2; m++) { 
         magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); 
         if ((m > 2) && (magnitudes[m] > maxMag)){ 
 		    maxMag = magnitudes[m];
