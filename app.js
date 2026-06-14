@@ -548,11 +548,12 @@ window.globalRenderLoop = function() {
 	}
     maxDisplayFreq = maxFreq * hzPerBin * 1.15; // 動態預留 15% 科技感幾何邊界
 	
-window.test = maxFreq; ;
+let SinFreq = int(window.currentSinFreq / hzPerBin);
+window.test = SinFreq * hzPerBin;
 window.test1 = maxFreq * hzPerBin;
 window.test2 = peakBinIndex * hzPerBin;
 
-window.test_1 = magnitudes[int(window.currentSinFreq / hzPerBin) ];
+window.test_1 = magnitudes[SinFreq];
 window.test1_1 = magnitudes[maxFreq];
 window.test2_1 = magnitudes[peakBinIndex];
 
