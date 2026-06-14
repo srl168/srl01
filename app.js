@@ -523,7 +523,7 @@ window.globalRenderLoop = function() {
     // 從高頻深水區往回倒著掃描，尋找當前實際信號內容存在的最後一根實體高頻波柱！
     //for (let b = totalBins - 1; b >= 0; b--) {
     for (let b = window.FFT_SIZE - 1; b >= 0; b--) {
-        if (Math.abs(window.analysisBuffer[b]) > 0.016) {
+        if (Math.abs(window.analysisBuffer[b]) > 0.36) {
             binFreq = (b * fs / 2.0) / window.FFT_SIZE;
             if (binFreq > maxDisplayFreq) {
                 maxDisplayFreq = binFreq * 1.15; // 動態預留 15% 科技感幾何邊界
