@@ -517,22 +517,25 @@ window.globalRenderLoop = function() {
     let fs = window.currentSampleRate;
     let totalBins = window.FFT_SIZE / 2; // 2048 根物理頻譜柱
     let maxDisplayFreq = 3000.0; // min 
-    let binFreq = 0;
+    let binFreq = 0.0;
+    let binF = 0.0;
     
     // 🚀 🔒 【真實有效最高頻率動態探測鎖 🔒】
     // 從高頻深水區往回倒著掃描，尋找當前實際信號內容存在的最後一根實體高頻波柱！
     //for (let b = totalBins - 1; b >= 0; b--) {
     for (let b = window.FFT_SIZE - 1; b >= 0; b--) {
-        if (Math.abs(window.analysisBuffer[b]) > 0.36) {
+        //if (Math.abs(window.analysisBuffer[b]) > 0.36) {
+        binF = Math.abs(window.analysisBuffer[b];
+window.test = binF;
+        if (binF > 0.36) {
             binFreq = (b * fs / 2.0) / window.FFT_SIZE;
             if (binFreq > maxDisplayFreq) {
                 maxDisplayFreq = binFreq * 1.15; // 動態預留 15% 科技感幾何邊界
 window.test1 = binFreq;
-window.test = Math.abs(window.analysisBuffer[b]);
+window.test2 = b;
                  break;
             }
         }
-window.test2 = b;
     }
    // 剛性鎖定在奈奎斯特極限之內
     if (maxDisplayFreq > fs / 2.0) maxDisplayFreq = fs / 2.0;
