@@ -514,6 +514,7 @@ window.globalRenderLoop = function() {
     }
     localFFT(re, im); 
 	
+    let fs = window.currentSampleRate;
     let totalBins = window.FFT_SIZE / 2; // 2048 根物理頻譜柱
     let maxDisplayFreq = 3000.0; // min 
     let binFreq = 0;
@@ -557,7 +558,6 @@ window.globalRenderLoop = function() {
 */
 
 /*
-    let fs = window.currentSampleRate;
     let binFreq = 0;
     let maxDisplayFreq = 3000;
 		
