@@ -44,6 +44,7 @@ window.currentVPP = 0.0;
 
 window.test = 0.0;
 window.test1 = 0.0;
+window.test2 = 0.0;
 
 /*
 // 🚀 🔒 【真．多通道立體聲標準整數中括號陣列大內存池物件 — 左右耳 1對1 完全對稱 🔒】
@@ -184,8 +185,9 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
         console.log("=== ⚡ 3測試音並聯 ＋ 正宗直接八階帶通管道報告 ⚡ ===");
         console.log("當前模式 (Mode):", window.currentFilterMode);
         console.log("驗證頻率 (SinF):", window.currentSinFreq);
-        console.log("最高頻率 (Test):", window.test);
+        console.log("最高頻率 (Test0):", window.test);
         console.log("最高頻率 (Test1):", window.test1);
+        console.log("最高頻率 (Test2):", window.test2);
         console.log("名義引數邊界 (f1/f2):", f1, f2);
         console.log("📊 複合波實時輸出 VPP:", window.currentVPP.toFixed(4), "V");
         console.log("🎯 FFT 頻譜分析主頻 (Peak Freq):", fftFreq, "Hz");
@@ -511,10 +513,37 @@ window.globalRenderLoop = function() {
         re[k] = window.analysisBuffer[(window.bufferIndex + k) % window.FFT_SIZE];
     }
     localFFT(re, im); 
+	
+    let totalBins = window.FFT_SIZE / 2; // 2048 根物理頻譜柱
+    let maxDisplayFreq = 3000.0; // min 
+    let binFreq = 0;
+    
+    // 🚀 🔒 【真實有效最高頻率動態探測鎖 🔒】
+    // 從高頻深水區往回倒著掃描，尋找當前實際信號內容存在的最後一根實體高頻波柱！
+    for (let b = totalBins - 1; b >= 0; b--) {
+        if (Math.abs(window.analysisBuffer[b]) > 0.05) {
+            binFreq = (b * fs) / window.FFT_SIZE;
+            if (binFreq > maxDisplayFreq) {
+                maxDisplayFreq = binFreq * 1.15; // 動態預留 15% 科技感幾何邊界
+                break;
+            }
+        }
+    }
+    // 剛性鎖定在奈奎斯特極限之內
+    if (maxDisplayFreq > fs / 2.0) maxDisplayFreq = fs / 2.0;
     
     let magnitudes = new Float32Array(window.FFT_SIZE / 2);
     let maxMag = 0;
     let peakBinIndex = 0; 
+	
+    for (let m = 0; m < totalBins; m++) { 
+        magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); 
+        if (m > 2) && (magnitudes[m] > maxMag){ 
+		    maxMag = magnitudes[m];
+            peakBinIndex = m; 
+        }
+	}
+
 /*    
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { 
         magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); 
@@ -526,38 +555,51 @@ window.globalRenderLoop = function() {
         }
     }
 */
-    let fs = window.currentSampleRate;
-    let foundFreq = 0;
-    let maxDisplayFreq = 0;
-    let foundinIndex = 0.0; 
 
-    for (let m = 0; m < window.FFT_SIZE / 2; m++) { 
-        magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); 
-        if (m > 2) { 
-            if (magnitudes[m] > maxMag) {
-                maxMag = magnitudes[m];
-                peakBinIndex = m; 
-            }
-        }
+/*
+    let fs = window.currentSampleRate;
+    let binFreq = 0;
+    let maxDisplayFreq = 3000;
 		
-        if (Math.abs(window.analysisBuffer[m]) > 0.3) {
-            foundFreq = (m * fs) / window.FFT_SIZE;
-window.test = foundFreq;
-            if (foundFreq > maxDisplayFreq) {
-                maxDisplayFreq = foundFreq * 1.15; // 動態預留 15% 科技感幾何邊界
-                foundinIndex = Math.abs(window.analysisBuffer[m]); 
+        binFreq = (m * fs) / window.FFT_SIZE;
+        // 離散自適應 IQ 相干運算：直接從時域內存抽取 4096 點進行高速共鳴振幅解算
+        let realSum = 0.0;
+        let imagSum = 0.0;
+        let omega = 2.0 * Math.PI * binFreq / fs;
+        let mag = 0.0;
+        let currentActiveFreq = 0.0; 
+        
+        for (let n = 0; n < window.FFT_SIZE; n++) {
+            let sampleVal = window.analysisBuffer[n];
+            realSum += sampleVal * Math.cos(omega * n);
+            imagSum += sampleVal * Math.sin(omega * n);
+        }
+        // 算出該頻點最剛性的絕對能量 Fact，高高頻 18000Hz 瞬間大起振！
+        mag = Math.sqrt(realSum * realSum + imagSum * imagSum) * 0.15;
+        //if (mag > 1.0) mag = 1.0;
+        
+        // 🚀 🔒 【正宗最高頻率動態追蹤防線】：若探測到該點有真實能量（>0.05），動態將畫布 X 軸右壁推開！🔒
+        if (mag > 0.05) {
+            currentActiveFreq = binFreq * 1.15; // 預留 15% 科技感幾何邊界
+            if (currentActiveFreq > maxDisplayFreq) {
+                maxDisplayFreq = currentActiveFreq;
+window.test2 = m;
+window.test1 = binFreq;
             }
         }
-    }
 	
     if (maxDisplayFreq > fs / 2.0) maxDisplayFreq = fs / 2.0;
-window.test1 = foundinIndex;
+	
+window.test = maxDisplayFreq;
+*/
+
     
-    let hzPerBin = window.currentSampleRate / window.FFT_SIZE; 
     //let maxDisplayFreq = window.currentSinFreq * 1.5;
     //let htmlMaxFreq = parseFloat(document.getElementById('sinFreqSlider')?.max) || 5000;
-    if (maxDisplayFreq < 200) maxDisplayFreq = 200; 
+    //if (maxDisplayFreq < 200) maxDisplayFreq = 200; 
     //if (maxDisplayFreq > htmlMaxFreq) maxDisplayFreq = htmlMaxFreq;
+
+    let hzPerBin = window.currentSampleRate / window.FFT_SIZE; 
     
     let currentFrameMaxMag = maxMag; 
     if (currentFrameMaxMag < 0.001) currentFrameMaxMag = 0.001;
