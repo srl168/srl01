@@ -529,13 +529,13 @@ window.globalRenderLoop = function() {
                 maxDisplayFreq = binFreq * 1.15; // 動態預留 15% 科技感幾何邊界
 window.test2 = b;
 window.test1 = binFreq;
+window.test = Math.abs(window.analysisBuffer[b]);
                  break;
             }
         }
     }
    // 剛性鎖定在奈奎斯特極限之內
     if (maxDisplayFreq > fs / 2.0) maxDisplayFreq = fs / 2.0;
-window.test = maxDisplayFreq;
     
     let magnitudes = new Float32Array(window.FFT_SIZE / 2);
     let maxMag = 0;
