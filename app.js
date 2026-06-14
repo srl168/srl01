@@ -448,7 +448,8 @@ window.globalRenderLoop = function() {
         [1.0, 0.5, 0.0, -0.5, -1.0].forEach(v => { 
             window.tCtx.moveTo(0, midY - v * 145); 
             window.tCtx.lineTo(800, midY - v * 145); 
-        }); 
+        }
+		); 
         window.tCtx.stroke();
         
         window.tCtx.fillStyle = '#fff'; 
@@ -513,6 +514,7 @@ window.globalRenderLoop = function() {
         re[k] = window.analysisBuffer[(window.bufferIndex + k) % window.FFT_SIZE];
     }
     localFFT(re, im); 
+
 /*	
     let fs = window.currentSampleRate;
     let totalBins = window.FFT_SIZE / 2; // 2048 根物理頻譜柱
@@ -569,7 +571,8 @@ window.test2 = b;
         magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); 
         if ((m > 2) && (magnitudes[m] > maxMag)){ 
 		    maxMag = magnitudes[m];
-            peakBinIndex = m; 
+            peakBinIndex = m;
+        }			
         if (magnitudes[m] > 0.2) maxFreq = m;
 	}
     maxDisplayFreq = maxFreq * hzPerBin * 1.15; // 動態預留 15% 科技感幾何邊界
