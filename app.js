@@ -42,9 +42,9 @@ window.vppMin = 999.0;
 window.vppSampleCount = 0;
 window.currentVPP = 0.0;
 
-window.test = 0.0;
-window.test1 = 0.0;
-window.test2 = 0.0;
+window.test = 0.0; window.test_1 = 0.0;
+window.test1 = 0.0; window.test1_1 = 0.0;
+window.test2 = 0.0; window.test2_1 = 0.0;
 
 /*
 // 🚀 🔒 【真．多通道立體聲標準整數中括號陣列大內存池物件 — 左右耳 1對1 完全對稱 🔒】
@@ -185,9 +185,9 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
         console.log("=== ⚡ 3測試音並聯 ＋ 正宗直接八階帶通管道報告 ⚡ ===");
         console.log("當前模式 (Mode):", window.currentFilterMode);
         console.log("驗證頻率 (SinF):", window.currentSinFreq);
-        console.log("最高頻率 (Test0):", window.test);
-        console.log("最高頻率 (Test1):", window.test1);
-        console.log("最高頻率 (Test2):", window.test2);
+        console.log("最高頻率 (Test0):", window.test, window.test_1);
+        console.log("最高頻率 (Test1):", window.test1, window.test1_1);
+        console.log("最強頻率 (Test2):", window.test2, window.test2_1);
         console.log("名義引數邊界 (f1/f2):", f1, f2);
         console.log("📊 複合波實時輸出 VPP:", window.currentVPP.toFixed(4), "V");
         console.log("🎯 FFT 頻譜分析主頻 (Peak Freq):", fftFreq, "Hz");
@@ -295,7 +295,7 @@ window.initAudioGlobal = function() {
         // 🚀 🔒 【3 個測試音實體硬體頻率死鎖】：1830Hz (平頂核心), 180Hz (低頻邊界), 18000Hz (極高頻阻帶)
         //window.oscNode.frequency.setValueAtTime(safeFreq, window.audioCtx.currentTime); 
         window.oscNode.frequency.setValueAtTime(window.currentSinFreq, window.audioCtx.currentTime); 
-        window.oscNode2.frequency.setValueAtTime(280.0, window.audioCtx.currentTime);
+        window.oscNode2.frequency.setValueAtTime(300.0, window.audioCtx.currentTime);
         window.oscNode3.frequency.setValueAtTime(10000.0, window.audioCtx.currentTime);
         
         // 🚀 🔒 建立標準雙聲道空間輸出水管
@@ -514,34 +514,6 @@ window.globalRenderLoop = function() {
         re[k] = window.analysisBuffer[(window.bufferIndex + k) % window.FFT_SIZE];
     }
     localFFT(re, im); 
-
-/*	
-    let fs = window.currentSampleRate;
-    let totalBins = window.FFT_SIZE / 2; // 2048 根物理頻譜柱
-    let maxDisplayFreq = 3000.0; // min 
-    let binFreq = 0.0;
-    let binF = 0.0;
-    
-    // 🚀 🔒 【真實有效最高頻率動態探測鎖 🔒】
-    // 從高頻深水區往回倒著掃描，尋找當前實際信號內容存在的最後一根實體高頻波柱！
-    //for (let b = totalBins - 1; b >= 0; b--) {
-    for (let b = window.FFT_SIZE - 1; b >= 0; b--) {
-        //if (Math.abs(window.analysisBuffer[b]) > 0.36) {
-        binF = Math.abs(window.analysisBuffer[b]);
-window.test = binF;
-        if (binF > 0.96) {
-            binFreq = (b * fs / 2.0) / window.FFT_SIZE;
-            if (binFreq > maxDisplayFreq) {
-                maxDisplayFreq = binFreq * 1.15; // 動態預留 15% 科技感幾何邊界
-window.test1 = binFreq;
-window.test2 = b;
-                 break;
-            }
-        }
-    }
-   // 剛性鎖定在奈奎斯特極限之內
-    if (maxDisplayFreq > fs / 2.0) maxDisplayFreq = fs / 2.0;
-*/	
   
 /*    
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { 
@@ -554,7 +526,6 @@ window.test2 = b;
         }
     }
 */
-
     //let maxDisplayFreq = window.currentSinFreq * 1.5;
     //let htmlMaxFreq = parseFloat(document.getElementById('sinFreqSlider')?.max) || 5000;
     //if (maxDisplayFreq < 200) maxDisplayFreq = 200; 
@@ -567,20 +538,23 @@ window.test2 = b;
     let maxFreq = 0;
     let peakBinIndex = 0; 
 	
-//    for (let m = 0; m < totalBins; m++) { 
     for (let m = 0; m < window.FFT_SIZE / 2; m++) { 
         magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); 
         if ((m > 2) && (magnitudes[m] > maxMag)){ 
 		    maxMag = magnitudes[m];
             peakBinIndex = m;
         }			
-        if (magnitudes[m] > 0.2) maxFreq = m;
+        if (magnitudes[m] > 0.3) maxFreq = m;
 	}
     maxDisplayFreq = maxFreq * hzPerBin * 1.15; // 動態預留 15% 科技感幾何邊界
 	
 window.test = maxFreq; ;
-window.test1 = maxDisplayFreq;
+window.test1 = maxFreq * hzPerBin;
 window.test2 = peakBinIndex * hzPerBin;
+
+window.test_1 = magnitudes[int(window.currentSinFreq / hzPerBin) ];
+window.test1_1 = magnitudes[maxFreq];
+window.test2_1 = magnitudes[peakBinIndex];
 
     
     let currentFrameMaxMag = maxMag; 
