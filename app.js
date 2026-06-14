@@ -538,7 +538,7 @@ window.globalRenderLoop = function() {
 	
     for (let m = 0; m < totalBins; m++) { 
         magnitudes[m] = Math.sqrt(re[m] * re[m] + im[m] * im[m]) / (window.FFT_SIZE / 2); 
-        if (m > 2) && (magnitudes[m] > maxMag){ 
+        if ((m > 2) && (magnitudes[m] > maxMag)){ 
 		    maxMag = magnitudes[m];
             peakBinIndex = m; 
         }
