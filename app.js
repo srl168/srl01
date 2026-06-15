@@ -156,12 +156,13 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let a2_core = (1.0 - W + C) / cBP;
 
     let b0 = b0_core; let b1 = b1_core; let b2 = b2_core; let a1 = a1_core; let a2 = a2_core;
+/*	
     if (W > 0.1) {
         let scale = 1.0 / (1.0 - (W * 0.115));
         if (scale > 1.35) scale = 1.35;
         b0 *= scale; b2 *= scale;
     }
-
+*/
     let s1 = runBiquadStage(x, b0, b1, b2, a1, a2, chState.xv, chState.yv);
     let s2 = runBiquadStage(s1, b0, b1, b2, a1, a2, chState.xv2, chState.yv2);
     let s3 = runBiquadStage(s2, b0, b1, b2, a1, a2, chState.xv3, chState.yv3);
