@@ -280,6 +280,7 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
 
     return s4;
 }
+*/
 
 // ==========================================
 // 💡 3️⃣ 數位立體聲空間音訊流管道（2通道直通水管，強控立體聲不串軌完全體 🔒）
