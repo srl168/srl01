@@ -134,7 +134,7 @@ function estimateDominantFrequency(buffer) {
     return Math.round(freq);
 }
 
-
+/*
 // 🚀 🔒 【真．正宗直接八階帶通最大平坦平頂 Filter Bank 組件】
 function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let fs = window.currentSampleRate || 44100;
@@ -200,7 +200,8 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
 
     return s4;
 }
-/*
+
+*/
 // ==========================================
 // 💡 3️⃣ 數位濾波大腦：真．正宗直接八階巴特沃斯帶通最大平坦平頂矩陣（🔒 終極完美大破關完全體 🔒）
 // ==========================================
@@ -280,7 +281,7 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
 
     return s4;
 }
-*/
+
 
 // ==========================================
 // 💡 3️⃣ 數位立體聲空間音訊流管道（2通道直通水管，強控立體聲不串軌完全體 🔒）
