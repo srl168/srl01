@@ -545,8 +545,10 @@ window.globalRenderLoop = function() {
 		    maxMag = magnitudes[m];
             peakBinIndex = m;
         }			
-        if (minFreq < 0) minFreq = m;
-        if (magnitudes[m] > 0.05) maxFreq = m;
+        if (magnitudes[m] > 0.05) {
+			maxFreq = m;
+            if (minFreq < 0) minFreq = m;
+		}
 	}
     maxDisplayFreq = maxFreq * hzPerBin * 1.15; // 動態預留 15% 科技感幾何邊界
 	
