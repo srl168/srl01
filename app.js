@@ -146,7 +146,7 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let oL = Math.tan(Math.PI / frLeft);
     let oH = Math.tan(Math.PI / frRight);
     
-    let W = oH - oL; if (W < 0.00001) W = 0.00001;
+    let W = oH - oL; if (W < 0.01) W = 0.01;
     let C = oL * oH;
     
     let cBP = 1.0 + W + C;
