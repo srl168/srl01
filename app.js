@@ -295,7 +295,7 @@ window.initAudioGlobal = function() {
         // 🚀 🔒 【3 個測試音實體硬體頻率死鎖】：1830Hz (平頂核心), 180Hz (低頻邊界), 18000Hz (極高頻阻帶)
         //window.oscNode.frequency.setValueAtTime(safeFreq, window.audioCtx.currentTime); 
         window.oscNode.frequency.setValueAtTime(window.currentSinFreq, window.audioCtx.currentTime); 
-        window.oscNode2.frequency.setValueAtTime(300.0, window.audioCtx.currentTime);
+        window.oscNode2.frequency.setValueAtTime(400.0, window.audioCtx.currentTime);
         window.oscNode3.frequency.setValueAtTime(10000.0, window.audioCtx.currentTime);
         
         // 🚀 🔒 建立標準雙聲道空間輸出水管
