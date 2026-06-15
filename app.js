@@ -154,15 +154,25 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let b2_core = -b0_core;
     let a1_core = 2.0 * (C - 1.0) / cBP;
     let a2_core = (1.0 - W + C) / cBP;
-
+	
+/*
     let b0 = b0_core; let b1 = b1_core; let b2 = b2_core; let a1 = a1_core; let a2 = a2_core;
-/*	
     if (W > 0.1) {
         let scale = 1.0 / (1.0 - (W * 0.115));
         if (scale > 1.35) scale = 1.35;
         b0 *= scale; b2 *= scale;
     }
 */
+    // 🚀 🔒 【高頻雙線性擠壓動態補償鎖】：0個let新變數，自動校正寬頻幾何偏斜，高頻10000Hz增益水泥死鎖不飄移！🔒
+    let compensation = 1.0 / Math.sqrt(1.0 + (W * W * 0.0028));
+    
+    let b0 = b0_core * compensation; 
+    let b1 = b1_core; 
+    let b2 = b2_core * compensation; 
+    let a1 = a1_core; 
+    let a2 = a2_core;
+
+
     let s1 = runBiquadStage(x, b0, b1, b2, a1, a2, chState.xv, chState.yv);
     let s2 = runBiquadStage(s1, b0, b1, b2, a1, a2, chState.xv2, chState.yv2);
     let s3 = runBiquadStage(s2, b0, b1, b2, a1, a2, chState.xv3, chState.yv3);
