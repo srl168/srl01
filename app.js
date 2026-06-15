@@ -21,15 +21,15 @@ window.analysisBuffer = new Float32Array(window.FFT_SIZE);
 window.currentFilterMode = 'RAW';
 
 // 🚀 🔒 【6模式名義引數常駐池：各就各位絕不干擾】
-window.f1_LP = 1000;  window.f2_LP = 3000;
-window.f1_LP2 = 800;  window.f2_LP2 = 2500;
-window.f1_LP3 = 600;  window.f2_LP3 = 2000;
+window.f1_LP = 8;  window.f2_LP = 3000;
+window.f1_LP2 = 8;  window.f2_LP2 = 2500;
+window.f1_LP3 = 8;  window.f2_LP3 = 2000;
 
-window.f1_HP = 1200;  window.f2_HP = 3500;
-window.f1_HP2 = 1500; window.f2_HP2 = 4000;
-window.f1_HP3 = 2000; window.f2_HP3 = 5000;
+window.f1_HP = 8;  window.f2_HP = 3500;
+window.f1_HP2 = 8; window.f2_HP2 = 4000;
+window.f1_HP3 = 8; window.f2_HP3 = 5000;
 
-window.f1_BP = 800;  window.f2_BP = 2500;
+window.f1_BP = 8;  window.f2_BP = 5000;
 
 // 🚀 🔒 【3組實體測試音時域獨立相位指針池】
 window.simPhase18000 = 0;
@@ -185,7 +185,7 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
         console.log("=== ⚡ 3測試音並聯 ＋ 正宗直接八階帶通管道報告 ⚡ ===");
         console.log("當前模式 (Mode):", window.currentFilterMode);
         console.log("驗證頻率 (SinF):", window.currentSinFreq);
-        console.log("最高頻率 (Test0):", window.test, window.test_1);
+        console.log("最低頻率 (Test0):", window.test, window.test_1);
         console.log("最高頻率 (Test1):", window.test1, window.test1_1);
         console.log("最強頻率 (Test2):", window.test2, window.test2_1);
         console.log("名義引數邊界 (f1/f2):", f1, f2);
@@ -535,6 +535,7 @@ window.globalRenderLoop = function() {
 	
     let magnitudes = new Float32Array(window.FFT_SIZE / 2);
     let maxMag = 0;
+    let minFreq = -1;
     let maxFreq = 0;
     let peakBinIndex = 0; 
 	
@@ -544,17 +545,18 @@ window.globalRenderLoop = function() {
 		    maxMag = magnitudes[m];
             peakBinIndex = m;
         }			
-        if (magnitudes[m] > 0.1) maxFreq = m;
+        if (minFreq < 0) minFreq = m;
+        if (magnitudes[m] > 0.05) maxFreq = m;
 	}
     maxDisplayFreq = maxFreq * hzPerBin * 1.15; // 動態預留 15% 科技感幾何邊界
 	
 //let SinFreq = 0;
-let SinFreq = Math.round(window.currentSinFreq / hzPerBin) ;
-window.test = SinFreq * hzPerBin;
+//let SinFreq = Math.round(window.currentSinFreq / hzPerBin) ;
+window.test = minFreq * hzPerBin;
 window.test1 = maxFreq * hzPerBin;
 window.test2 = peakBinIndex * hzPerBin;
 
-window.test_1 = magnitudes[SinFreq];
+window.test_1 = magnitudes[minFreq];
 window.test1_1 = magnitudes[maxFreq];
 window.test2_1 = magnitudes[peakBinIndex];
 
