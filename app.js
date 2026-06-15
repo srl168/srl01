@@ -134,7 +134,7 @@ function estimateDominantFrequency(buffer) {
     return Math.round(freq);
 }
 
-/*
+
 // 🚀 🔒 【真．正宗直接八階帶通最大平坦平頂 Filter Bank 組件】
 function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let fs = window.currentSampleRate || 44100;
@@ -146,7 +146,7 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let oL = Math.tan(Math.PI / frLeft);
     let oH = Math.tan(Math.PI / frRight);
     
-    let W = oH - oL; if (W < 0.001) W = 0.001;
+    let W = oH - oL; if (W < 0.00001) W = 0.00001;
     let C = oL * oH;
     
     let cBP = 1.0 + W + C;
@@ -200,7 +200,7 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
 
     return s4;
 }
-*/
+/*
 // ==========================================
 // 💡 3️⃣ 數位濾波大腦：真．正宗直接八階巴特沃斯帶通最大平坦平頂矩陣（🔒 終極完美大破關完全體 🔒）
 // ==========================================
