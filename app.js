@@ -545,7 +545,7 @@ window.globalRenderLoop = function() {
 		    maxMag = magnitudes[m];
             peakBinIndex = m;
         }			
-        if (magnitudes[m] > 0.05) {
+        if (magnitudes[m] > 0.3) {
 			maxFreq = m;
             if (minFreq < 0) minFreq = m;
 		}
