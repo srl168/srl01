@@ -215,7 +215,7 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let oL = Math.tan(Math.PI / frLeft);
     let oH = Math.tan(Math.PI / frRight);
     
-    let W = oH - oL; if (W < 0.001) W = 0.001;
+    let W = oH - oL; //if (W < 0.001) W = 0.001;
     let C = oL * oH;
     
     // 💡 🔒 【正宗巴特沃斯四階雙線性複數極點映射大腦 — 0補釘，從根本拉平塌陷！】
