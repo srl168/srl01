@@ -37,10 +37,11 @@ window.simPhase1830  = 0;
 window.simPhase180   = 0;
 
 // 實時時域 VPP 量測追蹤記憶體
-window.vppMax = 0.0;
-window.vppMin = 0.0;
-window.currentVPP = vppMax - vppMin;
-window.vppSampleCount = 0;
+window.currentVPP = 0.0;
+
+//window.vppMax = 0.0;
+//window.vppMin = 0.0;
+//window.vppSampleCount = 0;
 
 window.test = 0.0; window.test_1 = 0.0;
 window.test1 = 0.0; window.test1_1 = 0.0;
@@ -773,8 +774,7 @@ window.globalRenderLoop = function() {
     
     let maxRealVal = Math.max(...rawSlice);
     let minRealVal = Math.min(...rawSlice);
-window.vppMax = maxRealVal;
-window.vppMin = minRealVal;
+window.currentVPP = maxRealVal - minRealVal;
     let sq = 0; 
     rawSlice.forEach(v => sq += v * v);
     document.getElementById('vppVal').innerText = (maxRealVal - minRealVal).toFixed(2) + " V"; 
