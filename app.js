@@ -32,9 +32,9 @@ window.f1_HP3 = 8; window.f2_HP3 = 5000;
 window.f1_BP = 8;  window.f2_BP = 5000;
 
 // 🚀 🔒 【3組實體測試音時域獨立相位指針池】
-window.simPhase18000 = 0;
-window.simPhase1830  = 0;
-window.simPhase180   = 0;
+window.sim1 = 400.0;
+window.sim2 = 1830.0;
+window.sim3 = 7000.0;
 
 // 實時時域 VPP 量測追蹤記憶體
 window.currentVPP = 0.0;
@@ -429,10 +429,10 @@ function printLog(f1, f2) {
         console.log("=== ⚡ 6通道級聯型真八階平頂 Filter Bank 指標報告 ⚡ ===");
         console.log("當前模式 (Mode):", window.currentFilterMode);
         console.log("驗證頻率 (SinF):", window.currentSinFreq);
-        console.log("最低頻率 (Test0):", window.test.toFixed(6), window.test_1.toFixed(6));
-        console.log("最高頻率 (Test1):", window.test1.toFixed(6), window.test1_1.toFixed(6));
-        console.log("主頻頻率 (Test2):", window.test2.toFixed(6), window.test2_1.toFixed(6));
-//        console.log("測試頻率 (Test3):", window.test3.toFixed(6), window.test3_1.toFixed(6));
+        console.log("最強頻率 (Test0):", window.test.toFixed(6),  window.test_1.toFixed(6));
+        console.log("測一頻率 (Test1):", window.sim1, window.test1.toFixed(6));
+        console.log("測二頻率 (Test2):", window.sim2, window.test2.toFixed(6));
+        console.log("測三頻率 (Test3):", window.sim3, window.test3.toFixed(6));
         console.log("名義引數邊界 (f1/f2):", f1, f2);
         console.log("📊 複合波實時輸出 VPP:", window.currentVPP.toFixed(6), "V");
         console.log("=====================================");
@@ -540,8 +540,8 @@ window.initAudioGlobal = function() {
         // 🚀 🔒 【3 個測試音實體硬體頻率死鎖】：1830Hz (平頂核心), 180Hz (低頻邊界), 18000Hz (極高頻阻帶)
         //window.oscNode.frequency.setValueAtTime(safeFreq, window.audioCtx.currentTime); 
         window.oscNode.frequency.setValueAtTime(window.currentSinFreq, window.audioCtx.currentTime); 
-        window.oscNode2.frequency.setValueAtTime(400.0, window.audioCtx.currentTime);
-        window.oscNode3.frequency.setValueAtTime(7000.0, window.audioCtx.currentTime);
+        window.oscNode2.frequency.setValueAtTime(window.sim1, window.audioCtx.currentTime);
+        window.oscNode3.frequency.setValueAtTime(window.sim3, window.audioCtx.currentTime);
         
         // 🚀 🔒 建立標準雙聲道空間輸出水管
         window.scriptNode = window.audioCtx.createScriptProcessor(4096, 1, 2);
@@ -791,23 +791,26 @@ window.currentVPP = maxRealVal - minRealVal;
 		    maxMag = magnitudes[m];
             peakBinIndex = m;
         }			
-        if (magnitudes[m] > 0.1) {
-			maxFreq = m;
-            if (minFreq < 0) minFreq = m;
-		}
+        if (magnitudes[m] > 0.1) maxFreq = m;
+//        if (magnitudes[m] > 0.1) {
+//		      maxFreq = m;
+//            if (minFreq < 0) minFreq = m;
+//		}
 	}
     maxDisplayFreq = maxFreq * hzPerBin * 1.15; // 動態預留 15% 科技感幾何邊界
 	
-//let SinFreq = 0;
-//let SinFreq = Math.round(window.currentSinFreq / hzPerBin) ;
-window.test = minFreq * hzPerBin;
-window.test1 = maxFreq * hzPerBin;
-window.test2 = peakBinIndex * hzPerBin;
+window.test = peakBinIndex * hzPerBin;
+window.test_1 = magnitudes[peakBinIndex];
 
-window.test_1 = magnitudes[minFreq];
-window.test1_1 = magnitudes[maxFreq];
-window.test2_1 = magnitudes[peakBinIndex];
+window.test1 = magnitudes[Math.round( window.sim1 / hzPerBin)];
+window.test2 = magnitudes[Math.round( window.sim2 / hzPerBin)];
+window.test3 = magnitudes[Math.round( window.sim3 / hzPerBin)];
 
+/*
+window.test1_1 = magnitudes[minFreq];
+window.test2_1 = magnitudes[maxFreq];
+window.test3_1 = magnitudes[maxFreq];
+*/
     
     let currentFrameMaxMag = maxMag; 
     if (currentFrameMaxMag < 0.001) currentFrameMaxMag = 0.001;
