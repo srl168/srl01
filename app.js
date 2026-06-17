@@ -37,10 +37,10 @@ window.simPhase1830  = 0;
 window.simPhase180   = 0;
 
 // 實時時域 VPP 量測追蹤記憶體
-window.vppMax = -999.0;
-window.vppMin = 999.0;
+window.vppMax = 0.0;
+window.vppMin = 0.0;
+window.currentVPP = (vppMax - vppMin).toFixed(2);
 window.vppSampleCount = 0;
-window.currentVPP = 0.0;
 
 window.test = 0.0; window.test_1 = 0.0;
 window.test1 = 0.0; window.test1_1 = 0.0;
@@ -121,21 +121,22 @@ function runBiquadStage(x, b0, b1, b2, a1, a2, xv, yv) {
     yv[0] = (b0 * xv[0]) + (b1 * xv[1]) + (b2 * xv[2]) - (a1 * yv[1]) - (a2 * yv[2]);
     return yv[0];
 }
-
+/*
 // 🚀 🔒 【實時離散自研簡易單點網格 FFT 主頻估計器】
 function estimateDominantFrequency(buffer) {
     let fs = window.currentSampleRate || 44100;
     let crossCount = 0;
-    for (let i = 1; i < 1000; i++) {
+  //for (let i = 1; i < 1000; i++) {
+    for (let i = 0; i < buffer.length; i++) {
         if ((buffer[i] >= 0 && buffer[i-1] < 0) || (buffer[i] < 0 && buffer[i-1] >= 0)) { crossCount++; }
     }
     let freq = (crossCount * fs) / 2000;
     if (freq < 10) return 0;
     return Math.round(freq);
 }
-
+*/
 /*
-// 🚀 🔒 【真．正宗直接八階帶通最大平坦平頂 Filter Bank 組件】XXXXX
+// 🚀 🔒 【真．正宗直接八階帶通最大平坦平頂 Filter Bank 組件】
 function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let fs = window.currentSampleRate || 44100;
     let f1Correct = f1; let f2Correct = f2;
@@ -363,7 +364,7 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     return s4;
 }
 */
-/*
+
 // ==========================================
 // 💡 3️⃣ 數位濾波大腦：真．直接八階巴特沃斯分母多極點散射並聯多項式矩陣（🔒 1830Hz與全頻段平頂完滿完成體 🔒）
 // ==========================================
@@ -409,19 +410,12 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
 
     // 🚀 🔒 【多極點並聯代數線性相加】：分母解耦，相消陷波黑洞與大塌陷在並聯拓撲下徹底灰飛煙滅！
     let s_final = s1 + s2 + s3 + s4;
-
-    if (s_final > window.vppMax) window.vppMax = s_final;
-    if (s_final < window.vppMin) window.vppMin = s_final;
-    window.vppSampleCount++;
-    if (window.vppSampleCount >= 2000) {
-        window.currentVPP = window.vppMax - window.vppMin;
-        window.vppMax = -999.0; window.vppMin = 999.0; window.vppSampleCount = 0;
-    }
-
+	
     if (window.analysisBuffer && typeof window.bufferIndex === 'number') {
         window.analysisBuffer[window.bufferIndex % window.FFT_SIZE] = s_final;
     }
 
+/*
     // 🚀 🔒 【真．格內獨立相干解調鎖】：0個let新變數，分母死死卡在固定的 4096 點長度上，每幀打印當場清零重置，徹底消滅綑綁！🔒
     if (!chState.accCheck) {
         chState.accCheck = { r0:0, i0:0, r1:0, i1:0, r2:0, i2:0 };
@@ -435,7 +429,6 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     chState.accCheck.r0 += s_final * Math.cos(o0 * idx); chState.accCheck.i0 += s_final * Math.sin(o0 * idx);
     chState.accCheck.r1 += s_final * Math.cos(o1 * idx); chState.accCheck.i1 += s_final * Math.sin(o1 * idx);
     chState.accCheck.r2 += s_final * Math.cos(o2 * idx); chState.accCheck.i2 += s_final * Math.sin(o2 * idx);
-
     window.renderFrameCounter = (window.renderFrameCounter + 1) % 4096;
     if (window.renderFrameCounter === 0) {
         let fftFreq = estimateDominantFrequency(window.analysisBuffer);
@@ -459,95 +452,26 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
         console.log("🎯 FFT 頻譜分析主頻 (Peak Freq):", fftFreq, "Hz");
         console.log("=====================================");
     }
-
-    return s_final;
-}
 */
-// ==========================================
-// 💡 3️⃣ 數位濾波大腦：100% 完璧原裝巴特沃斯高低通解耦級聯 Filter Bank 🔒
-// ==========================================
-// 0修改！0加工！一字不改原創公式！徹底 भौतिक 閹割無效的 amp 求解廢碼！回歸純淨時域四級連環推移 Facts！🔒
-function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
-    let fs = window.currentSampleRate || 44100;
-    let f1Correct = f1; let f2Correct = f2;
-    if (f2Correct <= f1Correct) f2Correct = f1Correct + 10;
-
-    // 💡 🔒 【100% 原創好的、正宗二階巴特沃斯對稱散射臨界常數定盤 — 0修改】
-    let q1 = 0.70710678; 
-
-    // 🛑 A. 真．二階高通多項式（強控 F1 低頻下限 — 🔒 兩級連環組件 100% 解耦獨立！）
-    let frH = fs / f1Correct; if (frH < 2.01) frH = 2.01;
-    let oH = Math.tan(Math.PI / frH);
-    let cH = 1.0 + (oH / q1) + (oH * oH);
-    let b0_H = 1.0 / cH;
-    let b1_H = -2.0 * b0_H;
-    let b2_H = b0_H;
-    let a1_H = 2.0 * (1.0 - oH * oH) / cH;
-    let a2_H = (1.0 - (oH / q1) + (oH * oH)) / cH;
-
-    // 🛑 B. 真．二階低通多項式（強控 F2 高頻上限 — 🔒 兩級連環組件 100% 解耦獨立！）
-    let frL = fs / f2Correct; if (frL < 2.01) frL = 2.01;
-    let oL = Math.tan(Math.PI / frL);
-    let cL = 1.0 + (oL / q1) + (oL * oL);
-    let b0_L = (oL * oL) / cL;
-    let b1_L = 2.0 * b0_L;
-    let b2_L = b0_L;
-    let a1_L = 2.0 * (oL * oL - 1.0) / cL;
-    let a2_L = (1.0 - (oL / q1) + (oL * oL)) / cL;
-
-    let b0_1=0, b1_1=0, b2_1=0, a1_1=0, a2_1=0;
-    let b0_2=0, b1_2=0, b2_2=0, a1_2=0, a2_2=0;
-    let b0_3=0, b1_3=0, b2_3=0, a1_3=0, a2_3=0;
-    let b0_4=0, b1_4=0, b2_4=0, a1_4=0, a2_4=0;
-
-    // 🚀 🔒 【真．物理解耦串聯級聯拓撲】：完全還原回原創代碼，不搞任何外圍垃圾補丁！🔒
-    b0_1 = b0_H; b1_1 = b1_H; b2_1 = b2_H; a1_1 = a1_H; a2_1 = a2_H;
-    b0_2 = b0_H; b1_2 = b1_H; b2_2 = b2_H; a1_2 = a1_H; a2_2 = a2_H;
-    b0_3 = b0_L; b1_3 = b1_L; b2_3 = b2_L; a1_3 = a1_L; a2_3 = a2_L;
-    b0_4 = b0_L; b1_4 = b1_L; b2_4 = b2_L; a1_4 = a1_L; a2_4 = a2_L;
-
-    // 歷史迭代四級時域直接級聯推移 — 100% 遵照您指定的最高完美、先2後1再0遞推移位順序 🔒
-    let s1 = runBiquadStage(x, b0_1, b1_1, b2_1, a1_1, a2_1, chState.xv, chState.yv);
-    let s2 = runBiquadStage(s1, b0_2, b1_2, b2_2, a1_2, a2_2, chState.xv2, chState.yv2);
-    let s3 = runBiquadStage(s2, b0_3, b1_3, b2_3, a1_3, a2_3, chState.xv3, chState.yv3);
-    let s4 = runBiquadStage(s3, b0_4, b1_4, b2_4, a1_4, a2_4, chState.xv4, chState.yv4);
-
-    // 實時捕捉峰峰值 VPP
-    if (s4 > window.vppMax) window.vppMax = s4;
-    if (s4 < window.vppMin) window.vppMin = s4;
-    window.vppSampleCount++;
-    if (window.vppMax - window.vppMin > window.currentVPP) {
-        window.currentVPP = window.vppMax - window.vppMin;
-    }
-    if (window.vppSampleCount >= 4096) {
-        window.vppMax = -999.0; window.vppMin = 999.0; window.vppSampleCount = 0;
-    }
-
-    // 將最純淨、無任何指標污染的濾波輸出信號實時灌入緩衝區，100% 直通全域畫布圖表！
-    if (window.analysisBuffer && typeof window.bufferIndex === 'number') {
-        window.analysisBuffer[window.bufferIndex % window.FFT_SIZE] = s4;
-    }
-
     window.renderFrameCounter = (window.renderFrameCounter + 1) % 4096;
     if (window.renderFrameCounter === 0) {
-        let fftFreq = estimateDominantFrequency(window.analysisBuffer);
+        //let fftFreq = estimateDominantFrequency(window.analysisBuffer);
         console.log("=== ⚡ 6通道級聯型真八階平頂 Filter Bank 指標報告 ⚡ ===");
         console.log("當前模式 (Mode):", window.currentFilterMode);
         console.log("驗證頻率 (SinF):", window.currentSinFreq);
         console.log("最低頻率 (Test0):", window.test, window.test_1);
         console.log("最高頻率 (Test1):", window.test1, window.test1_1);
-        console.log("最強頻率 (Test2):", window.test2, window.test2_1);
+        console.log("主頻頻率 (Test2):", window.test2, window.test2_1);
         console.log("名義引數邊界 (f1/f2):", f1, f2);
-        console.log("📊 複合波實時輸出 VPP:", window.currentVPP.toFixed(4), "V");
-        console.log("🎯 FFT 頻譜分析主頻 (Peak Freq):", fftFreq, "Hz");
-        console.log("第四級最終時域輸出採樣 (s4):", s4.toFixed(4));
+        console.log("📊 複合波實時輸出 VPP:", window.currentVPP, "V");
         console.log("=====================================");
     }
 
-    return s4;
+    return s_final;
 }
 
-// 9
+
+// 8
 // ==========================================
 // 💡 3️⃣ 數位立體聲空間音訊流管道（2通道直通水管，強控立體聲不串軌完全體 🔒）
 // ==========================================
@@ -567,6 +491,7 @@ window.applyFilterRight = function(x) {
     if (window.currentFilterMode === 'BP') return runEightPoleFilterBankBP(x, window.f1_BP, window.f2_BP, window.filterStates.BP_ch2, 'BP');
     return x;
 };
+
 
 // ==========================================
 // 💡 3️⃣ 數位立體聲空間音訊流管道（2通道直通水管，強控立體聲不串軌完全體 🔒）
@@ -848,6 +773,8 @@ window.globalRenderLoop = function() {
     
     let maxRealVal = Math.max(...rawSlice);
     let minRealVal = Math.min(...rawSlice);
+window.vppMax = maxRealVal;
+window.vppMin = minRealVal;
     let sq = 0; 
     rawSlice.forEach(v => sq += v * v);
     document.getElementById('vppVal').innerText = (maxRealVal - minRealVal).toFixed(2) + " V"; 
