@@ -541,7 +541,7 @@ window.initAudioGlobal = function() {
         //window.oscNode.frequency.setValueAtTime(safeFreq, window.audioCtx.currentTime); 
         window.oscNode.frequency.setValueAtTime(window.currentSinFreq, window.audioCtx.currentTime); 
         window.oscNode2.frequency.setValueAtTime(400.0, window.audioCtx.currentTime);
-        window.oscNode3.frequency.setValueAtTime(10000.0, window.audioCtx.currentTime);
+        window.oscNode3.frequency.setValueAtTime(9000.0, window.audioCtx.currentTime);
         
         // 🚀 🔒 建立標準雙聲道空間輸出水管
         window.scriptNode = window.audioCtx.createScriptProcessor(4096, 1, 2);
