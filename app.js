@@ -39,7 +39,7 @@ window.simPhase180   = 0;
 // 實時時域 VPP 量測追蹤記憶體
 window.vppMax = 0.0;
 window.vppMin = 0.0;
-window.currentVPP = (vppMax - vppMin).toFixed(2);
+window.currentVPP = vppMax - vppMin;
 window.vppSampleCount = 0;
 
 window.test = 0.0; window.test_1 = 0.0;
@@ -459,11 +459,11 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
         console.log("=== ⚡ 6通道級聯型真八階平頂 Filter Bank 指標報告 ⚡ ===");
         console.log("當前模式 (Mode):", window.currentFilterMode);
         console.log("驗證頻率 (SinF):", window.currentSinFreq);
-        console.log("最低頻率 (Test0):", window.test, window.test_1);
-        console.log("最高頻率 (Test1):", window.test1, window.test1_1);
-        console.log("主頻頻率 (Test2):", window.test2, window.test2_1);
+        console.log("最低頻率 (Test0):", window.test, window.test_1.toFixed(6));
+        console.log("最高頻率 (Test1):", window.test1, window.test1_1.toFixed(6));
+        console.log("主頻頻率 (Test2):", window.test2, window.test2_1.toFixed(6));
         console.log("名義引數邊界 (f1/f2):", f1, f2);
-        console.log("📊 複合波實時輸出 VPP:", window.currentVPP, "V");
+        console.log("📊 複合波實時輸出 VPP:", window.currentVPP.toFixed(6), "V");
         console.log("=====================================");
     }
 
