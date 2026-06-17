@@ -417,58 +417,6 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
         window.analysisBuffer[window.bufferIndex % window.FFT_SIZE] = s_final;
     }
 
-/*
-    // 🚀 🔒 【真．格內獨立相干解調鎖】：0個let新變數，分母死死卡在固定的 4096 點長度上，每幀打印當場清零重置，徹底消滅綑綁！🔒
-    if (!chState.accCheck) {
-        chState.accCheck = { r0:0, i0:0, r1:0, i1:0, r2:0, i2:0 };
-    }
-    let idx = window.globalSampleIndex || 0;
-    let o0 = 2.0 * Math.PI * 366.064453 / fs;
-    let o1 = 2.0 * Math.PI * 9183.911132 / fs;
-    let o2 = 2.0 * Math.PI * (window.currentSinFreq || 1830) / fs;
-
-    // 1對1 標準複數相角正交乘算 Facts
-    chState.accCheck.r0 += s_final * Math.cos(o0 * idx); chState.accCheck.i0 += s_final * Math.sin(o0 * idx);
-    chState.accCheck.r1 += s_final * Math.cos(o1 * idx); chState.accCheck.i1 += s_final * Math.sin(o1 * idx);
-    chState.accCheck.r2 += s_final * Math.cos(o2 * idx); chState.accCheck.i2 += s_final * Math.sin(o2 * idx);
-    window.renderFrameCounter = (window.renderFrameCounter + 1) % 4096;
-    if (window.renderFrameCounter === 0) {
-        let fftFreq = estimateDominantFrequency(window.analysisBuffer);
-        
-        // 🚀 🔒 【分母正義求模】：除數剛性卡死在固定幀長 4096 上，一秒鐘戳穿分母稀釋與投毒綑綁！🔒
-        let amp0 = Math.sqrt(chState.accCheck.r0*chState.accCheck.r0 + chState.accCheck.i0*chState.accCheck.i0) * (2.0 / 4096);
-        let amp1 = Math.sqrt(chState.accCheck.r1*chState.accCheck.r1 + chState.accCheck.i1*chState.accCheck.i1) * (2.0 / 4096);
-        let amp2 = Math.sqrt(chState.accCheck.r2*chState.accCheck.r2 + chState.accCheck.i2*chState.accCheck.i2) * (2.0 / 4096);
-        
-        // 🔒 每一幀日誌吐出後，積分子當場原地 100% 強制重置清零，不給垃圾數據半點殘留污染的可能！🔒
-        chState.accCheck = { r0:0, i0:0, r1:0, i1:0, r2:0, i2:0 };
-
-        console.log("=== ⚡ 正宗直接八階巴特沃斯並聯帶通管道報告 ⚡ ===");
-        console.log("當前模式 (Mode):", window.currentFilterMode);
-        console.log("驗頻率 (SinF):", window.currentSinFreq || 1830);
-        console.log("最低頻率 (Test0):", "366.064453", amp0.toFixed(6)); // 👈 100% 獨立不綑綁、不作假的時域實時 Facts 真值！
-        console.log("最高頻率 (Test1):", "9183.911132", amp1.toFixed(6)); // 👈 100% 獨立不綑綁、不作假的時域實時 Facts 真值！
-        console.log("最強頻率 (Test2):", "1830.000000", amp2.toFixed(6)); // 👈 100% 獨立不綑綁、不作假的時域實時 Facts 真值！
-        console.log("名義引數邊界 (f1/f2):", f1, f2);
-        console.log("📊 複合波實時輸出 VPP:", window.currentVPP.toFixed(4), "V");
-        console.log("🎯 FFT 頻譜分析主頻 (Peak Freq):", fftFreq, "Hz");
-        console.log("=====================================");
-    }
-
-    window.renderFrameCounter = (window.renderFrameCounter + 1) % 4096;
-    if (window.renderFrameCounter === 0) {
-        //let fftFreq = estimateDominantFrequency(window.analysisBuffer);
-        console.log("=== ⚡ 6通道級聯型真八階平頂 Filter Bank 指標報告 ⚡ ===");
-        console.log("當前模式 (Mode):", window.currentFilterMode);
-        console.log("驗證頻率 (SinF):", window.currentSinFreq);
-        console.log("最低頻率 (Test0):", window.test, window.test_1.toFixed(6));
-        console.log("最高頻率 (Test1):", window.test1, window.test1_1.toFixed(6));
-        console.log("主頻頻率 (Test2):", window.test2, window.test2_1.toFixed(6));
-        console.log("名義引數邊界 (f1/f2):", f1, f2);
-        console.log("📊 複合波實時輸出 VPP:", window.currentVPP.toFixed(6), "V");
-        console.log("=====================================");
-    }
-*/
     printLog(f1, f2);
     return s_final;
 }
@@ -482,7 +430,7 @@ function printLog(f1, f2) {
         console.log("最低頻率 (Test0):", window.test, window.test_1.toFixed(6));
         console.log("最高頻率 (Test1):", window.test1, window.test1_1.toFixed(6));
         console.log("主頻頻率 (Test2):", window.test2, window.test2_1.toFixed(6));
-        console.log("測試頻率 (Test3):", window.test3, window.test3_1.toFixed(6));
+//        console.log("測試頻率 (Test3):", window.test3, window.test3_1.toFixed(6));
         console.log("名義引數邊界 (f1/f2):", f1, f2);
         console.log("📊 複合波實時輸出 VPP:", window.currentVPP.toFixed(6), "V");
         console.log("=====================================");
@@ -490,7 +438,7 @@ function printLog(f1, f2) {
 }
 
 
-// 11
+// 10
 // ==========================================
 // 💡 3️⃣ 數位立體聲空間音訊流管道（2通道直通水管，強控立體聲不串軌完全體 🔒）
 // ==========================================
