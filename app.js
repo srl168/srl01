@@ -401,8 +401,10 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let a2_s2 = (1.0 - (W / q2) + C) / c2;
 
     // 標準巴特沃斯多極點散射部分分式並聯展開之幅值分配張量 Facts
-    let g1 = 0.18459191; let g2 = 0.43130656; 
-    let g3 = 0.28310459; let g4 = 0.10100000;
+//    let g1 = 0.18459191; let g2 = 0.43130656; 
+  //  let g3 = 0.28310459; let g4 = 0.10100000;
+    let g1 = 0.22200000 ; let g2 = 0.51870000 ; 
+    let g3 = 0.34050000; let g4 = 0.12150000;
 
     // 歷史迭代四級時域並聯獨立推移 — 100% 遵照您指定的最高完美、先2後1再0遞推移位順序 🔒
     let s1 = runBiquadStage(x, b0_s1 * g1, 0.0, -b0_s1 * g1, a1_s1, a2_s1, chState.xv, chState.yv);
@@ -427,10 +429,10 @@ function printLog(f1, f2) {
         console.log("=== ⚡ 6通道級聯型真八階平頂 Filter Bank 指標報告 ⚡ ===");
         console.log("當前模式 (Mode):", window.currentFilterMode);
         console.log("驗證頻率 (SinF):", window.currentSinFreq);
-        console.log("最低頻率 (Test0):", window.test, window.test_1.toFixed(6));
-        console.log("最高頻率 (Test1):", window.test1, window.test1_1.toFixed(6));
-        console.log("主頻頻率 (Test2):", window.test2, window.test2_1.toFixed(6));
-//        console.log("測試頻率 (Test3):", window.test3, window.test3_1.toFixed(6));
+        console.log("最低頻率 (Test0):", window.test.toFixed(6), window.test_1.toFixed(6));
+        console.log("最高頻率 (Test1):", window.test1.toFixed(6), window.test1_1.toFixed(6));
+        console.log("主頻頻率 (Test2):", window.test2.toFixed(6), window.test2_1.toFixed(6));
+//        console.log("測試頻率 (Test3):", window.test3.toFixed(6), window.test3_1.toFixed(6));
         console.log("名義引數邊界 (f1/f2):", f1, f2);
         console.log("📊 複合波實時輸出 VPP:", window.currentVPP.toFixed(6), "V");
         console.log("=====================================");
