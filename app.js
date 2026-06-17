@@ -46,6 +46,7 @@ window.currentVPP = 0.0;
 window.test = 0.0; window.test_1 = 0.0;
 window.test1 = 0.0; window.test1_1 = 0.0;
 window.test2 = 0.0; window.test2_1 = 0.0;
+window.test3 = 0.0; window.test3_1 = 0.0;
 
 /*
 // 🚀 🔒 【真．多通道立體聲標準整數中括號陣列大內存池物件 — 左右耳 1對1 完全對稱 🔒】
@@ -453,7 +454,7 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
         console.log("🎯 FFT 頻譜分析主頻 (Peak Freq):", fftFreq, "Hz");
         console.log("=====================================");
     }
-*/
+
     window.renderFrameCounter = (window.renderFrameCounter + 1) % 4096;
     if (window.renderFrameCounter === 0) {
         //let fftFreq = estimateDominantFrequency(window.analysisBuffer);
@@ -467,18 +468,36 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
         console.log("📊 複合波實時輸出 VPP:", window.currentVPP.toFixed(6), "V");
         console.log("=====================================");
     }
-
+*/
+    printLog(f1, f2);
     return s_final;
 }
 
+function printLog(f1, f2) {
+    window.renderFrameCounter = (window.renderFrameCounter + 1) % 4096;
+    if (window.renderFrameCounter === 0) {
+        console.log("=== ⚡ 6通道級聯型真八階平頂 Filter Bank 指標報告 ⚡ ===");
+        console.log("當前模式 (Mode):", window.currentFilterMode);
+        console.log("驗證頻率 (SinF):", window.currentSinFreq);
+        console.log("最低頻率 (Test0):", window.test, window.test_1.toFixed(6));
+        console.log("最高頻率 (Test1):", window.test1, window.test1_1.toFixed(6));
+        console.log("主頻頻率 (Test2):", window.test2, window.test2_1.toFixed(6));
+        console.log("測試頻率 (Test3):", window.test3, window.test3_1.toFixed(6));
+        console.log("名義引數邊界 (f1/f2):", f1, f2);
+        console.log("📊 複合波實時輸出 VPP:", window.currentVPP.toFixed(6), "V");
+        console.log("=====================================");
+    }
+}
 
-// 9
+
+// 11
 // ==========================================
 // 💡 3️⃣ 數位立體聲空間音訊流管道（2通道直通水管，強控立體聲不串軌完全體 🔒）
 // ==========================================
 // 🚀 🔒 左右耳徹底解耦！左聲道跑ch1矩陣，右聲道跑ch2矩陣，強控立體聲絕對不串軌、不掐斷！🔒
 window.applyFilterLeft = function(x) {
-    if (window.currentFilterMode === 'RAW') return x;
+  //if (window.currentFilterMode === 'RAW') return x;
+    if (window.currentFilterMode === 'RAW') { printLog(8, 20000); return x}
     if (window.currentFilterMode === 'LP') return runEightPoleFilterBankBP(x, window.f1_LP, window.f2_LP, window.filterStates.LP_ch1, 'LP');
     if (window.currentFilterMode === 'HP') return runEightPoleFilterBankBP(x, window.f1_HP, window.f2_HP, window.filterStates.HP_ch1, 'HP'); 
     if (window.currentFilterMode === 'BP') return runEightPoleFilterBankBP(x, window.f1_BP, window.f2_BP, window.filterStates.BP_ch1, 'BP');
@@ -486,7 +505,8 @@ window.applyFilterLeft = function(x) {
 };
 
 window.applyFilterRight = function(x) {
-    if (window.currentFilterMode === 'RAW') return x;
+  //if (window.currentFilterMode === 'RAW') return x;
+    if (window.currentFilterMode === 'RAW') { printLog(8, 20000); return x;}
     if (window.currentFilterMode === 'LP') return runEightPoleFilterBankBP(x, window.f1_LP, window.f2_LP, window.filterStates.LP_ch2, 'LP'); 
     if (window.currentFilterMode === 'HP') return runEightPoleFilterBankBP(x, window.f1_HP, window.f2_HP, window.filterStates.HP_ch2, 'HP');
     if (window.currentFilterMode === 'BP') return runEightPoleFilterBankBP(x, window.f1_BP, window.f2_BP, window.filterStates.BP_ch2, 'BP');
