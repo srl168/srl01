@@ -886,11 +886,18 @@ window.test2_1 = magnitudes[peakBinIndex];
         if (currentPointRealHz > maxDisplayFreq) break; 
         let curX = (currentPointRealHz / maxDisplayFreq) * 800;
         
+        // 🚀 🔒 【真．線性電壓幅值比】：magnitudes[n] 與最大值之比直接反映物理電壓 Facts
         let ratio = magnitudes[n] / currentFrameMaxMag; 
-        if (ratio < 0.00001) ratio = 0.00001;
-        let dbValue = 20.0 * Math.log10(ratio);
-        if (dbValue < -50.0) dbValue = -50.0;
-        let y = 30 + ((dbValue / -50.0) * 310);
+        if (typeof ratio !== 'number' || isNaN(ratio) || !isFinite(ratio)) ratio = 0.0;
+        if (ratio < 0.0) ratio = 0.0;
+        if (ratio > 1.0) ratio = 1.0;
+
+        // 🚀 🔒 【線性映射直通鎖】：0個對數壓縮！畫布高度與電壓成 100% 絕對正比！
+        // 原始 db 映射是 y = 30 + (分貝比 * 310)。
+        // 當比值 ratio ＝ 1.0（最高柱）時，y ＝ 30 像素（畫布最頂端）；
+        // 當比值 ratio ＝ 0.0（無能量）時，y ＝ 30 + 310 ＝ 340 像素（畫布最底端）。
+        // 離散代數幾何一秒鐘咬合：兩倍的電壓差將在 310 像素的腹地內精確展現兩倍的像素差距！
+        let y = 340 - (ratio * 310);
         
         if (isNaN(y) || !isFinite(y)) y = 358.0; 
         if (y < 32.0) y = 32.0; 
