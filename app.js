@@ -802,9 +802,9 @@ window.currentVPP = maxRealVal - minRealVal;
 window.test = peakBinIndex * hzPerBin;
 window.test_1 = magnitudes[peakBinIndex];
 
-window.test1 = magnitudes[Math.ceil( window.sim1 / hzPerBin)];
-window.test2 = magnitudes[Math.ceil( window.sim2 / hzPerBin)];
-window.test3 = magnitudes[Math.ceil( window.sim3 / hzPerBin)];
+window.test1 = magnitudes[Math.trunc( window.sim1 / hzPerBin)];
+window.test2 = magnitudes[Math.trunc( window.sim2 / hzPerBin)];
+window.test3 = magnitudes[Math.trunc( window.sim3 / hzPerBin)];
 
 /*
 window.test1_1 = magnitudes[minFreq];
