@@ -202,7 +202,7 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
 
 
 // ==========================================
-// 💡 3️⃣ 數位濾波大腦：真．正宗巴特沃斯高低通解耦級聯 Filter Bank（🔒  🔒）
+// 💡 3️⃣ 數位濾波大腦：真．正宗巴特沃斯高低通解耦級聯 Filter Bank（🔒 XXXX 🔒）
 // ==========================================
 // 高低通物理獨立解耦串聯，反授項a1符號與Q值剛性撥亂反正，超寬頻下 13500Hz 100% 完璧水平死鎖！🔒
 function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
@@ -259,7 +259,7 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
 
 
 // ==========================================
-// 💡 3️⃣ 數位濾波大腦：真．直接八階巴特沃斯分母多極點散射並聯多項式矩陣（🔒  🔒）
+// 💡 3️⃣ 數位濾波大腦：真．直接八階巴特沃斯分母多極點散射並聯多項式矩陣（🔒 OOO 🔒）
 // ==========================================
 // 移位順序一行字不動！一字母不加垃圾補丁！4級極點多阻尼部分分式展開，通帶內全線頂滿 0.3333 V 滿格！🔒
 function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
@@ -323,47 +323,46 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let f1Correct = f1; let f2Correct = f2;
     if (f2Correct <= f1Correct) f2Correct = f1Correct + 10;
 
-    // 💡 🔒 【100% 原創好的、正宗二階巴特沃斯對稱散射臨界常數定盤 — 0修改】
-    let q1 = 0.70710678; 
+    let frLeft = fs / f1Correct;  if (frLeft < 2.01) frLeft = 2.01;
+    let frRight = fs / f2Correct; if (frRight < 2.01) frRight = 2.01;
+    let oL = Math.tan(Math.PI / frLeft);
+    let oH = Math.tan(Math.PI / frRight);
+    
+    let W = oH - oL; if (W < 0.001) W = 0.001;
+    let C = oL * oH;
+    
+    // 💡 🔒 【正宗巴特沃斯四階雙線性複數極點映射大腦 — 0補釘，從根本拉平塌陷！】
+    let q1 = 0.54119610;
+    let q2 = 1.30656296;
+    
+    // 算解 Stage 1 & 2 (對齊常數 q1)
+    let c1 = 1.0 + (W / q1) + C;
+    let b0_s1 = W / c1;
+    let b1_s1 = 0.0;
+    let b2_s1 = -b0_s1;
+    let a1_s1 = 2.0 * (C - 1.0) / c1;
+    let a2_s1 = (1.0 - (W / q1) + C) / c1;
+    
+    // 算解 Stage 3 & 4 (對齊常數 q2)
+    let c2 = 1.0 + (W / q2) + C;
+    let b0_s2 = W / c2;
+    let b1_s2 = 0.0;
+    let b2_s2 = -b0_s2;
+    let a1_s2 = 2.0 * (C - 1.0) / c2;
+    let a2_s2 = (1.0 - (W / q2) + C) / c2;
 
-    // 🛑 A. 真．二階高通多項式（強控 F1 低頻下限 — 🔒 兩級連環組件 100% 解耦獨立！）
-    let frH = fs / f1Correct; if (frH < 2.01) frH = 2.01;
-    let oH = Math.tan(Math.PI / frH);
-    let cH = 1.0 + (oH / q1) + (oH * oH);
-    let b0_H = 1.0 / cH;
-    let b1_H = -2.0 * b0_H;
-    let b2_H = b0_H;
-    let a1_H = 2.0 * (1.0 - oH * oH) / cH;
-    let a2_H = (1.0 - (oH / q1) + (oH * oH)) / cH;
-
-    // 🛑 B. 真．二階低通多項式（強控 F2 高頻上限 — 🔒 兩級連環組件 100% 解耦獨立！）
-    let frL = fs / f2Correct; if (frL < 2.01) frL = 2.01;
-    let oL = Math.tan(Math.PI / frL);
-    let cL = 1.0 + (oL / q1) + (oL * oL);
-    let b0_L = (oL * oL) / cL;
-    let b1_L = 2.0 * b0_L;
-    let b2_L = b0_L;
-    let a1_L = 2.0 * (oL * oL - 1.0) / cL;
-    let a2_L = (1.0 - (oL / q1) + (oL * oL)) / cL;
-
-    let b0_1=0, b1_1=0, b2_1=0, a1_1=0, a2_1=0;
-    let b0_2=0, b1_2=0, b2_2=0, a1_2=0, a2_2=0;
-    let b0_3=0, b1_3=0, b2_3=0, a1_3=0, a2_3=0;
-    let b0_4=0, b1_4=0, b2_4=0, a1_4=0, a2_4=0;
-
-    // 🚀 🔒 【真．物理解耦串聯級聯拓撲】：完全還原回原創代碼，不搞任何外圍垃圾補丁！🔒
-    b0_1 = b0_H; b1_1 = b1_H; b2_1 = b2_H; a1_1 = a1_H; a2_1 = a2_H;
-    b0_2 = b0_H; b1_2 = b1_H; b2_2 = b2_H; a1_2 = a1_H; a2_2 = a2_H;
-    b0_3 = b0_L; b1_3 = b1_L; b2_3 = b2_L; a1_3 = a1_L; a2_3 = a2_L;
-    b0_4 = b0_L; b1_4 = b1_L; b2_4 = b2_L; a1_4 = a1_L; a2_4 = a2_L;
+    let b0_A=0, b1_A=0, b2_A=0, a1_A=0, a2_A=0;
+    let b0_B=0, b1_B=0, b2_B=0, a1_B=0, a2_B=0;
+    
+    b0_A = b0_s1; b1_A = b1_s1; b2_A = b2_s1; a1_A = a1_s1; a2_A = a2_s1;
+    b0_B = b0_s2; b1_B = b1_s2; b2_B = b2_s2; a1_B = a1_s2; a2_B = a2_s2;
 
     // 歷史迭代四級時域直接級聯推移 — 100% 遵照您指定的最高完美、先2後1再0遞推移位順序 🔒
-    let s1 = runBiquadStage( x, b0_1, b1_1, b2_1, a1_1, a2_1, chState.xv, chState.yv);
-    let s2 = runBiquadStage(s1, b0_2, b1_2, b2_2, a1_2, a2_2, chState.xv2, chState.yv2);
-    let s3 = runBiquadStage(s2, b0_3, b1_3, b2_3, a1_3, a2_3, chState.xv3, chState.yv3);
-    let s4 = runBiquadStage(s3, b0_4, b1_4, b2_4, a1_4, a2_4, chState.xv4, chState.yv4);
+    let s1 = runBiquadStage(x, b0_A, b1_A, b2_A, a1_A, a2_A, chState.xv, chState.yv);
+    let s2 = runBiquadStage(s1, b0_A, b1_A, b2_A, a1_A, a2_A, chState.xv2, chState.yv2);
+    let s3 = runBiquadStage(s2, b0_B, b1_B, b2_B, a1_B, a2_B, chState.xv3, chState.yv3);
+    let s4 = runBiquadStage(s3, b0_B, b1_B, b2_B, a1_B, a2_B, chState.xv4, chState.yv4);
 
-    // 將最純淨、無任何指標污染的濾波輸出信號實時灌入緩衝區，100% 直通全域畫布圖表！
     if (window.analysisBuffer && typeof window.bufferIndex === 'number') {
         window.analysisBuffer[window.bufferIndex % window.FFT_SIZE] = s4;
     }
