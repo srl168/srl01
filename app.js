@@ -787,7 +787,7 @@ window.currentVPP = maxRealVal - minRealVal;
     let magnitudes = new Float32Array(window.FFT_SIZE / 2);
     let maxMag = 0;
     let minFreq = -1;
-    let midFreq = 0;
+    let midFreq = -1;
     let maxFreq = 0;
     let peakBinIndex = 0; 
 	
@@ -801,7 +801,7 @@ window.currentVPP = maxRealVal - minRealVal;
         if (magnitudes[m] > 0.1) { //ma {xFreq) {
 		    maxFreq = m;
             if (minFreq < 0) minFreq = m;
-            if (maxFreq > minFreq) midFreq = m;
+            if (minFreq > 0 && midFreq < 0) midFreq = m;
 		}
 	}
     maxDisplayFreq = maxFreq * hzPerBin * 1.15; // 動態預留 15% 科技感幾何邊界
