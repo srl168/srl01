@@ -807,9 +807,9 @@ window.currentVPP = maxRealVal - minRealVal;
     maxDisplayFreq = maxFreq * hzPerBin * 1.15; // 動態預留 15% 科技感幾何邊界
 	
 window.test = peakBinIndex * hzPerBin;
-window.test1 = minFreq;
-window.test2 = midFreq;
-window.test3 = maxFreq;
+window.test1 = minFreq * hzPerBin;
+window.test2 = midFreq * hzPerBin;
+window.test3 = maxFreq * hzPerBin;
 
 window.test_1 = magnitudes[peakBinIndex];
 window.test1_1 = magnitudes[minFreq];
