@@ -798,10 +798,10 @@ window.currentVPP = maxRealVal - minRealVal;
             peakBinIndex = m;
         }			
 //      if (magnitudes[m] > 0.1) maxFreq = m;
-        if (magnitudes[m] > 0.1) { //ma {xFreq) {
-		    maxFreq = m;
-            if (minFreq < 0) minFreq = m;
+        if (magnitudes[m] > 0.1) {
             if (minFreq > 0 && midFreq < 0) midFreq = m;
+            if (minFreq < 0) minFreq = m;
+		    maxFreq = m;
 		}
 	}
     maxDisplayFreq = maxFreq * hzPerBin * 1.15; // 動態預留 15% 科技感幾何邊界
