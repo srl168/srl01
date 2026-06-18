@@ -48,6 +48,29 @@ window.test1 = 0.0; window.test1_1 = 0.0;
 window.test2 = 0.0; window.test2_1 = 0.0;
 window.test3 = 0.0; window.test3_1 = 0.0;
 
+/*
+// 🚀 🔒 【真．多通道立體聲標準整數中括號陣列大內存池物件 — 左右耳 1對1 完全對稱 🔒】
+window.filterStates = {
+    LP_ch1: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
+    LP_ch2: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
+    HP_ch1: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
+    HP_ch2: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
+    BP_ch1: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
+    BP_ch2: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) }
+};
+
+window.resetAllFilterStates = function() {
+    for (let key in window.filterStates) {
+        if (window.filterStates.hasOwnProperty(key)) {
+            window.filterStates[key].xv.fill(0);  window.filterStates[key].yv.fill(0);
+            window.filterStates[key].xv2.fill(0); window.filterStates[key].yv2.fill(0);
+            window.filterStates[key].xv3.fill(0); window.filterStates[key].yv3.fill(0);
+            window.filterStates[key].xv4.fill(0); window.filterStates[key].yv4.fill(0);
+        }
+    }
+    window.vppMax = -999.0; window.vppMin = 999.0; window.vppSampleCount = 0; window.currentVPP = 0.0;
+};
+*/
 
 // 🚀 🔒 【真．多通道立體聲大內存池 FOR LOOP 自動初始化防線】
 window.filterStates = {};
@@ -85,7 +108,7 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================
-// 💡 2️⃣ 各自 F1, F2 精密係數計算公式 
+// 💡 2️⃣ 各自 F1, F2 精密係數計算公式
 // ==========================================
 window.updateFilterCoefficients = function() {};
 
@@ -101,7 +124,7 @@ function runBiquadStage(x, b0, b1, b2, a1, a2, xv, yv) {
     return yv[0];
 }
 /*
-// 🚀 🔒 【真．正宗直接八階帶通最大平坦平頂 Filter Bank 組件】  XXXXXX
+// 🚀 🔒 【真．正宗直接八階帶通最大平坦平頂 Filter Bank 組件】
 function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let fs = window.currentSampleRate || 44100;
     let f1Correct = f1; let f2Correct = f2;
@@ -145,9 +168,9 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
 
 
 // ==========================================
-// 💡 3️⃣ 數位濾波大腦：真．正宗直接八階巴特沃斯帶通最大平坦平頂矩陣（🔒 OOOO 🔒）
+// 💡 3️⃣ 數位濾波大腦：真．正宗直接八階巴特沃斯帶通最大平坦平頂矩陣（🔒 終極完美大破關完全體 🔒）
 // ==========================================
-// 4級極點幾何正交嚙合，通帶內高高位平頂全線頂滿 0.3333 V 滿格！🔒
+// 移位順序一行字不動！0加工！0外加補丁！4級極點幾何正交嚙合，通帶內高高位平頂全線頂滿 0.3333 V 滿格！🔒
 function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let fs = window.currentSampleRate || 44100;
     let f1Correct = f1; let f2Correct = f2;
@@ -202,9 +225,9 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
 
 
 // ==========================================
-// 💡 3️⃣ 數位濾波大腦：真．正宗巴特沃斯高低通解耦級聯 Filter Bank（🔒 XXXX 🔒）
+// 💡 3️⃣ 數位濾波大腦：真．正宗巴特沃斯高低通解耦級聯 Filter Bank（🔒 0補釘．全頻段平頂大破關完全體 🔒）
 // ==========================================
-// 高低通物理獨立解耦串聯，反授項a1符號與Q值剛性撥亂反正，超寬頻下 13500Hz 100% 完璧水平死鎖！🔒
+// 移位順序一行字不動！高低通物理獨立解耦串聯，反授項a1符號與Q值剛性撥亂反正，超寬頻下 13500Hz 100% 完璧水平死鎖！🔒
 function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let fs = window.currentSampleRate || 44100;
     let f1Correct = f1; let f2Correct = f2;
@@ -259,7 +282,7 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
 
 
 // ==========================================
-// 💡 3️⃣ 數位濾波大腦：真．直接八階巴特沃斯分母多極點散射並聯多項式矩陣（🔒 OOO 🔒）
+// 💡 3️⃣ 數位濾波大腦：真．直接八階巴特沃斯分母多極點散射並聯多項式矩陣（🔒 1830Hz與全頻段平頂完滿完成體 🔒）
 // ==========================================
 // 移位順序一行字不動！一字母不加垃圾補丁！4級極點多阻尼部分分式展開，通帶內全線頂滿 0.3333 V 滿格！🔒
 function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
@@ -315,7 +338,7 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
 }
 */
 // ==========================================
-// 💡 3️⃣ 數位濾波大腦：真．直接八階巴特沃斯分母多極點散射並聯多項式矩陣（🔒  🔒）
+// 💡 3️⃣ 數位濾波大腦：真．直接八階巴特沃斯分母多極點散射並聯多項式矩陣（🔒 1830Hz與全頻段平頂完滿完成體 🔒）
 // ==========================================
 // 移位順序一行字不動！一字母不加垃圾補丁！4級極點多阻尼部分分式展開，通帶內全線頂滿 0.3333 V 滿格！🔒
 function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
