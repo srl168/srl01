@@ -430,9 +430,14 @@ function printLog(f1, f2) {
         console.log("當前模式 (Mode):", window.currentFilterMode);
         console.log("驗證頻率 (SinF):", window.currentSinFreq);
         console.log("最強頻率 (Test0):", window.test.toFixed(6),  window.test_1.toFixed(6));
+        console.log("測一頻率 (Test1):", window.test1.toFixed(6), window.test1_1.toFixed(6));
+        console.log("測二頻率 (Test2):", window.test2.toFixed(6), window.test2_1.toFixed(6));
+        console.log("測三頻率 (Test3):", window.test3.toFixed(6), window.test3_1.toFixed(6));
+		/*
         console.log("測一頻率 (Test1):", window.sim1, window.test1.toFixed(6));
         console.log("測二頻率 (Test2):", window.sim2, window.test2.toFixed(6));
         console.log("測三頻率 (Test3):", window.sim3, window.test3.toFixed(6));
+		*/
         console.log("名義引數邊界 (f1/f2):", f1, f2);
         console.log("📊 複合波實時輸出 VPP:", window.currentVPP.toFixed(6), "V");
         console.log("=====================================");
@@ -782,6 +787,7 @@ window.currentVPP = maxRealVal - minRealVal;
     let magnitudes = new Float32Array(window.FFT_SIZE / 2);
     let maxMag = 0;
     let minFreq = -1;
+    let midFreq = 0;
     let maxFreq = 0;
     let peakBinIndex = 0; 
 	
@@ -791,25 +797,30 @@ window.currentVPP = maxRealVal - minRealVal;
 		    maxMag = magnitudes[m];
             peakBinIndex = m;
         }			
-        if (magnitudes[m] > 0.1) maxFreq = m;
-//        if (magnitudes[m] > 0.1) {
-//		      maxFreq = m;
-//            if (minFreq < 0) minFreq = m;
-//		}
+//      if (magnitudes[m] > 0.1) maxFreq = m;
+        if (magnitudes[m] > 0.1) { //ma {xFreq) {
+		    maxFreq = m;
+            if (minFreq < 0) minFreq = m;
+            if (maxFreq > minFreq) midFreq = m;
+		}
 	}
     maxDisplayFreq = maxFreq * hzPerBin * 1.15; // 動態預留 15% 科技感幾何邊界
 	
 window.test = peakBinIndex * hzPerBin;
-window.test_1 = magnitudes[peakBinIndex];
+window.test1 = minFreq;
+window.test2 = midFreq;
+window.test3 = maxFreq;
 
+window.test_1 = magnitudes[peakBinIndex];
+window.test1_1 = magnitudes[minFreq];
+window.test2_1 = magnitudes[midFreq];
+window.test3_1 = magnitudes[maxFreq];
+/*
 window.test1 = magnitudes[Math.trunc( window.sim1 / hzPerBin)];
 window.test2 = magnitudes[Math.trunc( window.sim2 / hzPerBin)];
 window.test3 = magnitudes[Math.trunc( window.sim3 / hzPerBin)];
-
+*/
 /*
-window.test1_1 = magnitudes[minFreq];
-window.test2_1 = magnitudes[maxFreq];
-window.test3_1 = magnitudes[maxFreq];
 */
     
     let currentFrameMaxMag = maxMag; 
