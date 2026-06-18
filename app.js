@@ -85,7 +85,7 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================
-// 💡 2️⃣ 各自 F1, F2 精密係數計算公式
+// 💡 2️⃣ 各自 F1, F2 精密係數計算公式 
 // ==========================================
 window.updateFilterCoefficients = function() {};
 
@@ -101,7 +101,7 @@ function runBiquadStage(x, b0, b1, b2, a1, a2, xv, yv) {
     return yv[0];
 }
 /*
-// 🚀 🔒 【真．正宗直接八階帶通最大平坦平頂 Filter Bank 組件】
+// 🚀 🔒 【真．正宗直接八階帶通最大平坦平頂 Filter Bank 組件】  XXXXXX
 function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let fs = window.currentSampleRate || 44100;
     let f1Correct = f1; let f2Correct = f2;
@@ -145,9 +145,9 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
 
 
 // ==========================================
-// 💡 3️⃣ 數位濾波大腦：真．正宗直接八階巴特沃斯帶通最大平坦平頂矩陣（🔒 終極完美大破關完全體 🔒）
+// 💡 3️⃣ 數位濾波大腦：真．正宗直接八階巴特沃斯帶通最大平坦平頂矩陣（🔒 OOOO 🔒）
 // ==========================================
-// 移位順序一行字不動！0加工！0外加補丁！4級極點幾何正交嚙合，通帶內高高位平頂全線頂滿 0.3333 V 滿格！🔒
+// 4級極點幾何正交嚙合，通帶內高高位平頂全線頂滿 0.3333 V 滿格！🔒
 function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let fs = window.currentSampleRate || 44100;
     let f1Correct = f1; let f2Correct = f2;
@@ -202,9 +202,9 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
 
 
 // ==========================================
-// 💡 3️⃣ 數位濾波大腦：真．正宗巴特沃斯高低通解耦級聯 Filter Bank（🔒 0補釘．全頻段平頂大破關完全體 🔒）
+// 💡 3️⃣ 數位濾波大腦：真．正宗巴特沃斯高低通解耦級聯 Filter Bank（🔒  🔒）
 // ==========================================
-// 移位順序一行字不動！高低通物理獨立解耦串聯，反授項a1符號與Q值剛性撥亂反正，超寬頻下 13500Hz 100% 完璧水平死鎖！🔒
+// 高低通物理獨立解耦串聯，反授項a1符號與Q值剛性撥亂反正，超寬頻下 13500Hz 100% 完璧水平死鎖！🔒
 function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let fs = window.currentSampleRate || 44100;
     let f1Correct = f1; let f2Correct = f2;
@@ -259,7 +259,7 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
 
 
 // ==========================================
-// 💡 3️⃣ 數位濾波大腦：真．直接八階巴特沃斯分母多極點散射並聯多項式矩陣（🔒 1830Hz與全頻段平頂完滿完成體 🔒）
+// 💡 3️⃣ 數位濾波大腦：真．直接八階巴特沃斯分母多極點散射並聯多項式矩陣（🔒  🔒）
 // ==========================================
 // 移位順序一行字不動！一字母不加垃圾補丁！4級極點多阻尼部分分式展開，通帶內全線頂滿 0.3333 V 滿格！🔒
 function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
@@ -315,10 +315,10 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
 }
 */
 // ==========================================
-// 💡 3️⃣ 數位濾波大腦：真．直接八階巴特沃斯分母多極點散射並聯多項式矩陣（🔒 1830Hz與全頻段平頂完滿完成體 🔒）
+// 💡 3️⃣ 數位濾波大腦：真．直接八階巴特沃斯分母多極點散射並聯多項式矩陣（🔒  🔒）
 // ==========================================
 // 移位順序一行字不動！一字母不加垃圾補丁！4級極點多阻尼部分分式展開，通帶內全線頂滿 0.3333 V 滿格！🔒
-ffunction runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
+function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let fs = window.currentSampleRate || 44100;
     let f1Correct = f1; let f2Correct = f2;
     if (f2Correct <= f1Correct) f2Correct = f1Correct + 10;
@@ -358,7 +358,7 @@ ffunction runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     b0_4 = b0_L; b1_4 = b1_L; b2_4 = b2_L; a1_4 = a1_L; a2_4 = a2_L;
 
     // 歷史迭代四級時域直接級聯推移 — 100% 遵照您指定的最高完美、先2後1再0遞推移位順序 🔒
-    let s1 = runBiquadStage(x, b0_1, b1_1, b2_1, a1_1, a2_1, chState.xv, chState.yv);
+    let s1 = runBiquadStage( x, b0_1, b1_1, b2_1, a1_1, a2_1, chState.xv, chState.yv);
     let s2 = runBiquadStage(s1, b0_2, b1_2, b2_2, a1_2, a2_2, chState.xv2, chState.yv2);
     let s3 = runBiquadStage(s2, b0_3, b1_3, b2_3, a1_3, a2_3, chState.xv3, chState.yv3);
     let s4 = runBiquadStage(s3, b0_4, b1_4, b2_4, a1_4, a2_4, chState.xv4, chState.yv4);
