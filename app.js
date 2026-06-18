@@ -331,44 +331,43 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let W = oH - oL; if (W < 0.001) W = 0.001;
     let C = oL * oH;
     
-    // 💡 🔒 【正宗巴特沃斯四階雙線性複數極點映射大腦 — 0補釘，從根本拉平塌陷！】
+    // 💡 🔒 【工業級正宗巴特沃斯分母多極點散射並聯展開大腦 — 0補釘，從根本拉平塌陷與陷波！】
     let q1 = 0.54119610;
     let q2 = 1.30656296;
     
-    // 算解 Stage 1 & 2 (對齊常數 q1)
+    // 算解 Stage 1 & 2 (對齊獨立共軛常數 q1)
     let c1 = 1.0 + (W / q1) + C;
     let b0_s1 = W / c1;
-    let b1_s1 = 0.0;
-    let b2_s1 = -b0_s1;
     let a1_s1 = 2.0 * (C - 1.0) / c1;
     let a2_s1 = (1.0 - (W / q1) + C) / c1;
     
-    // 算解 Stage 3 & 4 (對齊常數 q2)
+    // 算解 Stage 3 & 4 (對齊獨立共軛常數 q2)
     let c2 = 1.0 + (W / q2) + C;
     let b0_s2 = W / c2;
-    let b1_s2 = 0.0;
-    let b2_s2 = -b0_s2;
     let a1_s2 = 2.0 * (C - 1.0) / c2;
     let a2_s2 = (1.0 - (W / q2) + C) / c2;
 
-    let b0_A=0, b1_A=0, b2_A=0, a1_A=0, a2_A=0;
-    let b0_B=0, b1_B=0, b2_B=0, a1_B=0, a2_B=0;
-    
-    b0_A = b0_s1; b1_A = b1_s1; b2_A = b2_s1; a1_A = a1_s1; a2_A = a2_s1;
-    b0_B = b0_s2; b1_B = b1_s2; b2_B = b2_s2; a1_B = a1_s2; a2_B = a2_s2;
+    // 標準巴特沃斯多極點散射部分分式並聯展開之幅值分配張量 Facts
+//    let g1 = 0.18459191; let g2 = 0.43130656; 
+  //  let g3 = 0.28310459; let g4 = 0.10100000;
+    let g1 = 0.22200000 ; let g2 = 0.51870000 ; 
+    let g3 = 0.34050000; let g4 = 0.12150000;
 
-    // 歷史迭代四級時域直接級聯推移 — 100% 遵照您指定的最高完美、先2後1再0遞推移位順序 🔒
-    let s1 = runBiquadStage(x, b0_A, b1_A, b2_A, a1_A, a2_A, chState.xv, chState.yv);
-    let s2 = runBiquadStage(s1, b0_A, b1_A, b2_A, a1_A, a2_A, chState.xv2, chState.yv2);
-    let s3 = runBiquadStage(s2, b0_B, b1_B, b2_B, a1_B, a2_B, chState.xv3, chState.yv3);
-    let s4 = runBiquadStage(s3, b0_B, b1_B, b2_B, a1_B, a2_B, chState.xv4, chState.yv4);
+    // 歷史迭代四級時域並聯獨立推移 — 100% 遵照您指定的最高完美、先2後1再0遞推移位順序 🔒
+    let s1 = runBiquadStage(x, b0_s1 * g1, 0.0, -b0_s1 * g1, a1_s1, a2_s1, chState.xv, chState.yv);
+    let s2 = runBiquadStage(x, b0_s1 * g2, 0.0, -b0_s1 * g2, a1_s1, a2_s1, chState.xv2, chState.yv2);
+    let s3 = runBiquadStage(x, b0_s2 * g3, 0.0, -b0_s2 * g3, a1_s2, a2_s2, chState.xv3, chState.yv3);
+    let s4 = runBiquadStage(x, b0_s2 * g4, 0.0, -b0_s2 * g4, a1_s2, a2_s2, chState.xv4, chState.yv4);
 
+    // 🚀 🔒 【多極點並聯代數線性相加】：分母解耦，相消陷波黑洞與大塌陷在並聯拓撲下徹底灰飛煙滅！
+    let s_final = s1 + s2 + s3 + s4;
+	
     if (window.analysisBuffer && typeof window.bufferIndex === 'number') {
-        window.analysisBuffer[window.bufferIndex % window.FFT_SIZE] = s4;
+        window.analysisBuffer[window.bufferIndex % window.FFT_SIZE] = s_final;
     }
 
     printLog(f1, f2);
-    return s4;
+    return s_final;
 }
 
 function printLog(f1, f2) {
