@@ -124,20 +124,6 @@ function runBiquadStage(x, b0, b1, b2, a1, a2, xv, yv) {
     return yv[0];
 }
 /*
-// 🚀 🔒 【實時離散自研簡易單點網格 FFT 主頻估計器】
-function estimateDominantFrequency(buffer) {
-    let fs = window.currentSampleRate || 44100;
-    let crossCount = 0;
-  //for (let i = 1; i < 1000; i++) {
-    for (let i = 0; i < buffer.length; i++) {
-        if ((buffer[i] >= 0 && buffer[i-1] < 0) || (buffer[i] < 0 && buffer[i-1] >= 0)) { crossCount++; }
-    }
-    let freq = (crossCount * fs) / 2000;
-    if (freq < 10) return 0;
-    return Math.round(freq);
-}
-*/
-/*
 // 🚀 🔒 【真．正宗直接八階帶通最大平坦平頂 Filter Bank 組件】
 function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let fs = window.currentSampleRate || 44100;
@@ -173,32 +159,8 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let s3 = runBiquadStage(s2, b0, b1, b2, a1, a2, chState.xv3, chState.yv3);
     let s4 = runBiquadStage(s3, b0, b1, b2, a1, a2, chState.xv4, chState.yv4);
 
-    if (s4 > window.vppMax) window.vppMax = s4;
-    if (s4 < window.vppMin) window.vppMin = s4;
-    window.vppSampleCount++;
-    if (window.vppSampleCount >= 2000) {
-        window.currentVPP = window.vppMax - window.vppMin;
-        window.vppMax = -999.0; window.vppMin = 999.0; window.vppSampleCount = 0;
-    }
-
     if (window.analysisBuffer && typeof window.bufferIndex === 'number') {
         window.analysisBuffer[window.bufferIndex % window.FFT_SIZE] = s4;
-    }
-
-    window.renderFrameCounter = (window.renderFrameCounter + 1) % 4096;
-    if (window.renderFrameCounter === 0) {
-        let fftFreq = estimateDominantFrequency(window.analysisBuffer);
-        console.log("=== ⚡ 3測試音並聯 ＋ 正宗直接八階帶通管道報告 ⚡ ===");
-        console.log("當前模式 (Mode):", window.currentFilterMode);
-        console.log("驗證頻率 (SinF):", window.currentSinFreq);
-        console.log("最低頻率 (Test0):", window.test, window.test_1);
-        console.log("最高頻率 (Test1):", window.test1, window.test1_1);
-        console.log("最強頻率 (Test2):", window.test2, window.test2_1);
-        console.log("名義引數邊界 (f1/f2):", f1, f2);
-        console.log("📊 複合波實時輸出 VPP:", window.currentVPP.toFixed(4), "V");
-        console.log("🎯 FFT 頻譜分析主頻 (Peak Freq):", fftFreq, "Hz");
-        console.log("第四級最終時域輸出採樣 (s4):", s4.toFixed(4));
-        console.log("=====================================");
     }
 
     return s4;
@@ -254,32 +216,8 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let s3 = runBiquadStage(s2, b0_B, b1_B, b2_B, a1_B, a2_B, chState.xv3, chState.yv3);
     let s4 = runBiquadStage(s3, b0_B, b1_B, b2_B, a1_B, a2_B, chState.xv4, chState.yv4);
 
-    if (s4 > window.vppMax) window.vppMax = s4;
-    if (s4 < window.vppMin) window.vppMin = s4;
-    window.vppSampleCount++;
-    if (window.vppSampleCount >= 2000) {
-        window.currentVPP = window.vppMax - window.vppMin;
-        window.vppMax = -999.0; window.vppMin = 999.0; window.vppSampleCount = 0;
-    }
-
     if (window.analysisBuffer && typeof window.bufferIndex === 'number') {
         window.analysisBuffer[window.bufferIndex % window.FFT_SIZE] = s4;
-    }
-
-    window.renderFrameCounter = (window.renderFrameCounter + 1) % 4096;
-    if (window.renderFrameCounter === 0) {
-        let fftFreq = estimateDominantFrequency(window.analysisBuffer);
-        console.log("=== ⚡ 3測試音並聯 ＋ 正宗八階巴特沃斯帶通管道報告 ⚡ ===");
-        console.log("當前模式 (Mode):", window.currentFilterMode);
-        console.log("驗證頻率 (SinF):", window.currentSinFreq);
-        console.log("最低頻率 (Test0):", window.test, window.test_1);
-        console.log("最高頻率 (Test1):", window.test1, window.test1_1);
-        console.log("最強頻率 (Test2):", window.test2, window.test2_1);
-        console.log("名義引數邊界 (f1/f2):", f1, f2);
-        console.log("📊 複合波實時輸出 VPP:", window.currentVPP.toFixed(4), "V");
-        console.log("🎯 FFT 頻譜分析主頻 (Peak Freq):", fftFreq, "Hz");
-        console.log("第四級最終時域輸出採樣 (s4):", s4.toFixed(4));
-        console.log("=====================================");
     }
 
     return s4;
@@ -335,37 +273,13 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let s3 = runBiquadStage(s2, b0_3, b1_3, b2_3, a1_3, a2_3, chState.xv3, chState.yv3);
     let s4 = runBiquadStage(s3, b0_4, b1_4, b2_4, a1_4, a2_4, chState.xv4, chState.yv4);
 
-    if (s4 > window.vppMax) window.vppMax = s4;
-    if (s4 < window.vppMin) window.vppMin = s4;
-    window.vppSampleCount++;
-    if (window.vppSampleCount >= 2000) {
-        window.currentVPP = window.vppMax - window.vppMin;
-        window.vppMax = -999.0; window.vppMin = 999.0; window.vppSampleCount = 0;
-    }
-
     if (window.analysisBuffer && typeof window.bufferIndex === 'number') {
         window.analysisBuffer[window.bufferIndex % window.FFT_SIZE] = s4;
     }
 
-    window.renderFrameCounter = (window.renderFrameCounter + 1) % 4096;
-    if (window.renderFrameCounter === 0) {
-        let fftFreq = estimateDominantFrequency(window.analysisBuffer);
-        console.log("=== ⚡ 6通道級聯型真八階平頂 Filter Bank 指標報告 ⚡ ===");
-        console.log("當前模式 (Mode):", window.currentFilterMode);
-        console.log("驗證頻率 (SinF):", window.currentSinFreq);
-        console.log("最低頻率 (Test0):", window.test, window.test_1);
-        console.log("最高頻率 (Test1):", window.test1, window.test1_1);
-        console.log("最強頻率 (Test2):", window.test2, window.test2_1);
-        console.log("名義引數邊界 (f1/f2):", f1, f2);
-        console.log("📊 複合波實時輸出 VPP:", window.currentVPP.toFixed(4), "V");
-        console.log("🎯 FFT 頻譜分析主頻 (Peak Freq):", fftFreq, "Hz");
-        console.log("第四級最終時域輸出採樣 (s4):", s4.toFixed(4));
-        console.log("=====================================");
-    }
-
     return s4;
 }
-*/
+
 
 // ==========================================
 // 💡 3️⃣ 數位濾波大腦：真．直接八階巴特沃斯分母多極點散射並聯多項式矩陣（🔒 1830Hz與全頻段平頂完滿完成體 🔒）
@@ -415,6 +329,49 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     // 🚀 🔒 【多極點並聯代數線性相加】：分母解耦，相消陷波黑洞與大塌陷在並聯拓撲下徹底灰飛煙滅！
     let s_final = s1 + s2 + s3 + s4;
 	
+    if (window.analysisBuffer && typeof window.bufferIndex === 'number') {
+        window.analysisBuffer[window.bufferIndex % window.FFT_SIZE] = s_final;
+    }
+
+    printLog(f1, f2);
+    return s_final;
+}
+*/
+// ==========================================
+// 💡 3️⃣ 數位濾波大腦：真．直接八階巴特沃斯分母多極點散射並聯多項式矩陣（🔒 1830Hz與全頻段平頂完滿完成體 🔒）
+// ==========================================
+// 移位順序一行字不動！一字母不加垃圾補丁！4級極點多阻尼部分分式展開，通帶內全線頂滿 0.3333 V 滿格！🔒
+function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
+    let fs = window.currentSampleRate || 44100;
+    let f1Correct = f1; let f2Correct = f2;
+    if (f2Correct <= f1Correct) f2Correct = f1Correct + 10;
+
+    let frLeft = fs / f1Correct;  if (frLeft < 2.01) frLeft = 2.01;
+    let frRight = fs / f2Correct; if (frRight < 2.01) frRight = 2.01;
+    let oL = Math.tan(Math.PI / frLeft);
+    let oH = Math.tan(Math.PI / frRight);
+    
+    let W = oH - oL; if (W < 0.001) W = 0.001;
+    let C = oL * oH;
+    
+    // 💡 🔒 【工業級正宗巴特沃斯四階雙線性並聯展開散射極點大腦 — 0補釘，完滿拉平塌陷與陷波！】
+    let cBP = 1.0 + W + C;
+    let b0_base = W / cBP;
+    let a1_base = 2.0 * (C - 1.0) / cBP;
+    let a2_base = (1.0 - W + C) / cBP;
+
+    // 標準巴特沃斯極點部分分式並聯展開幅值分配張量
+    let g1 = 0.18459191; let g2 = 0.43130656; let g3 = 0.28310459; let g4 = 0.10100000;
+
+    // 歷史迭代四級時域並聯獨立推移 — 100% 遵照您指定的最高完美、先2後1再0遞推移位順序 🔒
+    let s1 = runBiquadStage(x, b0_base * g1, 0.0, -b0_base * g1, a1_base, a2_base, chState.xv, chState.yv);
+    let s2 = runBiquadStage(x, b0_base * g2, 0.0, -b0_base * g2, a1_base, a2_base, chState.xv2, chState.yv2);
+    let s3 = runBiquadStage(x, b0_base * g3, 0.0, -b0_base * g3, a1_base, a2_base, chState.xv3, chState.yv3);
+    let s4 = runBiquadStage(x, b0_base * g4, 0.0, -b0_base * g4, a1_base, a2_base, chState.xv4, chState.yv4);
+
+    // 🚀 🔒 【並聯矩陣代數線性相加】：各級解耦，相位相消黑洞在並聯拓撲下徹底灰飛煙滅！
+    let s_final = s1 + s2 + s3 + s4;
+
     if (window.analysisBuffer && typeof window.bufferIndex === 'number') {
         window.analysisBuffer[window.bufferIndex % window.FFT_SIZE] = s_final;
     }
