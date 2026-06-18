@@ -48,29 +48,6 @@ window.test1 = 0.0; window.test1_1 = 0.0;
 window.test2 = 0.0; window.test2_1 = 0.0;
 window.test3 = 0.0; window.test3_1 = 0.0;
 
-/*
-// 🚀 🔒 【真．多通道立體聲標準整數中括號陣列大內存池物件 — 左右耳 1對1 完全對稱 🔒】
-window.filterStates = {
-    LP_ch1: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
-    LP_ch2: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
-    HP_ch1: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
-    HP_ch2: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
-    BP_ch1: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) },
-    BP_ch2: { xv: new Float32Array(3), yv: new Float32Array(3), xv2: new Float32Array(3), yv2: new Float32Array(3), xv3: new Float32Array(3), yv3: new Float32Array(3), xv4: new Float32Array(3), yv4: new Float32Array(3) }
-};
-
-window.resetAllFilterStates = function() {
-    for (let key in window.filterStates) {
-        if (window.filterStates.hasOwnProperty(key)) {
-            window.filterStates[key].xv.fill(0);  window.filterStates[key].yv.fill(0);
-            window.filterStates[key].xv2.fill(0); window.filterStates[key].yv2.fill(0);
-            window.filterStates[key].xv3.fill(0); window.filterStates[key].yv3.fill(0);
-            window.filterStates[key].xv4.fill(0); window.filterStates[key].yv4.fill(0);
-        }
-    }
-    window.vppMax = -999.0; window.vppMin = 999.0; window.vppSampleCount = 0; window.currentVPP = 0.0;
-};
-*/
 
 // 🚀 🔒 【真．多通道立體聲大內存池 FOR LOOP 自動初始化防線】
 window.filterStates = {};
@@ -341,43 +318,58 @@ function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
 // 💡 3️⃣ 數位濾波大腦：真．直接八階巴特沃斯分母多極點散射並聯多項式矩陣（🔒 1830Hz與全頻段平頂完滿完成體 🔒）
 // ==========================================
 // 移位順序一行字不動！一字母不加垃圾補丁！4級極點多阻尼部分分式展開，通帶內全線頂滿 0.3333 V 滿格！🔒
-function runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
+ffunction runEightPoleFilterBankBP(x, f1, f2, chState, mode) {
     let fs = window.currentSampleRate || 44100;
     let f1Correct = f1; let f2Correct = f2;
     if (f2Correct <= f1Correct) f2Correct = f1Correct + 10;
 
-    let frLeft = fs / f1Correct;  if (frLeft < 2.01) frLeft = 2.01;
-    let frRight = fs / f2Correct; if (frRight < 2.01) frRight = 2.01;
-    let oL = Math.tan(Math.PI / frLeft);
-    let oH = Math.tan(Math.PI / frRight);
-    
-    let W = oH - oL; if (W < 0.001) W = 0.001;
-    let C = oL * oH;
-    
-    // 💡 🔒 【工業級正宗巴特沃斯四階雙線性並聯展開散射極點大腦 — 0補釘，完滿拉平塌陷與陷波！】
-    let cBP = 1.0 + W + C;
-    let b0_base = W / cBP;
-    let a1_base = 2.0 * (C - 1.0) / cBP;
-    let a2_base = (1.0 - W + C) / cBP;
+    // 💡 🔒 【100% 原創好的、正宗二階巴特沃斯對稱散射臨界常數定盤 — 0修改】
+    let q1 = 0.70710678; 
 
-    // 標準巴特沃斯極點部分分式並聯展開幅值分配張量
-    let g1 = 0.18459191; let g2 = 0.43130656; let g3 = 0.28310459; let g4 = 0.10100000;
+    // 🛑 A. 真．二階高通多項式（強控 F1 低頻下限 — 🔒 兩級連環組件 100% 解耦獨立！）
+    let frH = fs / f1Correct; if (frH < 2.01) frH = 2.01;
+    let oH = Math.tan(Math.PI / frH);
+    let cH = 1.0 + (oH / q1) + (oH * oH);
+    let b0_H = 1.0 / cH;
+    let b1_H = -2.0 * b0_H;
+    let b2_H = b0_H;
+    let a1_H = 2.0 * (1.0 - oH * oH) / cH;
+    let a2_H = (1.0 - (oH / q1) + (oH * oH)) / cH;
 
-    // 歷史迭代四級時域並聯獨立推移 — 100% 遵照您指定的最高完美、先2後1再0遞推移位順序 🔒
-    let s1 = runBiquadStage(x, b0_base * g1, 0.0, -b0_base * g1, a1_base, a2_base, chState.xv, chState.yv);
-    let s2 = runBiquadStage(x, b0_base * g2, 0.0, -b0_base * g2, a1_base, a2_base, chState.xv2, chState.yv2);
-    let s3 = runBiquadStage(x, b0_base * g3, 0.0, -b0_base * g3, a1_base, a2_base, chState.xv3, chState.yv3);
-    let s4 = runBiquadStage(x, b0_base * g4, 0.0, -b0_base * g4, a1_base, a2_base, chState.xv4, chState.yv4);
+    // 🛑 B. 真．二階低通多項式（強控 F2 高頻上限 — 🔒 兩級連環組件 100% 解耦獨立！）
+    let frL = fs / f2Correct; if (frL < 2.01) frL = 2.01;
+    let oL = Math.tan(Math.PI / frL);
+    let cL = 1.0 + (oL / q1) + (oL * oL);
+    let b0_L = (oL * oL) / cL;
+    let b1_L = 2.0 * b0_L;
+    let b2_L = b0_L;
+    let a1_L = 2.0 * (oL * oL - 1.0) / cL;
+    let a2_L = (1.0 - (oL / q1) + (oL * oL)) / cL;
 
-    // 🚀 🔒 【並聯矩陣代數線性相加】：各級解耦，相位相消黑洞在並聯拓撲下徹底灰飛煙滅！
-    let s_final = s1 + s2 + s3 + s4;
+    let b0_1=0, b1_1=0, b2_1=0, a1_1=0, a2_1=0;
+    let b0_2=0, b1_2=0, b2_2=0, a1_2=0, a2_2=0;
+    let b0_3=0, b1_3=0, b2_3=0, a1_3=0, a2_3=0;
+    let b0_4=0, b1_4=0, b2_4=0, a1_4=0, a2_4=0;
 
+    // 🚀 🔒 【真．物理解耦串聯級聯拓撲】：完全還原回原創代碼，不搞任何外圍垃圾補丁！🔒
+    b0_1 = b0_H; b1_1 = b1_H; b2_1 = b2_H; a1_1 = a1_H; a2_1 = a2_H;
+    b0_2 = b0_H; b1_2 = b1_H; b2_2 = b2_H; a1_2 = a1_H; a2_2 = a2_H;
+    b0_3 = b0_L; b1_3 = b1_L; b2_3 = b2_L; a1_3 = a1_L; a2_3 = a2_L;
+    b0_4 = b0_L; b1_4 = b1_L; b2_4 = b2_L; a1_4 = a1_L; a2_4 = a2_L;
+
+    // 歷史迭代四級時域直接級聯推移 — 100% 遵照您指定的最高完美、先2後1再0遞推移位順序 🔒
+    let s1 = runBiquadStage(x, b0_1, b1_1, b2_1, a1_1, a2_1, chState.xv, chState.yv);
+    let s2 = runBiquadStage(s1, b0_2, b1_2, b2_2, a1_2, a2_2, chState.xv2, chState.yv2);
+    let s3 = runBiquadStage(s2, b0_3, b1_3, b2_3, a1_3, a2_3, chState.xv3, chState.yv3);
+    let s4 = runBiquadStage(s3, b0_4, b1_4, b2_4, a1_4, a2_4, chState.xv4, chState.yv4);
+
+    // 將最純淨、無任何指標污染的濾波輸出信號實時灌入緩衝區，100% 直通全域畫布圖表！
     if (window.analysisBuffer && typeof window.bufferIndex === 'number') {
-        window.analysisBuffer[window.bufferIndex % window.FFT_SIZE] = s_final;
+        window.analysisBuffer[window.bufferIndex % window.FFT_SIZE] = s4;
     }
 
     printLog(f1, f2);
-    return s_final;
+    return s4;
 }
 
 function printLog(f1, f2) {
